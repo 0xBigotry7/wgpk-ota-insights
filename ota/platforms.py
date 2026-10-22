@@ -26,6 +26,7 @@ class Page:
     slug: str
     url: str                     # absolute, or a template filled from the landing URL's query (Booking)
     verified: bool = False
+    settle_ms: int = 0           # extra wait for slow dashboards, on top of config.SETTLE_MS
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,7 @@ PLATFORMS: tuple[Platform, ...] = (
         # Booking puts hotel_id and a session token (ses) in every extranet URL; both come from the
         # landing redirect, never from a form.
         Page("reviews", f"{BOOKING}/reviews.html?{BOOKING_Q}", verified=True),
+        # Redirects to 403.html for this login (needs the "Property details" permission).
         Page("content-score", f"{BOOKING}/content_score.html?{BOOKING_Q}", verified=True),
         Page("sales-insights", f"{BOOKING}/statistics/sales_insights.html?{BOOKING_Q}"
                                "&benchmark=PEER_GROUP&reservationType=BOOKED", verified=True),
@@ -54,18 +56,22 @@ PLATFORMS: tuple[Platform, ...] = (
     )),
     Platform("agoda", "Agoda YCS", f"https://portal.agoda.com/mldc/en-us/app/setting/review/{AGODA_ID}", (
         Page("inbox", f"https://portal.agoda.com/mldc/en-us/app/hermes/inbox/ycs/{AGODA_ID}", verified=True),
+        # Both guesses land on portal.agoda.com/en-us/Error/NotFound/ (run 20261022-174905); kept so the
+        # page-status check keeps reporting them until the real report URLs are found.
         Page("dashboard", f"https://ycs.agoda.com/mldc/en-us/app/dashboard/{AGODA_ID}"),           # UNVERIFIED
         Page("performance", f"https://ycs.agoda.com/mldc/en-us/app/reports/performance/{AGODA_ID}"),  # UNVERIFIED
     )),
     Platform("expedia", "Expedia", "https://apps.expediapartnercentral.com/lodging/review/user_reviews.html"
                                    f"?htid={EXPEDIA_ID}", (
+        # Expedia's metric tiles load seconds after the page ("We're having trouble loading it" until then).
         Page("data-insights", "https://apps.expediapartnercentral.com/supply/data-insights-hub"
-                              f"?propertyId={EXPEDIA_ID}", verified=True),
-        Page("home", f"https://apps.expediapartnercentral.com/lodging/home/home?htid={EXPEDIA_ID}"),  # UNVERIFIED
+                              f"?propertyId={EXPEDIA_ID}", verified=True, settle_ms=14000),
+        Page("home", f"https://apps.expediapartnercentral.com/supply/home?propertyId={EXPEDIA_ID}",
+             verified=True, settle_ms=14000),
     )),
     Platform("ctrip", "Ctrip eBooking", "https://ebooking.ctrip.com/comment/commentList?microJump=true", (
         Page("home", "https://ebooking.ctrip.com/home/oversea?microJump=true", verified=True),
-        Page("data-center", "https://ebooking.ctrip.com/datacenter/index"),        # UNVERIFIED
+        Page("data-center", "https://ebooking.ctrip.com/datacenter/index"),        # UNVERIFIED: redirects home
     )),
     Platform("google", "Google Business", "https://business.google.com/u/1/reviews", ()),
     Platform("tripadvisor", "TripAdvisor",
@@ -104,6 +110,37 @@ def signed_out(url: str, text: str) -> str | None:
     head = text[:3000]
     if m := LOGIN_TEXT.search(head):
         return f"login wording '{m.group(0)}'"
+    return None
+
+
+# Pages that loaded but are not the dashboard asked for. Seen on run 20261022-174905.
+ERROR_PATH = re.compile(r"/(403|404|error|notfound)(\.html)?(/|$)", re.IGNORECASE)
+MISSING_TEXT = re.compile(r"404 Page Not Found|page or file not found|This page is protected|页面不存在",
+                          re.IGNORECASE)
+NOT_LOADED_TEXT = re.compile(r"We're having trouble loading it", re.IGNORECASE)
+
+
+def _last_segment(url: str) -> str:
+    parts = [p for p in urlparse(url).path.split("/") if p]
+    return parts[-1].lower() if parts else ""
+
+
+def page_problem(requested: str, final: str, text: str) -> tuple[str, str] | None:
+    """(status, detail) when a page that loaded is not usable, else None.
+
+    page_missing: an error/403 page, or a redirect away from the page asked for (e.g. back to the home
+    page). error: the page is right but its numbers did not load.
+    """
+    path = urlparse(final).path
+    if ERROR_PATH.search(path):
+        return "page_missing", f"redirected to {path}"
+    if m := MISSING_TEXT.search(text[:3000]):
+        return "page_missing", f"page says '{m.group(0)}'"
+    want = _last_segment(requested)
+    if want and want not in path.lower():
+        return "page_missing", f"redirected to {path}"
+    if n := len(NOT_LOADED_TEXT.findall(text)):
+        return "error", f"{n} widget(s) did not load"
     return None
 
 

@@ -26,6 +26,7 @@ RUN_DEADLINE_S = int(os.environ.get("WGPK_OTA_DEADLINE_S", "600"))
 PAGE_TIMEOUT_MS = 45000
 SETTLE_MS = 6000          # let a dashboard finish rendering before reading it
 PAUSE_BETWEEN_PAGES_MS = 4000
+RETRY_WAIT_MS = 15000     # one more wait when a page's widgets have not loaded yet
 
 # Cockpit (Cloudflare Worker). The token lives in SECRETS/env as OTA_INGEST_TOKEN=..., never in the repo.
 COCKPIT_URL = os.environ.get("WGPK_OTA_COCKPIT_URL", "https://ota.wyndhamgardenkamala.com")

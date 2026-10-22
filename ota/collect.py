@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 
 from . import config, store
-from .platforms import PLATFORMS, Platform, fill, signed_out
+from .platforms import PLATFORMS, Platform, fill, page_problem, signed_out
 from .readonly import ReadOnlyTab
 
 BKK = dt.timezone(dt.timedelta(hours=7))
@@ -28,8 +28,8 @@ def _private_dir(p: Path) -> Path:
     return p
 
 
-async def _read_page(tab: ReadOnlyTab, url: str, out: Path, slug: str) -> dict:
-    status = await tab.open(url, config.PAGE_TIMEOUT_MS, config.SETTLE_MS)
+async def _read_page(tab: ReadOnlyTab, url: str, out: Path, slug: str, settle_ms: int = 0) -> dict:
+    status = await tab.open(url, config.PAGE_TIMEOUT_MS, config.SETTLE_MS + settle_ms)
     text = await tab.text()
     row = {"slug": slug, "url": tab.url, "http_status": status, "title": await tab.title()}
     why = signed_out(tab.url, text)
@@ -37,12 +37,21 @@ async def _read_page(tab: ReadOnlyTab, url: str, out: Path, slug: str) -> dict:
         return row | {"status": "signed_out", "detail": why}
     if status and status >= 400:
         return row | {"status": "page_missing", "detail": f"HTTP {status}"}
+    problem = page_problem(url, tab.url, text) if slug != "landing" else None
+    if problem and problem[0] == "error":
+        await tab.pause(config.RETRY_WAIT_MS)          # slow widgets: wait once more, then read again
+        text = await tab.text()
+        problem = page_problem(url, tab.url, text)
+    if problem and problem[0] == "page_missing":
+        return row | {"status": "page_missing", "detail": problem[1]}
     (out / f"{slug}.txt").write_text(text)
     (out / f"{slug}.links.json").write_text(json.dumps(await tab.links(), ensure_ascii=False, indent=1))
     await tab.screenshot(out / f"{slug}.png")
     for f in (f"{slug}.txt", f"{slug}.links.json", f"{slug}.png"):
         os.chmod(out / f, 0o600)
-    return row | {"status": "ok", "detail": "", "text_path": str(out / f"{slug}.txt"),
+    # Kept on disk for a look by hand, but "error" pages are not read for numbers.
+    status_detail = {"status": problem[0], "detail": problem[1]} if problem else {"status": "ok", "detail": ""}
+    return row | status_detail | {"text_path": str(out / f"{slug}.txt"),
                   "shot_path": str(out / f"{slug}.png"), "links_path": str(out / f"{slug}.links.json")}
 
 
@@ -64,7 +73,7 @@ async def collect_platform(ctx, p: Platform, run_dir: Path) -> list[dict]:
                 continue
             await tab.pause(config.PAUSE_BETWEEN_PAGES_MS)
             try:
-                rows.append(await _read_page(tab, url, out, page.slug))
+                rows.append(await _read_page(tab, url, out, page.slug, page.settle_ms))
             except Exception as e:  # noqa: BLE001 - one page never stops the platform
                 rows.append({"slug": page.slug, "url": url, "status": "error", "detail": f"{type(e).__name__}: {e}"[:300]})
             if rows[-1]["status"] == "signed_out":

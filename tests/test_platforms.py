@@ -1,6 +1,6 @@
 import pytest
 
-from ota.platforms import BY_CID, PLATFORMS, fill, signed_out
+from ota.platforms import BY_CID, PLATFORMS, fill, page_problem, signed_out
 
 
 @pytest.mark.parametrize("url,text", [
@@ -34,3 +34,31 @@ def test_no_page_is_a_form_or_action_endpoint():
     for p in PLATFORMS:
         for u in [p.landing, *(x.url for x in p.pages)]:
             assert not any(w in u.lower() for w in ("submit", "reply", "respond", "update", "save", "delete", "logout"))
+
+
+BK = "https://admin.booking.com/hotel/hoteladmin/extranet_ng/manage"
+
+
+@pytest.mark.parametrize("requested,final,text,status", [
+    # Seen on run 20261022-174905.
+    ("https://ycs.agoda.com/mldc/en-us/app/dashboard/1", "https://portal.agoda.com/en-us/Error/NotFound/",
+     "We are sorry the page or file not found. 404 Page Not Found", "page_missing"),
+    (f"{BK}/content_score.html?hotel_id=1", f"{BK}/403.html?hotel_id=1&authz_type=rb",
+     "This page is protected", "page_missing"),
+    ("https://ebooking.ctrip.com/datacenter/index", "https://ebooking.ctrip.com/home/oversea", "今日新订 0", "page_missing"),
+    ("https://apps.expediapartnercentral.com/supply/data-insights-hub?propertyId=1",
+     "https://apps.expediapartnercentral.com/supply/data-insights-hub?propertyId=1",
+     "Revenue\nWe're having trouble loading it. Wait a moment, then try again.", "error"),
+])
+def test_unusable_pages_are_not_ok(requested, final, text, status):
+    assert page_problem(requested, final, text)[0] == status
+
+
+@pytest.mark.parametrize("requested,final", [
+    (f"{BK}/showrank.html?hotel_id=1&ses=a", f"{BK}/showrank.html?hotel_id=1&lang=en&ses=a"),
+    ("https://wyndhamhotels.medallia.com/x/pages/227?roleId=376", "https://wyndhamhotels.medallia.com/x/pages/227?roleId=376&f.a=b"),
+    ("https://www.tripadvisor.com/Owners?locationId=1", "https://www.tripadvisor.com/Owners"),
+    ("https://ebooking.ctrip.com/home/oversea?microJump=true", "https://ebooking.ctrip.com/home/oversea?microJump=true"),
+])
+def test_real_dashboards_pass(requested, final):
+    assert page_problem(requested, final, "Search results views 368,843") is None
