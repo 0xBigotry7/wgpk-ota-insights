@@ -53,6 +53,7 @@ class FakeCtx:
 def run(ctx, cid, tmp_path, monkeypatch):
     monkeypatch.setattr(config, "SETTLE_MS", 0)
     monkeypatch.setattr(config, "PAUSE_BETWEEN_PAGES_MS", 0)
+    monkeypatch.setattr(config, "RETRY_WAIT_MS", 0)
     return asyncio.run(collect.collect_platform(ctx, BY_CID[cid], tmp_path))
 
 
@@ -93,3 +94,27 @@ def test_tab_closes_even_when_landing_crashes(tmp_path, monkeypatch):
     except RuntimeError:
         pass
     assert ctx.page.closed
+
+
+class SlowTiles(FakePage):
+    """Expedia: the tiles say "trouble loading" on the first read and load on the second."""
+    reads = 0
+
+    async def inner_text(self, _):
+        if "data-insights" in self.url:
+            self.reads += 1
+            return "Revenue\nWe're having trouble loading it." if self.reads == 1 else "Revenue $12,345"
+        return self._text
+
+
+def test_slow_widgets_get_one_more_wait_and_redirects_are_missing(tmp_path, monkeypatch):
+    ctx = FakeCtx(lambda u: (u, 200, "Data and insights"))
+    ctx.page = SlowTiles(ctx.page.routes)
+    rows = run(ctx, "expedia", tmp_path, monkeypatch)
+    assert {r["slug"]: r["status"] for r in rows} == {"landing": "ok", "data-insights": "ok", "home": "ok"}
+    assert (tmp_path / "expedia" / "data-insights.txt").read_text() == "Revenue $12,345"
+
+    ctx = FakeCtx(lambda u: ("https://ebooking.ctrip.com/home/oversea" if "datacenter" in u else u, 200, "今日新订 0"))
+    rows = run(ctx, "ctrip", tmp_path, monkeypatch)
+    assert {r["slug"]: r["status"] for r in rows} == {"landing": "ok", "home": "ok", "data-center": "page_missing"}
+    assert not (tmp_path / "ctrip" / "data-center.txt").exists()

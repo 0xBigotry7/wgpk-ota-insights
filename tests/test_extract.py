@@ -21,6 +21,15 @@ def test_drops_hallucinated_values():
                          "Review score 8.6") == []
 
 
+def test_catalog_identity_is_unique_per_platform():
+    # metric_values is keyed by (day, platform, metric, period): two pages must not write the same row.
+    seen = {}
+    for (cid, slug), metrics in CATALOG.items():
+        for mt in metrics:
+            assert (cid, mt.key, mt.period) not in seen, (cid, slug, mt.key, seen.get((cid, mt.key, mt.period)))
+            seen[(cid, mt.key, mt.period)] = slug
+
+
 def test_catalog_keys_are_snake_case_and_unique_per_page():
     for page, metrics in CATALOG.items():
         keys = [m.key for m in metrics]
