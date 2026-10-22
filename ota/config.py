@@ -26,3 +26,22 @@ RUN_DEADLINE_S = int(os.environ.get("WGPK_OTA_DEADLINE_S", "600"))
 PAGE_TIMEOUT_MS = 45000
 SETTLE_MS = 6000          # let a dashboard finish rendering before reading it
 PAUSE_BETWEEN_PAGES_MS = 4000
+
+# Cockpit (Cloudflare Worker). The token lives in SECRETS/env as OTA_INGEST_TOKEN=..., never in the repo.
+COCKPIT_URL = os.environ.get("WGPK_OTA_COCKPIT_URL", "https://ota.wyndhamgardenkamala.com")
+SECRETS = Path(os.environ.get("WGPK_OTA_SECRETS", Path.home() / ".config" / "wgpk-ota-insights"))
+
+# Model used to read numbers off page text and to write the weekly advice: the ChatGPT account signed
+# in on the Mac, through the same bundled CLI the review writer uses (a separate process, no shared code).
+CODEX_BIN = os.environ.get("WGPK_CODEX_BIN", "/Applications/ChatGPT.app/Contents/Resources/codex")
+
+
+def load_env() -> None:
+    f = SECRETS / "env"
+    if not f.exists():
+        return
+    for line in f.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, _, v = line.partition("=")
+            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))

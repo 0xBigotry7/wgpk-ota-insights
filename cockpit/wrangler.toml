@@ -1,0 +1,23 @@
+name = "wgpk-ota-cockpit"
+main = "src/worker.js"
+compatibility_date = "2026-05-05"
+workers_dev = true
+
+routes = [
+  { pattern = "ota.wyndhamgardenkamala.com", custom_domain = true }
+]
+
+[assets]
+directory = "public"
+binding = "ASSETS"
+run_worker_first = true
+
+# Create once with `wrangler d1 create wgpk_ota`, paste the id here, then
+# `wrangler d1 execute wgpk_ota --remote --file schema.sql`.
+[[d1_databases]]
+binding = "DB"
+database_name = "wgpk_ota"
+database_id = "REPLACE_WITH_D1_ID"
+
+# Secrets (wrangler secret put): DASHBOARD_PASSWORD, SESSION_SECRET, OTA_INGEST_TOKEN.
+# There are no defaults: without them login and ingest are refused.

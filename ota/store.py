@@ -15,11 +15,13 @@ CREATE TABLE IF NOT EXISTS snapshots (
   url TEXT, http_status INTEGER, title TEXT, detail TEXT, text_path TEXT, shot_path TEXT, links_path TEXT,
   PRIMARY KEY (run_id, cid, slug)
 );
--- Filled by the extraction step (next phase); one row per number read off a snapshot.
-CREATE TABLE IF NOT EXISTS metrics (
-  run_id TEXT NOT NULL, cid TEXT NOT NULL, metric TEXT NOT NULL, value REAL, unit TEXT, period TEXT,
-  source_slug TEXT NOT NULL, extracted_by TEXT NOT NULL,
-  PRIMARY KEY (run_id, cid, metric, period)
+-- One number read off one snapshot. (day, cid, metric, period) is the identity: a second run on the same
+-- day replaces the first. (An older empty table named "metrics" may exist from the first install; unused.)
+CREATE TABLE IF NOT EXISTS metric_values (
+  day TEXT NOT NULL, cid TEXT NOT NULL, metric TEXT NOT NULL, period TEXT NOT NULL DEFAULT '',
+  label TEXT NOT NULL, value REAL NOT NULL, unit TEXT NOT NULL DEFAULT '', benchmark REAL,
+  run_id TEXT NOT NULL, source_slug TEXT NOT NULL, extracted_by TEXT NOT NULL,
+  PRIMARY KEY (day, cid, metric, period)
 );
 """
 
@@ -47,3 +49,9 @@ def add_snapshot(db: sqlite3.Connection, **row: object) -> None:
     db.execute(f"INSERT OR REPLACE INTO snapshots ({cols}) VALUES ({', '.join('?' * len(row))})",
                tuple(row.values()))
     db.commit()
+
+
+def put_metric(db: sqlite3.Connection, **row: object) -> None:
+    cols = ", ".join(row)
+    db.execute(f"INSERT OR REPLACE INTO metric_values ({cols}) VALUES ({', '.join('?' * len(row))})",
+               tuple(row.values()))
