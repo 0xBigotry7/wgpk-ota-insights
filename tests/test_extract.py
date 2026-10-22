@@ -93,3 +93,31 @@ def test_landing_sends_only_score_lines_not_reviewers():
     win = extract.landing_window(page)
     assert "4.8" in win and "315 reviews" in win
     assert not any(w in win for w in ("irauaua", "Camper", "Rick Cotto", "enjoyed", "Great Stay", "5293222071"))
+
+
+def test_daily_report_cites_stored_numbers_and_keeps_its_day(tmp_path):
+    from ota import advise
+    db = _db(tmp_path)
+    for day, v in (("2026-10-14", 2.9), ("2026-10-21", 2.7), ("2026-10-22", 2.56)):
+        store.put_metric(db, day=day, cid="booking", metric="click_rate", period="funnel", label="搜索→点击率",
+                         value=v, unit="%", benchmark=3.1, run_id=day.replace("-", "") + "-113000",
+                         source_slug="search-rank", extracted_by="codex")
+    ch = {c["metric"]: c for c in advise.changes(advise.history(db, days=10_000))}["click_rate@funnel"]
+    assert ch["prev"]["day"] == "2026-10-21" and ch["d7"]["day"] == "2026-10-14"
+    assert round(ch["vs_benchmark"], 2) == -0.54
+
+    sent = []
+
+    def ask(prompt, schema, timeout=0):
+        sent.append(prompt)
+        item = {"platform": "booking", "area": "conversion", "priority": "high", "owner": "市场/内容", "title": "t",
+                "analysis": "a", "action": "x", "expected": "y"}
+        return {"summary": "s", "watch": ["w"],
+                "highlights": [{"platform": "booking", "tone": "bad", "text": "点击率 2.56%，同类 3.1%"},
+                               {"platform": "booking", "tone": "bad", "text": "点击率暴跌到 1.7%"}],
+                "items": [item | {"evidence": "点击率 2.56%（10-22），7 天前 2.9%"}, item | {"evidence": "大约一半"}]}
+
+    body = advise.report(db, "2026-10-22", push=False, ask=ask)
+    assert body["id"] == "2026-10-22"
+    assert len(body["items"]) == 1 and len(body["highlights"]) == 1
+    assert "2026-10-22" in sent[0]

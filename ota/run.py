@@ -12,7 +12,7 @@ import json
 import sys
 import urllib.request
 
-from . import cockpit, collect, config, extract, guard, store
+from . import advise, cockpit, collect, config, extract, guard, store
 from .platforms import PLATFORMS
 
 
@@ -68,7 +68,9 @@ def once(only: set[str] | None) -> int:
 
 
 def after(db, run_id: str) -> None:
-    """Read numbers off the pages, then send aggregates to the cockpit. Failures here never fail the run."""
+    """Read numbers off the pages, send aggregates to the cockpit, then write the day's analysis report.
+
+    Failures here never fail the run."""
     config.load_env()
     try:
         extract.extract_run(db, run_id)
@@ -78,6 +80,11 @@ def after(db, run_id: str) -> None:
         print(json.dumps({"cockpit": cockpit.push_run(db, run_id)}), flush=True)
     except Exception as e:  # noqa: BLE001
         print(f"cockpit push failed: {type(e).__name__}: {e}", flush=True)
+    try:
+        body = advise.report(db, f"{run_id[:4]}-{run_id[4:6]}-{run_id[6:8]}")
+        print(json.dumps({"report": body and {"id": body["id"], "items": len(body["items"])}}), flush=True)
+    except Exception as e:  # noqa: BLE001
+        print(f"report failed: {type(e).__name__}: {e}", flush=True)
 
 
 def main() -> int:
@@ -85,7 +92,7 @@ def main() -> int:
     ap.add_argument("--plan", action="store_true")
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--platforms", default="")
-    ap.add_argument("--after", metavar="RUN_ID", help="re-run extraction + cockpit push for a past run")
+    ap.add_argument("--after", metavar="RUN_ID", help="re-run extraction, cockpit push and the daily report for a past run")
     a = ap.parse_args()
     only = {s.strip() for s in a.platforms.split(",") if s.strip()} or None
     if a.plan:

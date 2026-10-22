@@ -1,8 +1,9 @@
 # wgpk-ota-insights — read-only OTA metrics for Wyndham Garden Phuket Kamala
 
 Once a day this reads the hotel's OTA dashboards (Booking.com, Agoda, Expedia, Ctrip eBooking,
-Google Business, TripAdvisor, Medallia), keeps the pages on the hotel Mac, and (next phase) turns
-them into numbers and a weekly AI-written OTA operations brief for Gary.
+Google Business, TripAdvisor, Medallia), keeps the pages on the hotel Mac, turns
+them into numbers and writes a detailed Chinese OTA analysis and advice report every day. Numbers and
+reports are shown in the OTA cockpit (`cockpit/`, https://ota.wyndhamgardenkamala.com).
 
 It is **completely separate from review replies** (`wgpk-reviews` / `operator_v2`): different repo,
 different launchd job, no shared code, no writes to the Review Desk.
@@ -63,5 +64,6 @@ A wrong guess only produces a `page_missing` or `error` snapshot.
 ## Next phases
 
 3. Daily schedule, watched for a week against the Review Desk run proof.
-4. Extraction: page text → `metrics` rows (AI first, fixed parsers once stable), then a weekly
-   Chinese OTA brief to Gary on Telegram with every suggestion tied to a number.
+4. Daily report: after each run `ota.advise` writes the day's analysis (highlights, 5–10
+   recommendations with evidence, analysis, owner and expected effect, things to watch tomorrow)
+   from the stored numbers and posts it to the cockpit. Every item must cite a stored number.

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import worker, { validateIngest, validateAdvice } from "../src/worker.js";
+import worker, { validateIngest, validateAdvice, reportBody, readReport } from "../src/worker.js";
 
 const goodRun = { id: "20261022-163347", started_at: "2026-10-22T16:33:47+07:00", outcome: "done" };
 const goodMetric = { day: "2026-10-22", platform: "booking", metric: "review_score", label: "评分", value: 8.6, unit: "score/10", page: "reviews" };
@@ -24,6 +24,21 @@ test("ingest rejects a malformed run id", () => {
 test("advice requires evidence and action on every item", () => {
   assert.deepEqual(validateAdvice({ id: "2026-W43", summary: "s", items: [{ platform: "agoda", title: "t", evidence: "e", action: "a" }] }), []);
   assert.equal(validateAdvice({ id: "2026-W43", summary: "s", items: [{ title: "t" }] }).length, 2);
+});
+
+test("daily reports keep highlights and watch, and old weekly rows still read", () => {
+  const body = { id: "2026-10-22", summary: "s", highlights: [{ platform: "booking", tone: "bad", text: "均价低 21.14%" }],
+    watch: ["点击率"], items: [{ platform: "booking", area: "price", priority: "high", owner: "收益/销售", title: "t",
+      evidence: "e", analysis: "why", action: "a", expected: "x" }] };
+  assert.deepEqual(validateAdvice(body), []);
+  assert.ok(validateAdvice({ ...body, id: "today" }).length);
+  const row = readReport({ id: body.id, items: JSON.stringify(reportBody(body)) });
+  assert.equal(row.items[0].analysis, "why");
+  assert.equal(row.highlights[0].tone, "bad");
+  assert.deepEqual(row.watch, ["点击率"]);
+  const old = readReport({ id: "2026-W43", items: JSON.stringify([{ title: "t" }]) });
+  assert.equal(old.items[0].title, "t");
+  assert.deepEqual(old.highlights, []);
 });
 
 function fakeEnv(secrets = {}) {
