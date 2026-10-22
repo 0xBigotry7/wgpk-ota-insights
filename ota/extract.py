@@ -19,6 +19,19 @@ from .store import put_metric
 MAX_CHARS = 14000
 NEVER_SEND = {"inbox"}          # guest conversations stay on the Mac
 
+# Landing pages are review lists (reviewer names, review text). Only the score/count lines near the top
+# are sent: short lines that are a number, or carry a rating word. Names and review text do not match;
+# long digit runs (reservation numbers) are dropped.
+LANDING_CHARS = 1500
+RESERVATION = re.compile(r"\d{7,}")
+SCORE_LINE = re.compile(r"^[\d\s.,/|#%()+\-−]+$|review|rating|score|评分|点评|分数|条", re.IGNORECASE)
+
+
+def landing_window(text: str) -> str:
+    return "\n".join(ln.strip() for ln in text[:LANDING_CHARS].splitlines()
+                     if ln.strip() and len(ln.strip()) <= 60 and SCORE_LINE.search(ln.strip())
+                     and not RESERVATION.search(ln))
+
 SCHEMA = {
     "type": "object", "additionalProperties": False, "required": ["values"],
     "properties": {"values": {"type": "array", "items": {
@@ -82,6 +95,8 @@ def extract_run(db: sqlite3.Connection, run_id: str, ask=llm.ask_json) -> dict:
         if not metrics or slug in NEVER_SEND or not text_path or not Path(text_path).exists():
             continue
         text = Path(text_path).read_text()[:MAX_CHARS]
+        if slug == "landing":
+            text = landing_window(text)
         listing = "\n".join(f"- {m.key}: {m.hint}" for m in metrics.values())
         try:
             res = ask(PROMPT.format(platform=cid, page=slug, metrics=listing, text=text), SCHEMA)

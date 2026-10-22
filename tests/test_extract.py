@@ -84,3 +84,12 @@ def test_advice_must_cite_real_numbers():
     data = {"booking": {"conversion_rate@last_30_days": {"label": "转化率", "unit": "%", "points": [["2026-10-29", 2.1]]}}}
     assert advise.cites_data("Booking 转化率 2.1%（10-29）", data)
     assert not advise.cites_data("转化率掉到 1.7%", data)
+
+
+def test_landing_sends_only_score_lines_not_reviewers():
+    page = ("Reviews\nAll reviews\n4.8\n|\n315 reviews\n|\nFilters\nNo response\nirauaua\nToday\n"
+            "Great Stay and Perfect Location\nI really enjoyed my stay at Wyndham Gardens! The hotel was lovely\n"
+            "Camper08818121399\nRick Cotto\nOct 20, 2026\n5293222071\n")
+    win = extract.landing_window(page)
+    assert "4.8" in win and "315 reviews" in win
+    assert not any(w in win for w in ("irauaua", "Camper", "Rick Cotto", "enjoyed", "Great Stay", "5293222071"))
