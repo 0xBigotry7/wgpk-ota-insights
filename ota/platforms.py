@@ -16,6 +16,9 @@ from urllib.parse import parse_qs, urlparse
 AGODA_ID = "64055115"
 EXPEDIA_ID = "111503914"
 TRIPADVISOR_ID = "28147689"
+BOOKING = "https://admin.booking.com/hotel/hoteladmin/extranet_ng/manage"
+BOOKING_Q = "hotel_id={hotel_id}&lang=en&ses={ses}"
+MEDALLIA = "https://wyndhamhotels.medallia.com/sso/wyndhamhotels/applications/ex_WEB-5/pages"
 
 
 @dataclass(frozen=True)
@@ -35,40 +38,47 @@ class Platform:
 
 PLATFORMS: tuple[Platform, ...] = (
     # Landing pages are the ones the review operator opens every day, so they are known to work with
-    # its sessions. The extra pages are what calibration fills in.
+    # its sessions. verified=True: the URL was taken from a link on the live landing page (first manual
+    # run 2026-10-22, run 20261022-163347). The rest are still guesses.
     Platform("booking", "Booking.com", "https://admin.booking.com/", (
         # Booking puts hotel_id and a session token (ses) in every extranet URL; both come from the
         # landing redirect, never from a form.
-        Page("reviews", "https://admin.booking.com/hotel/hoteladmin/extranet_ng/manage/reviews.html"
-                        "?hotel_id={hotel_id}&ses={ses}", verified=True),
-        Page("analytics", "https://admin.booking.com/hotel/hoteladmin/extranet_ng/manage/analytics.html"
-                          "?hotel_id={hotel_id}&ses={ses}"),                       # UNVERIFIED
-        Page("property-page-score", "https://admin.booking.com/hotel/hoteladmin/extranet_ng/manage/"
-                                    "property_page_score.html?hotel_id={hotel_id}&ses={ses}"),  # UNVERIFIED
-        Page("inbox", "https://admin.booking.com/hotel/hoteladmin/extranet_ng/manage/messaging/inbox.html"
-                      "?hotel_id={hotel_id}&ses={ses}"),                           # UNVERIFIED
+        Page("reviews", f"{BOOKING}/reviews.html?{BOOKING_Q}", verified=True),
+        Page("content-score", f"{BOOKING}/content_score.html?{BOOKING_Q}", verified=True),
+        Page("sales-insights", f"{BOOKING}/statistics/sales_insights.html?{BOOKING_Q}"
+                               "&benchmark=PEER_GROUP&reservationType=BOOKED", verified=True),
+        Page("pace-report", f"{BOOKING}/statistics/pace_report.html?{BOOKING_Q}"
+                            "&period=DAYS30&benchmark=PEER_GROUP", verified=True),
+        Page("search-rank", f"{BOOKING}/showrank.html?{BOOKING_Q}", verified=True),
+        Page("inbox", f"{BOOKING}/messaging/inbox.html?{BOOKING_Q}", verified=True),
     )),
     Platform("agoda", "Agoda YCS", f"https://portal.agoda.com/mldc/en-us/app/setting/review/{AGODA_ID}", (
+        Page("inbox", f"https://portal.agoda.com/mldc/en-us/app/hermes/inbox/ycs/{AGODA_ID}", verified=True),
         Page("dashboard", f"https://ycs.agoda.com/mldc/en-us/app/dashboard/{AGODA_ID}"),           # UNVERIFIED
         Page("performance", f"https://ycs.agoda.com/mldc/en-us/app/reports/performance/{AGODA_ID}"),  # UNVERIFIED
     )),
     Platform("expedia", "Expedia", "https://apps.expediapartnercentral.com/lodging/review/user_reviews.html"
                                    f"?htid={EXPEDIA_ID}", (
+        Page("data-insights", "https://apps.expediapartnercentral.com/supply/data-insights-hub"
+                              f"?propertyId={EXPEDIA_ID}", verified=True),
         Page("home", f"https://apps.expediapartnercentral.com/lodging/home/home?htid={EXPEDIA_ID}"),  # UNVERIFIED
-        Page("analytics", "https://apps.expediapartnercentral.com/lodging/analytics/home.html"
-                          f"?htid={EXPEDIA_ID}"),                                  # UNVERIFIED
     )),
     Platform("ctrip", "Ctrip eBooking", "https://ebooking.ctrip.com/comment/commentList?microJump=true", (
-        Page("home", "https://ebooking.ctrip.com/home/mainland"),                  # UNVERIFIED
+        Page("home", "https://ebooking.ctrip.com/home/oversea?microJump=true", verified=True),
         Page("data-center", "https://ebooking.ctrip.com/datacenter/index"),        # UNVERIFIED
     )),
     Platform("google", "Google Business", "https://business.google.com/u/1/reviews", ()),
     Platform("tripadvisor", "TripAdvisor",
              f"https://www.tripadvisor.com/reviews?locationId={TRIPADVISOR_ID}&screen=allreviews", (
+        Page("analytics", f"https://www.tripadvisor.com/analytics?locationId={TRIPADVISOR_ID}", verified=True),
         Page("owner-home", f"https://www.tripadvisor.com/Owners?locationId={TRIPADVISOR_ID}"),     # UNVERIFIED
     )),
-    Platform("medallia", "Medallia", "https://wyndhamhotels.medallia.com/sso/wyndhamhotels/applications/"
-                                     "ex_WEB-5/pages/251?roleId=376", ()),
+    Platform("medallia", "Medallia", f"{MEDALLIA}/251?roleId=376", (
+        Page("home", f"{MEDALLIA}/548?roleId=376", verified=True),
+        Page("satisfaction", f"{MEDALLIA}/227?roleId=376", verified=True),
+        Page("ranker", f"{MEDALLIA}/581?roleId=376", verified=True),
+        Page("analytics", f"{MEDALLIA}/664?roleId=376", verified=True),
+    )),
 )
 
 BY_CID = {p.cid: p for p in PLATFORMS}

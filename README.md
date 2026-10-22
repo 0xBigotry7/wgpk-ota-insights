@@ -56,7 +56,7 @@ needs to change either way.
 
 ## Calibration (phase 2)
 
-Pages marked `# UNVERIFIED` in `ota/platforms.py` are guesses. After the first manual run, read each
+Pages marked `# UNVERIFIED` in `ota/platforms.py` are guesses (first calibration: 2026-10-22, run 20261022-163347). After the first manual run, read each
 platform's `landing.links.json` for the real analytics/score/inbox URLs and replace the guesses.
 A wrong guess only produces a `page_missing` or `error` snapshot.
 

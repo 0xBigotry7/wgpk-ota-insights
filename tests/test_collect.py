@@ -70,17 +70,18 @@ def test_booking_pages_use_landing_session_and_survive_errors(tmp_path, monkeypa
     def routes(u):
         if u == "https://admin.booking.com/":
             return home, 200, "Guest reviews"
-        if "analytics" in u:
+        if "sales_insights" in u:
             return RuntimeError("net::ERR_TIMED_OUT"), 0, ""
-        if "property_page_score" in u:
+        if "content_score" in u:
             return u, 404, "Not found"
         return u, 200, "Review score 8.6"
 
     ctx = FakeCtx(routes)
     rows = run(ctx, "booking", tmp_path, monkeypatch)
     assert {r["slug"]: r["status"] for r in rows} == {
-        "landing": "ok", "reviews": "ok", "analytics": "error", "property-page-score": "page_missing", "inbox": "ok"}
-    assert all("hotel_id=9&ses=s1" in u for u in ctx.page.visited[1:])
+        "landing": "ok", "reviews": "ok", "content-score": "page_missing", "sales-insights": "error",
+        "pace-report": "ok", "search-rank": "ok", "inbox": "ok"}
+    assert all("hotel_id=9&lang=en&ses=s1" in u for u in ctx.page.visited[1:])
     assert (tmp_path / "booking" / "reviews.txt").read_text() == "Review score 8.6"
     assert ctx.page.closed
 
