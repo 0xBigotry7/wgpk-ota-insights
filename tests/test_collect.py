@@ -81,7 +81,7 @@ def test_booking_pages_use_landing_session_and_survive_errors(tmp_path, monkeypa
     assert {r["slug"]: r["status"] for r in rows} == {
         "landing": "ok", "reviews": "ok", "content-score": "page_missing", "sales-insights": "error",
         "pace-report": "ok", "search-rank": "ok", "inbox": "ok"}
-    assert all("hotel_id=9&ses=s1" in u for u in ctx.page.visited[1:])
+    assert all("hotel_id=9&lang=en&ses=s1" in u for u in ctx.page.visited[1:])
     assert (tmp_path / "booking" / "reviews.txt").read_text() == "Review score 8.6"
     assert ctx.page.closed
 
