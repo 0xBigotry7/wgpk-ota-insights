@@ -30,7 +30,10 @@ def post(path: str, body: dict) -> dict:
         raise RuntimeError("OTA_INGEST_TOKEN not set (put it in ~/.config/wgpk-ota-insights/env)")
     req = urllib.request.Request(config.COCKPIT_URL + path, data=json.dumps(body, ensure_ascii=False).encode(),
                                  method="POST", headers={"Authorization": f"Bearer {token}",
-                                                         "Content-Type": "application/json"})
+                                                         "Content-Type": "application/json",
+                                                         # Cloudflare's browser check rejects the default
+                                                         # Python-urllib agent with 403 (error 1010).
+                                                         "User-Agent": "wgpk-ota-insights/0.1"})
     with urllib.request.urlopen(req, timeout=30) as r:
         return json.load(r)
 
