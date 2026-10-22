@@ -17,7 +17,7 @@ run_worker_first = true
 [[d1_databases]]
 binding = "DB"
 database_name = "wgpk_ota"
-database_id = "REPLACE_WITH_D1_ID"
+database_id = "2429868e-8aeb-441b-ac8f-f2ab654ce12e"
 
 # Secrets (wrangler secret put): DASHBOARD_PASSWORD, SESSION_SECRET, OTA_INGEST_TOKEN.
 # There are no defaults: without them login and ingest are refused.
