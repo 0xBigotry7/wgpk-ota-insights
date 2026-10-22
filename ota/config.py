@@ -32,7 +32,7 @@ RETRY_WAIT_MS = 15000     # one more wait when a page's widgets have not loaded 
 COCKPIT_URL = os.environ.get("WGPK_OTA_COCKPIT_URL", "https://ota.wyndhamgardenkamala.com")
 SECRETS = Path(os.environ.get("WGPK_OTA_SECRETS", Path.home() / ".config" / "wgpk-ota-insights"))
 
-# Model used to read numbers off page text and to write the weekly advice: the ChatGPT account signed
+# Model used to read numbers off page text and to write the daily report: the ChatGPT account signed
 # in on the Mac, through the same bundled CLI the review writer uses (a separate process, no shared code).
 CODEX_BIN = os.environ.get("WGPK_CODEX_BIN", "/Applications/ChatGPT.app/Contents/Resources/codex")
 

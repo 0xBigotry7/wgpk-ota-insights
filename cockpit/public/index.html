@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>OTA 驾驶舱</title>
 <style>
-/* Layout: one column; health strip, then advice, then one block per platform with a metric table. */
+/* Layout: one column; health strip, then the day's report, then one block per platform with a metric table. */
 :root{
   --bg:#F3F5F4; --surface:#FFFFFF; --fg:#1F2A26; --muted:#5F6D66; --line:#E1E7E3;
   --accent:#2F6B53; --accent-soft:#E2EFE8;
@@ -34,6 +34,17 @@ a{color:var(--accent)}
 .pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;font-weight:600;width:max-content}
 .s-ok{background:var(--ok-soft);color:var(--ok)} .s-warn{background:var(--warn-soft);color:var(--warn)} .s-bad{background:var(--bad-soft);color:var(--bad)}
 .advice{display:grid;gap:10px}
+.rhead{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
+select{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:4px 8px}
+.hl{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.hl li{display:flex;gap:8px;align-items:baseline}
+.dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--muted);transform:translateY(-1px)}
+.dot.good{background:var(--ok)} .dot.bad{background:var(--bad)}
+.kv{display:grid;grid-template-columns:4.5em 1fr;gap:4px 10px;margin-top:8px}
+.kv dt{color:var(--muted);font-size:13px} .kv dd{margin:0;min-width:0}
+.tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.tag{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:0 8px}
+.watch{margin:0;padding-left:1.2em}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;min-width:0}
 .card h3{margin:0 0 4px;font-size:15px}
 .card p{margin:4px 0 0}
@@ -67,8 +78,9 @@ svg.spark{display:block}
   </section>
 
   <section>
-    <h2>本周运营建议</h2>
-    <div class="advice" id="advice"></div>
+    <div class="rhead"><h2 style="margin:0">今日分析建议</h2>
+      <label class="meta">报告日期 <select id="report-day" aria-label="选择报告日期"></select></label></div>
+    <div class="advice" id="advice" style="margin-top:12px"></div>
   </section>
 
   <section>
@@ -83,7 +95,8 @@ const NAMES = {booking:"Booking.com", agoda:"Agoda", expedia:"Expedia", ctrip:"�
 const STATUS = {ok:["正常","s-ok"], signed_out:["未登录","s-bad"], page_missing:["页面缺失","s-warn"], error:["出错","s-warn"]};
 const RANK = {ok:0, page_missing:1, error:2, signed_out:3};
 const PERIODS = {last_30_days:"近 30 天", next_30_days:"未来 30 天", last_12_months:"近 12 个月", last_90_days:"近 90 天"};
-const PRIORITY = {high:["优先","s-bad"], medium:["本周","s-warn"], low:["可选","s-ok"]};
+const PRIORITY = {high:["优先","s-bad"], medium:["近期","s-warn"], low:["可选","s-ok"]};
+const AREAS = {price:"价格", traffic:"流量曝光", conversion:"转化", reputation:"口碑评分", experience:"客人体验", content:"页面内容", data:"数据缺口"};
 
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fmt = (v, unit) => {
@@ -118,14 +131,34 @@ function health(state){
 }
 
 function advice(state){
+  const el = document.getElementById("advice"), pick = document.getElementById("report-day");
+  if (!state.advice.length) {
+    pick.hidden = true;
+    el.innerHTML = `<div class="empty">还没有报告。每天 11:30 采集完会自动生成一份，每条建议都附上依据的数字。</div>`;
+    return;
+  }
+  pick.hidden = false;
+  pick.innerHTML = state.advice.map((a, i) => `<option value="${i}">${esc(a.id)}</option>`).join("");
+  pick.onchange = () => renderReport(state.advice[+pick.value]);
+  renderReport(state.advice[0]);
+}
+
+function renderReport(a){
   const el = document.getElementById("advice");
-  const a = state.advice[0];
-  if (!a) { el.innerHTML = `<div class="empty">还没有建议。数据攒够两周后，每周一早上会自动生成一份，每条都附上依据的数字。</div>`; return; }
-  el.innerHTML = `<div class="lede"><b>${esc(a.id)}</b> · ${esc(a.summary)}</div>` + a.items.map(it => {
+  const hl = (a.highlights || []).length ? `<div class="card"><h3>今日要点</h3><ul class="hl">${a.highlights.map(h =>
+      `<li><span class="dot ${h.tone === "good" ? "good" : h.tone === "bad" ? "bad" : ""}"></span><span>${NAMES[h.platform] ? `<b>${esc(NAMES[h.platform])}</b> ` : ""}${esc(h.text)}</span></li>`).join("")}</ul></div>` : "";
+  const order = {high:0, medium:1, low:2};
+  const items = [...(a.items || [])].sort((x, y) => (order[x.priority] ?? 1) - (order[y.priority] ?? 1)).map(it => {
     const [pl, pc] = PRIORITY[it.priority] || PRIORITY.medium;
-    return `<div class="card"><span class="pill ${pc}">${pl}</span> <span class="meta">${esc(NAMES[it.platform] || "全部平台")}</span>
-      <h3>${esc(it.title)}</h3><p class="meta">依据：${esc(it.evidence)}</p><p>怎么做：${esc(it.action)}</p></div>`;
+    const row = (k, v) => v ? `<dt>${k}</dt><dd>${esc(v)}</dd>` : "";
+    return `<div class="card"><div class="tags"><span class="pill ${pc}">${pl}</span>
+        <span class="tag">${esc(NAMES[it.platform] || "全部平台")}</span>${AREAS[it.area] ? `<span class="tag">${AREAS[it.area]}</span>` : ""}
+        ${it.owner ? `<span class="tag">负责：${esc(it.owner)}</span>` : ""}</div>
+      <h3 style="margin-top:8px">${esc(it.title)}</h3>
+      <dl class="kv">${row("依据", it.evidence)}${row("分析", it.analysis)}${row("怎么做", it.action)}${row("看效果", it.expected)}</dl></div>`;
   }).join("");
+  const watch = (a.watch || []).length ? `<div class="card"><h3>明天继续盯</h3><ul class="watch">${a.watch.map(w => `<li>${esc(w)}</li>`).join("")}</ul></div>` : "";
+  el.innerHTML = `<div class="lede"><b>${esc(a.id)}</b> · ${esc(a.summary)}</div>` + hl + items + watch;
 }
 
 function platforms(state){

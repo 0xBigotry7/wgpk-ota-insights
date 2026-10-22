@@ -1,7 +1,7 @@
 // OTA cockpit for Wyndham Garden Phuket Kamala: a password-protected page over D1.
 //
 // Writes come only from the hotel Mac mini's collector (Bearer OTA_INGEST_TOKEN) and carry aggregate
-// numbers, page health and weekly advice; never page text or guest data. Separate Worker, database and
+// numbers, page health and daily analysis reports; never page text or guest data. Separate Worker, database and
 // secrets from the Review Desk.
 
 const SESSION_COOKIE = "wgpk_ota_session";
@@ -107,7 +107,7 @@ async function handleIngest(request, env) {
 
 export function validateAdvice(body) {
   const errors = [];
-  if (!body || !/^\d{4}-W\d{2}$/.test(String(body.id || ""))) errors.push("id must look like 2026-W43");
+  if (!body || !/^(\d{4}-\d{2}-\d{2}|\d{4}-W\d{2})$/.test(String(body.id || ""))) errors.push("id must be a day like 2026-10-22");
   if (!body || !body.summary) errors.push("summary is required");
   const items = Array.isArray(body && body.items) ? body.items : null;
   if (!items) errors.push("items must be a list");
@@ -115,7 +115,31 @@ export function validateAdvice(body) {
     for (const k of ["title", "evidence", "action"]) if (!it[k]) errors.push(`items[${i}].${k} is required`);
     if (it.platform && it.platform !== "all" && !PLATFORMS.includes(it.platform)) errors.push(`items[${i}].platform unknown`);
   });
+  for (const k of ["highlights", "watch"]) {
+    if (body && body[k] !== undefined && !Array.isArray(body[k])) errors.push(`${k} must be a list`);
+  }
   return errors;
+}
+
+const clip = (v, n) => String(v ?? "").slice(0, n);
+
+// The advice.items column holds the whole report body ({items, highlights, watch}); old rows hold a bare list.
+export function reportBody(body) {
+  return {
+    items: body.items.slice(0, 12).map((it) => ({
+      platform: clip(it.platform, 20), area: clip(it.area, 20), priority: clip(it.priority, 10), owner: clip(it.owner, 20),
+      title: clip(it.title, 200), evidence: clip(it.evidence, 600), analysis: clip(it.analysis, 800),
+      action: clip(it.action, 800), expected: clip(it.expected, 400),
+    })),
+    highlights: (body.highlights || []).slice(0, 10).map((h) => ({ platform: clip(h.platform, 20), tone: clip(h.tone, 10), text: clip(h.text, 400) })),
+    watch: (body.watch || []).slice(0, 6).map((w) => clip(w, 300)),
+  };
+}
+
+export function readReport(row) {
+  const parsed = safeJson(row.items, []);
+  const body = Array.isArray(parsed) ? { items: parsed } : parsed;
+  return { ...row, items: body.items || [], highlights: body.highlights || [], watch: body.watch || [] };
 }
 
 async function handleAdvice(request, env) {
@@ -130,7 +154,7 @@ async function handleAdvice(request, env) {
   await env.DB.prepare(
     `insert or replace into advice (id, generated_at, summary, items, model) values (?, ?, ?, ?, ?)`
   ).bind(body.id, body.generated_at || new Date().toISOString(), String(body.summary).slice(0, 2000),
-    JSON.stringify(body.items.slice(0, 12)), String(body.model || "").slice(0, 80)).run();
+    JSON.stringify(reportBody(body)), String(body.model || "").slice(0, 80)).run();
   return json({ ok: true, id: body.id });
 }
 
@@ -143,7 +167,7 @@ async function loadState(env) {
     all(env.DB.prepare(
       "select day, platform, metric, period, label, value, unit, benchmark, page from metrics where day >= ? order by day"
     ).bind(since)),
-    all(env.DB.prepare("select * from advice order by id desc limit 4")),
+    all(env.DB.prepare("select * from advice order by generated_at desc limit 30")),
   ]);
   const latest = runs[0] || null;
   const pages = latest
@@ -154,7 +178,7 @@ async function loadState(env) {
     runs,
     pages,
     metrics,
-    advice: advice.map((a) => ({ ...a, items: safeJson(a.items, []) })),
+    advice: advice.map(readReport),
     platforms: PLATFORMS,
   };
 }
