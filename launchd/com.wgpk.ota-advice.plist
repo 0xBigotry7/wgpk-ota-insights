@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Weekly OTA advice, Monday 08:00 local (Asia/Bangkok). Reads only the local metrics database; never
+     opens a browser. Uninstall: launchctl bootout gui/$(id -u)/com.wgpk.ota-advice -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.wgpk.ota-advice</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/wyndham/wgpk-ota-insights/.venv/bin/python</string>
+    <string>-m</string><string>ota.advise</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/wyndham/wgpk-ota-insights/app</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>WGPK_OTA_HOME</key><string>/Users/wyndham/wgpk-ota-insights</string>
+  </dict>
+  <key>StartCalendarInterval</key>
+  <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>8</integer><key>Minute</key><integer>0</integer></dict>
+  <key>RunAtLoad</key><false/>
+  <key>StandardOutPath</key><string>/Users/wyndham/wgpk-ota-insights/logs/advice.out.log</string>
+  <key>StandardErrorPath</key><string>/Users/wyndham/wgpk-ota-insights/logs/advice.err.log</string>
+</dict>
+</plist>

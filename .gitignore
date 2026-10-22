@@ -6,3 +6,5 @@ __pycache__/
 # runtime data (page snapshots may contain guest names; they stay on the hotel Mac)
 data/
 *.sqlite
+node_modules/
+.wrangler/

@@ -9,3 +9,4 @@ jobs:
       - run: uv venv && uv pip install pytest ruff
       - run: .venv/bin/ruff check ota tests
       - run: .venv/bin/python -m pytest -q
+      - run: cd cockpit && npm test

@@ -12,7 +12,7 @@ import json
 import sys
 import urllib.request
 
-from . import collect, config, guard, store
+from . import cockpit, collect, config, extract, guard, store
 from .platforms import PLATFORMS
 
 
@@ -62,7 +62,22 @@ def once(only: set[str] | None) -> int:
         guard.release(fd)
     store.finish_run(db, run_id, collect.now().isoformat(timespec="seconds"), outcome, summary)
     print(json.dumps({"run": run_id, "outcome": outcome, "summary": summary}, ensure_ascii=False), flush=True)
+    # The browser and the operator's lock are released by now; the rest only reads local files.
+    after(db, run_id)
     return 0 if outcome == "done" else 1
+
+
+def after(db, run_id: str) -> None:
+    """Read numbers off the pages, then send aggregates to the cockpit. Failures here never fail the run."""
+    config.load_env()
+    try:
+        extract.extract_run(db, run_id)
+    except Exception as e:  # noqa: BLE001
+        print(f"extract failed: {type(e).__name__}: {e}", flush=True)
+    try:
+        print(json.dumps({"cockpit": cockpit.push_run(db, run_id)}), flush=True)
+    except Exception as e:  # noqa: BLE001
+        print(f"cockpit push failed: {type(e).__name__}: {e}", flush=True)
 
 
 def main() -> int:
@@ -70,6 +85,7 @@ def main() -> int:
     ap.add_argument("--plan", action="store_true")
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--platforms", default="")
+    ap.add_argument("--after", metavar="RUN_ID", help="re-run extraction + cockpit push for a past run")
     a = ap.parse_args()
     only = {s.strip() for s in a.platforms.split(",") if s.strip()} or None
     if a.plan:
@@ -77,6 +93,9 @@ def main() -> int:
         return 0
     if a.once:
         return once(only)
+    if a.after:
+        after(store.connect(config.DB), a.after)
+        return 0
     ap.print_help()
     return 2
 

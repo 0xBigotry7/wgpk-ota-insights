@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OTA 驾驶舱</title>
+<style>
+/* Layout: one column; health strip, then advice, then one block per platform with a metric table. */
+:root{
+  --bg:#F3F5F4; --surface:#FFFFFF; --fg:#1F2A26; --muted:#5F6D66; --line:#E1E7E3;
+  --accent:#2F6B53; --accent-soft:#E2EFE8;
+  --ok:#2C7A4B; --ok-soft:#E2F2E8; --warn:#9A6400; --warn-soft:#F7EDD6; --bad:#B23A3A; --bad-soft:#F6E1E1;
+  --font:'PingFang SC','Noto Sans SC',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121816; --surface:#1A2320; --fg:#E4ECE8; --muted:#9AABA3; --line:#2C3A35;
+  --accent:#6FC4A0; --accent-soft:#1D3229; --ok:#6FCF93; --ok-soft:#1B3326; --warn:#E6B450; --warn-soft:#352B14;
+  --bad:#EF8A8A; --bad-soft:#3A1F1F; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121816; --surface:#1A2320; --fg:#E4ECE8; --muted:#9AABA3; --line:#2C3A35;
+  --accent:#6FC4A0; --accent-soft:#1D3229; --ok:#6FCF93; --ok-soft:#1B3326; --warn:#E6B450; --warn-soft:#352B14;
+  --bad:#EF8A8A; --bad-soft:#3A1F1F; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:14px;line-height:1.6}
+.wrap{max-width:1080px;margin:0 auto;padding:24px max(16px,env(safe-area-inset-left,0px)) 56px;display:flex;flex-direction:column;gap:28px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px}
+h1{margin:0;font-size:24px;letter-spacing:.01em}
+h2{margin:0 0 12px;font-size:17px}
+.meta{color:var(--muted);font-size:13px}
+a{color:var(--accent)}
+.health{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.chip{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.chip b{font-size:14px}
+.pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;font-weight:600;width:max-content}
+.s-ok{background:var(--ok-soft);color:var(--ok)} .s-warn{background:var(--warn-soft);color:var(--warn)} .s-bad{background:var(--bad-soft);color:var(--bad)}
+.advice{display:grid;gap:10px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;min-width:0}
+.card h3{margin:0 0 4px;font-size:15px}
+.card p{margin:4px 0 0}
+.lede{background:var(--accent-soft);border-radius:12px;padding:14px 16px}
+.platform{display:flex;flex-direction:column;gap:8px}
+.tbl{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;min-width:560px}
+th,td{text-align:left;padding:9px 12px;white-space:nowrap;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:12px;color:var(--muted);font-weight:500}
+tr:last-child td{border-bottom:0}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.up{color:var(--ok)} .down{color:var(--bad)} .flat{color:var(--muted)}
+svg.spark{display:block}
+.empty{color:var(--muted);background:var(--surface);border:1px dashed var(--line);border-radius:12px;padding:16px}
+.err{background:var(--bad-soft);color:var(--bad);border-radius:10px;padding:12px 14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>OTA 驾驶舱</h1>
+      <div class="meta">Wyndham Garden Phuket Kamala · 每天 11:30 从各平台后台只读采集</div>
+    </div>
+    <div class="meta"><span id="last-run">加载中…</span> · <a href="/logout">退出</a></div>
+  </header>
+
+  <section>
+    <h2>平台状态</h2>
+    <div class="health" id="health"></div>
+  </section>
+
+  <section>
+    <h2>本周运营建议</h2>
+    <div class="advice" id="advice"></div>
+  </section>
+
+  <section>
+    <h2>各平台指标</h2>
+    <div id="platforms" style="display:flex;flex-direction:column;gap:22px"></div>
+  </section>
+</div>
+
+<script>
+const NAMES = {booking:"Booking.com", agoda:"Agoda", expedia:"Expedia", ctrip:"携程 / 去哪儿 / 同程",
+  google:"Google", tripadvisor:"TripAdvisor", medallia:"Medallia（品牌问卷）"};
+const STATUS = {ok:["正常","s-ok"], signed_out:["未登录","s-bad"], page_missing:["页面缺失","s-warn"], error:["出错","s-warn"]};
+const RANK = {ok:0, page_missing:1, error:2, signed_out:3};
+const PERIODS = {last_30_days:"近 30 天", next_30_days:"未来 30 天", last_12_months:"近 12 个月", last_90_days:"近 90 天"};
+const PRIORITY = {high:["优先","s-bad"], medium:["本周","s-warn"], low:["可选","s-ok"]};
+
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt = (v, unit) => {
+  const n = Math.abs(v) >= 1000 ? v.toLocaleString("en-US", {maximumFractionDigits:0}) : (+v.toFixed(2)).toString();
+  return unit === "%" ? n + "%" : unit ? `${n} ${unit}` : n;
+};
+
+function spark(points){
+  if (points.length < 2) return "";
+  const w = 96, h = 26, xs = points.map((_, i) => i * (w - 4) / (points.length - 1) + 2);
+  const lo = Math.min(...points), hi = Math.max(...points), span = hi - lo || 1;
+  const ys = points.map(v => h - 3 - (v - lo) / span * (h - 6));
+  const d = xs.map((x, i) => `${i ? "L" : "M"}${x.toFixed(1)} ${ys[i].toFixed(1)}`).join("");
+  return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">
+    <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+    <circle cx="${xs.at(-1)}" cy="${ys.at(-1)}" r="2.5" fill="var(--accent)"/></svg>`;
+}
+
+function health(state){
+  const worst = {};
+  for (const p of state.pages) {
+    if (!(p.platform in worst) || RANK[p.status] > RANK[worst[p.platform].status]) worst[p.platform] = p;
+  }
+  document.getElementById("health").innerHTML = state.platforms.map(pf => {
+    const p = worst[pf];
+    const [label, cls] = p ? STATUS[p.status] : ["没有数据", "s-warn"];
+    const n = state.pages.filter(x => x.platform === pf && x.status === "ok").length;
+    const total = state.pages.filter(x => x.platform === pf).length;
+    return `<div class="chip"><b>${esc(NAMES[pf])}</b><span class="pill ${cls}">${label}</span>
+      <span class="meta">${total ? `${n}/${total} 个页面读到` : ""}</span></div>`;
+  }).join("");
+}
+
+function advice(state){
+  const el = document.getElementById("advice");
+  const a = state.advice[0];
+  if (!a) { el.innerHTML = `<div class="empty">还没有建议。数据攒够两周后，每周一早上会自动生成一份，每条都附上依据的数字。</div>`; return; }
+  el.innerHTML = `<div class="lede"><b>${esc(a.id)}</b> · ${esc(a.summary)}</div>` + a.items.map(it => {
+    const [pl, pc] = PRIORITY[it.priority] || PRIORITY.medium;
+    return `<div class="card"><span class="pill ${pc}">${pl}</span> <span class="meta">${esc(NAMES[it.platform] || "全部平台")}</span>
+      <h3>${esc(it.title)}</h3><p class="meta">依据：${esc(it.evidence)}</p><p>怎么做：${esc(it.action)}</p></div>`;
+  }).join("");
+}
+
+function platforms(state){
+  const el = document.getElementById("platforms");
+  if (!state.metrics.length) { el.innerHTML = `<div class="empty">还没有指标。每天采集后会从各平台页面里提取数字放到这里。</div>`; return; }
+  const by = {};
+  for (const m of state.metrics) {
+    const key = `${m.platform}|${m.metric}|${m.period}`;
+    (by[key] ||= []).push(m);
+  }
+  el.innerHTML = state.platforms.map(pf => {
+    const series = Object.entries(by).filter(([k]) => k.startsWith(pf + "|")).map(([, rows]) => rows);
+    if (!series.length) return "";
+    const rows = series.map(rows => {
+      const last = rows.at(-1), lastDay = Date.parse(last.day);
+      const ref = [...rows].reverse().find(r => lastDay - Date.parse(r.day) >= 7 * 864e5);
+      let delta = "—", cls = "flat";
+      if (ref) {
+        const d = last.value - ref.value;
+        cls = d > 0 ? "up" : d < 0 ? "down" : "flat";
+        delta = `${d > 0 ? "+" : ""}${fmt(d, last.unit)}`;
+      }
+      return `<tr><td>${esc(last.label)}${last.period ? `<div class="meta">${esc(PERIODS[last.period] || last.period)}</div>` : ""}</td>
+        <td class="num"><b>${esc(fmt(last.value, last.unit))}</b></td>
+        <td class="num ${cls}">${esc(delta)}</td>
+        <td class="num">${last.benchmark == null ? "—" : esc(fmt(last.benchmark, last.unit))}</td>
+        <td>${spark(rows.slice(-30).map(r => r.value))}</td>
+        <td class="meta">${esc(last.day)}</td></tr>`;
+    }).join("");
+    return `<div class="platform"><h2 style="margin:0">${esc(NAMES[pf])}</h2><div class="tbl"><table>
+      <thead><tr><th>指标</th><th>最新</th><th>比 7 天前</th><th>平台对比值</th><th>近 30 次</th><th>日期</th></tr></thead>
+      <tbody>${rows}</tbody></table></div></div>`;
+  }).join("");
+}
+
+async function load(){
+  try {
+    const r = await fetch("/api/state", {credentials: "same-origin"});
+    if (r.status === 401) { location.href = "/login"; return; }
+    const state = await r.json();
+    const run = state.latest_run;
+    document.getElementById("last-run").textContent = run
+      ? `最近一次采集 ${run.id.slice(0,4)}-${run.id.slice(4,6)}-${run.id.slice(6,8)} ${run.id.slice(9,11)}:${run.id.slice(11,13)}（${run.outcome === "done" ? "完成" : run.outcome || "进行中"}）`
+      : "还没有采集记录";
+    health(state); advice(state); platforms(state);
+  } catch (e) {
+    document.querySelector(".wrap").insertAdjacentHTML("beforeend", `<div class="err">读取数据失败：${esc(e.message)}。刷新页面再试。</div>`);
+  }
+}
+load();
+</script>
+</body>
+</html>
