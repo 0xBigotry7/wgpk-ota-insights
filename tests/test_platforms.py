@@ -26,7 +26,7 @@ def test_dashboards_are_not_signed_out(url, text):
 def test_booking_placeholders_come_from_landing_url():
     landing = "https://admin.booking.com/hotel/hoteladmin/extranet_ng/manage/home.html?hotel_id=123&ses=abc&lang=en"
     page = BY_CID["booking"].pages[0]
-    assert fill(page.url, landing).endswith("reviews.html?hotel_id=123&ses=abc")
+    assert fill(page.url, landing).endswith("reviews.html?hotel_id=123&lang=en&ses=abc")
     assert fill(page.url, "https://admin.booking.com/") is None
 
 
