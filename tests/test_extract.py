@@ -154,3 +154,19 @@ def test_fallback_slot_sees_the_days_done_run(tmp_path):
     store.finish_run(db, "20261023-102000", "y", "done", {})
     assert store.done_run_on(db, "20261023") == "20261023-102000"
     assert store.done_run_on(db, "20261024") is None
+
+
+def test_landing_window_keeps_score_with_verdict_word():
+    page = "Guest reviews\nWyndham Garden Phuket Kamala\n8.7 Excellent\nBased on 258 reviews\nNoel, Thailand\n"
+    win = extract.landing_window(page)
+    assert "8.7 Excellent" in win and "Noel" not in win
+
+
+def test_implausible_values_are_dropped():
+    metrics = {"review_score": Metric("review_score", "评分", "/10"), "share": Metric("share", "占比", "%"),
+               "views_vs_peer": Metric("views_vs_peer", "较同类", "%")}
+    text = "score 87 share 120.5 views +136.9"
+    kept = extract.check([{"key": "review_score", "value": 87, "benchmark": None, "quote": ""},
+                          {"key": "share", "value": 120.5, "benchmark": None, "quote": ""},
+                          {"key": "views_vs_peer", "value": 136.9, "benchmark": None, "quote": ""}], metrics, text)
+    assert [(mt.key, v) for mt, v, _ in kept] == [("views_vs_peer", 136.9)]

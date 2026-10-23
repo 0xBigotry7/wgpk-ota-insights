@@ -24,7 +24,10 @@ NEVER_SEND = {"inbox"}          # guest conversations stay on the Mac
 # long digit runs (reservation numbers) are dropped.
 LANDING_CHARS = 1500
 RESERVATION = re.compile(r"\d{7,}")
-SCORE_LINE = re.compile(r"^[\d\s.,/|#%()+\-−]+$|review|rating|score|评分|点评|分数|条", re.IGNORECASE)
+SCORE_LINE = re.compile(r"^[\d\s.,/|#%()+\-−]+$|review|rating|score|评分|点评|分数|条"
+                        # a score with its verdict word, e.g. Agoda's "8.7 Excellent" or "4.7 超棒"
+                        r"|^\d{1,2}(\.\d{1,2})?\s+(exceptional|excellent|superb|fabulous|very good|good|pleasant|"
+                        r"wonderful|fair|okay|poor|超棒|很好|好|不错)$", re.IGNORECASE)
 
 
 def landing_window(text: str) -> str:
@@ -69,6 +72,18 @@ def _numbers_in(text: str) -> set[float]:
     return out
 
 
+def plausible(m: Metric, val: float) -> bool:
+    """Reject numbers that cannot be this metric: a score above its scale, or a share above 100%."""
+    if m.unit.startswith("/"):
+        try:
+            return 0 < val <= float(m.unit[1:])
+        except ValueError:
+            return True
+    if m.unit == "%" and not m.key.endswith("_vs_peer"):
+        return 0 <= val <= 100
+    return True
+
+
 def check(values: list[dict], metrics: dict[str, Metric], text: str) -> list[tuple[Metric, float, float | None]]:
     """Keep only catalog keys whose value (and benchmark) literally occur in the page text."""
     seen = _numbers_in(text)
@@ -82,6 +97,8 @@ def check(values: list[dict], metrics: dict[str, Metric], text: str) -> list[tup
             continue
         # A 0 score or a 0 comparison value is a page that did not render that number (a "0" elsewhere on the page).
         if val == 0 and m.unit.startswith("/"):
+            continue
+        if not plausible(m, float(val)):
             continue
         bench = v.get("benchmark")
         bench = float(bench) if isinstance(bench, int | float) and bench != 0 and round(float(bench), 4) in seen else None
