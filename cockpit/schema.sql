@@ -73,3 +73,53 @@ CREATE TABLE IF NOT EXISTS routine_ticks (
   done_at TEXT NOT NULL,
   PRIMARY KEY (period, item)
 );
+
+-- Immutable report vintages. Never mix export time with upload time or include guest rows.
+CREATE TABLE IF NOT EXISTS pms_snapshots (
+  id TEXT PRIMARY KEY,
+  source_sha256 TEXT NOT NULL,
+  as_of TEXT NOT NULL,
+  received_at TEXT NOT NULL,
+  currency TEXT,
+  precision TEXT NOT NULL,
+  scope TEXT NOT NULL,
+  source TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS pms_asof ON pms_snapshots (as_of DESC, received_at DESC);
+CREATE TABLE IF NOT EXISTS pms_daily (
+  snapshot_id TEXT NOT NULL REFERENCES pms_snapshots(id),
+  stay_date TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK(kind IN ('actual', 'pms_projection')),
+  inventory REAL,
+  rooms_sold REAL,
+  room_revenue REAL,
+  reported_adr REAL,
+  reported_occupancy REAL,
+  PRIMARY KEY(snapshot_id, stay_date, kind)
+);
+
+-- Human-approved investigation, not an OTA write. Baseline/evidence is frozen at creation.
+CREATE TABLE IF NOT EXISTS operator_decisions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  source_ref TEXT NOT NULL,
+  title TEXT NOT NULL,
+  owner TEXT NOT NULL,
+  platform TEXT NOT NULL,
+  evidence TEXT NOT NULL,
+  plan TEXT NOT NULL,
+  baseline TEXT NOT NULL,
+  review_on TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'investigating',
+  action_at TEXT,
+  outcome_note TEXT NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS operator_active ON operator_decisions (source_ref) WHERE status IN ('investigating', 'reported');
+CREATE TABLE IF NOT EXISTS operator_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  decision_id INTEGER NOT NULL REFERENCES operator_decisions(id),
+  at TEXT NOT NULL,
+  event TEXT NOT NULL,
+  note TEXT NOT NULL
+);

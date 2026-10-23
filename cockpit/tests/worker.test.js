@@ -131,7 +131,7 @@ test("monitor flags trailing peers, drops, sign-outs and stale data; and lists w
 test("copilot answers are parsed defensively and actions are limited to cockpit to-dos", () => {
   const a = parseAnswer('好的 {"reply":"均价低","actions":[{"type":"price","title":"提价","owner":"黑客","platform":"airbnb"}]}');
   assert.equal(a.reply, "均价低");
-  assert.deepEqual(a.actions[0], { type: "todo", title: "提价", owner: "总经理", platform: "all", detail: "" });
+  assert.deepEqual(a.actions[0], { type: "todo", title: "提价", owner: "总经理", platform: "all", detail: "", evidence_ids: [] });
   assert.deepEqual(parseAnswer("plain text"), { reply: "plain text", actions: [] });
   const c = context({ metrics: [mk({ metric: "adr_30d", label: "ADR", value: 1, benchmark: 2, day: "2026-10-23" })], todos: [] },
     { alerts: [], wins: [] });

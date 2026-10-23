@@ -82,6 +82,13 @@ def skipped(started, reason: str) -> int:
     store.finish_run(db, run_id, collect.now().isoformat(timespec="seconds"), "skipped", {"skipped": reason})
     config.load_env()
     push(db, run_id)
+    try:
+        from .pms import push_configured
+        pms = push_configured()
+        if pms:
+            print(json.dumps({"pms": pms}), flush=True)
+    except Exception as e:  # noqa: BLE001
+        print(f"PMS aggregate import failed: {type(e).__name__}", flush=True)
     return 3
 
 
