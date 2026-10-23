@@ -21,6 +21,15 @@ def test_drops_hallucinated_values():
                          "Review score 8.6") == []
 
 
+def test_drops_zero_scores_and_zero_benchmarks():
+    # Agoda's score tile had not rendered (value 0); Expedia's comp-set cell read as 0.
+    kept = extract.check([
+        {"key": "review_score", "value": 0, "benchmark": None, "quote": "0"},
+        {"key": "review_count", "value": 258, "benchmark": 0, "quote": "258"},
+    ], M, "0 reviews 258")
+    assert [(m.key, v, b) for m, v, b in kept] == [("review_count", 258.0, None)]
+
+
 def test_catalog_identity_is_unique_per_platform():
     # metric_values is keyed by (day, platform, metric, period): two pages must not write the same row.
     seen = {}

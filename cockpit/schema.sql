@@ -40,3 +40,28 @@ CREATE TABLE IF NOT EXISTS advice (
   items TEXT NOT NULL,            -- JSON [{platform, title, evidence, action, priority}]
   model TEXT NOT NULL DEFAULT ''
 );
+
+-- Operations to-dos: made from an alert, a report item, a copilot suggestion or by hand. Cockpit-only state.
+CREATE TABLE IF NOT EXISTS todos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  title TEXT NOT NULL,
+  detail TEXT NOT NULL DEFAULT '',
+  owner TEXT NOT NULL,            -- 收益/销售 | 前台 | 客房 | 工程 | 餐饮 | 市场/内容 | 总经理
+  platform TEXT NOT NULL DEFAULT 'all',
+  source TEXT NOT NULL,           -- alert | report | copilot | manual
+  source_ref TEXT NOT NULL DEFAULT '', -- alert id or report day#index, so the same suggestion is one to-do
+  status TEXT NOT NULL DEFAULT 'open'  -- open | done | dropped
+);
+CREATE INDEX IF NOT EXISTS todos_status ON todos (status, updated_at);
+
+-- What was asked of the copilot and what it said (for review; questions are typed by hotel staff).
+CREATE TABLE IF NOT EXISTS copilot_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  at TEXT NOT NULL,
+  question TEXT NOT NULL,
+  reply TEXT NOT NULL,
+  model TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS copilot_log_at ON copilot_log (at);

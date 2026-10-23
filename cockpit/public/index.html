@@ -3,302 +3,805 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>OTA 驾驶舱</title>
+<title>OTA 运营驾驶舱</title>
 <style>
-/* Layout: one column; health strip, then the day's report, then one block per platform with a metric table. */
+/* Layout: main column (today's call, alerts, KPI tiles, charts, report, to-dos, details) + copilot on the right.
+   Under 1180px the copilot becomes a full-screen sheet opened from a floating button. */
 :root{
-  --bg:#F3F5F4; --surface:#FFFFFF; --fg:#1F2A26; --muted:#5F6D66; --line:#E1E7E3;
-  --accent:#2F6B53; --accent-soft:#E2EFE8;
-  --ok:#2C7A4B; --ok-soft:#E2F2E8; --warn:#9A6400; --warn-soft:#F7EDD6; --bad:#B23A3A; --bad-soft:#F6E1E1;
+  --bg:#F2F4F3; --surface:#FFFFFF; --surface-2:#F7F9F8; --fg:#17211D; --fg-2:#45524C; --muted:#6B7872; --line:#E2E8E5;
+  --accent:#2F6B53; --accent-2:#3E8A6B; --accent-soft:#E3F0EA; --accent-ink:#FFFFFF;
+  --hero-1:#1F4D3B; --hero-2:#2F6B53;
+  --s1:#2a78d6; --s1-soft:#9ec5f4; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#6250d6;
+  --good:#0ca30c; --good-ink:#0B7A0B; --warn:#fab219; --serious:#ec835a; --crit:#d03b3b; --crit-ink:#B42F2F;
+  --good-soft:#E4F4E4; --warn-soft:#FDF2D8; --serious-soft:#FCE9E1; --crit-soft:#F9E3E3;
+  --shadow:0 1px 2px rgba(20,40,30,.05),0 4px 16px rgba(20,40,30,.05);
   --font:'PingFang SC','Noto Sans SC',system-ui,-apple-system,'Segoe UI',sans-serif;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#121816; --surface:#1A2320; --fg:#E4ECE8; --muted:#9AABA3; --line:#2C3A35;
-  --accent:#6FC4A0; --accent-soft:#1D3229; --ok:#6FCF93; --ok-soft:#1B3326; --warn:#E6B450; --warn-soft:#352B14;
-  --bad:#EF8A8A; --bad-soft:#3A1F1F; color-scheme:dark}}
+  --bg:#0F1513; --surface:#18201D; --surface-2:#1D2622; --fg:#E6EDE9; --fg-2:#C0CCC6; --muted:#93A39B; --line:#2A3632;
+  --accent:#6FC4A0; --accent-2:#5AB08C; --accent-soft:#1C3128; --accent-ink:#0F1513; --hero-1:#173A2D; --hero-2:#21533F;
+  --s1:#3987e5; --s1-soft:#184f95; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9;
+  --good-ink:#5FD35F; --crit-ink:#F07C7C; --good-soft:#18301A; --warn-soft:#33290F; --serious-soft:#36231A; --crit-soft:#3A1D1D;
+  --shadow:none; color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#121816; --surface:#1A2320; --fg:#E4ECE8; --muted:#9AABA3; --line:#2C3A35;
-  --accent:#6FC4A0; --accent-soft:#1D3229; --ok:#6FCF93; --ok-soft:#1B3326; --warn:#E6B450; --warn-soft:#352B14;
-  --bad:#EF8A8A; --bad-soft:#3A1F1F; color-scheme:dark}
+  --bg:#0F1513; --surface:#18201D; --surface-2:#1D2622; --fg:#E6EDE9; --fg-2:#C0CCC6; --muted:#93A39B; --line:#2A3632;
+  --accent:#6FC4A0; --accent-2:#5AB08C; --accent-soft:#1C3128; --accent-ink:#0F1513; --hero-1:#173A2D; --hero-2:#21533F;
+  --s1:#3987e5; --s1-soft:#184f95; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9;
+  --good-ink:#5FD35F; --crit-ink:#F07C7C; --good-soft:#18301A; --warn-soft:#33290F; --serious-soft:#36231A; --crit-soft:#3A1D1D;
+  --shadow:none; color-scheme:dark}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:14px;line-height:1.6}
-.wrap{max-width:1080px;margin:0 auto;padding:24px max(16px,env(safe-area-inset-left,0px)) 56px;display:flex;flex-direction:column;gap:28px}
-header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px}
-h1{margin:0;font-size:24px;letter-spacing:.01em}
-h2{margin:0 0 12px;font-size:17px}
-.meta{color:var(--muted);font-size:13px}
-a{color:var(--accent)}
-.health{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
-.chip{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
-.chip b{font-size:14px}
-.pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;font-weight:600;width:max-content}
-.s-ok{background:var(--ok-soft);color:var(--ok)} .s-warn{background:var(--warn-soft);color:var(--warn)} .s-bad{background:var(--bad-soft);color:var(--bad)}
-.advice{display:grid;gap:10px}
-.rhead{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
-select{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:4px 8px}
-.hl{display:grid;gap:6px;margin:0;padding:0;list-style:none}
-.hl li{display:flex;gap:8px;align-items:baseline}
-.dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--muted);transform:translateY(-1px)}
-.dot.good{background:var(--ok)} .dot.bad{background:var(--bad)}
-.kv{display:grid;grid-template-columns:4.5em 1fr;gap:4px 10px;margin-top:8px}
-.kv dt{color:var(--muted);font-size:13px} .kv dd{margin:0;min-width:0}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:14px;line-height:1.55}
+button,input,select,textarea{font:inherit;color:inherit}
+.ico{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ico.sm{width:14px;height:14px} .ico.lg{width:22px;height:22px}
+.app{display:grid;grid-template-columns:minmax(0,1fr) 400px;min-height:100vh}
+.main{min-width:0;padding:20px 28px 64px;display:flex;flex-direction:column;gap:22px}
+@media (max-width:1179px){.app{grid-template-columns:minmax(0,1fr)}.main{padding:16px 16px 96px}}
+
+/* top bar */
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.mark{width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,var(--hero-1),var(--hero-2));color:#fff;display:grid;place-items:center;flex:none}
+.top h1{margin:0;font-size:20px;line-height:1.2}
+.top .sub{font-size:12px;color:var(--muted)}
+.top .ttl{flex:1 1 220px;min-width:0}
+.top .right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:3px 10px;border-radius:99px;background:var(--surface);border:1px solid var(--line);color:var(--fg-2);white-space:nowrap}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:6px 11px;cursor:pointer;font-size:13px;color:var(--fg);text-decoration:none;white-space:nowrap}
+.btn:hover{border-color:var(--accent)} .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted);padding:4px 6px}
+.btn.ghost:hover{color:var(--fg);border-color:var(--line)}
+.btn[disabled]{opacity:.55;cursor:default}
+
+/* section chrome */
+.sec{display:flex;flex-direction:column;gap:12px;min-width:0}
+.sec-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sec-h h2{margin:0;font-size:16px}
+.sec-h .hint{color:var(--muted);font-size:12px}
+.sec-h .tail{margin-left:auto}
+.badge-ico{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);flex:none}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:var(--shadow);min-width:0}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:14px}
+.meta{color:var(--muted);font-size:12px}
+.empty{color:var(--muted);background:var(--surface-2);border:1px dashed var(--line);border-radius:12px;padding:14px;font-size:13px}
+
+/* hero */
+.hero{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px}
+@media (max-width:760px){.hero{grid-template-columns:1fr}}
+.call{background:linear-gradient(135deg,var(--hero-1),var(--hero-2));color:#F2FAF6;border-radius:16px;padding:20px 22px;display:flex;flex-direction:column;gap:10px;position:relative;overflow:hidden}
+.call .eyebrow{display:flex;align-items:center;gap:6px;font-size:12px;opacity:.85}
+.call p{margin:0;font-size:16px;line-height:1.65}
+.call .deco{position:absolute;right:-30px;bottom:-40px;width:180px;height:180px;opacity:.08;stroke:#fff}
+.call .btn{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.25);color:#fff;width:max-content}
+.counters{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.counter{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:6px;box-shadow:var(--shadow);min-width:0}
+.counter .n{font-size:30px;font-weight:650;line-height:1}
+.counter .l{font-size:12px;color:var(--muted)}
+.counter .i{width:30px;height:30px;border-radius:9px;display:grid;place-items:center}
+.ring{display:block}
+
+/* alerts */
+.alerts{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px}
+@media (max-width:900px){.alerts{grid-template-columns:1fr}}
+.alist{display:flex;flex-direction:column;gap:8px}
+.alert[hidden]{display:none}
+.alert{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 12px;align-items:start;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--lv);border-radius:12px;padding:12px 14px}
+.alert .lv{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--lv-soft);color:var(--lv-ink)}
+.alert b{font-size:14px;display:block}
+.alert .d{font-size:12px;color:var(--fg-2)}
+.alert .act{font-size:12px;color:var(--muted);margin-top:4px;display:flex;gap:5px}
+.alert .ops{display:flex;flex-direction:column;gap:4px}
+@media (max-width:560px){.alert{grid-template-columns:auto minmax(0,1fr)}.alert .ops{grid-column:1/-1;flex-direction:row;flex-wrap:wrap}}
+.lv-critical{--lv:var(--crit);--lv-soft:var(--crit-soft);--lv-ink:var(--crit-ink)}
+.lv-serious{--lv:var(--serious);--lv-soft:var(--serious-soft);--lv-ink:var(--serious)}
+.lv-warning{--lv:var(--warn);--lv-soft:var(--warn-soft);--lv-ink:#9A6A00}
+:root[data-theme="dark"] .lv-warning{--lv-ink:var(--warn)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .lv-warning{--lv-ink:var(--warn)}}
+.lv-info{--lv:var(--s1);--lv-soft:var(--accent-soft);--lv-ink:var(--s1)}
+.lvtag{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--lv-ink);background:var(--lv-soft);border-radius:99px;padding:0 7px;margin-right:6px;vertical-align:1px}
+.wins{display:flex;flex-direction:column;gap:8px}
+.win{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:12px;background:var(--good-soft)}
+.win .ico{color:var(--good-ink);margin-top:2px}
+.win .d{font-size:12px;color:var(--fg-2)}
+
+/* platform badge */
+.pf{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--fg-2);white-space:nowrap}
+.pf i{width:8px;height:8px;border-radius:50%;background:var(--c);flex:none}
+
+/* KPI tiles */
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));gap:12px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:6px;box-shadow:var(--shadow);min-width:0}
+.tile .th{display:flex;align-items:center;gap:8px}
+.tile .ti{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);flex:none}
+.tile .tl{font-size:13px;color:var(--fg-2);line-height:1.3}
+.tile .tv{font-size:26px;font-weight:650;line-height:1.15;letter-spacing:-.01em}
+.tile .tv small{font-size:13px;font-weight:500;color:var(--muted);margin-left:3px}
+.tile .tf{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:22px}
+.tile.na .tv{font-size:15px;color:var(--muted);font-weight:500}
+.delta{display:inline-flex;align-items:center;gap:2px;font-size:12px;font-weight:600}
+.delta.good{color:var(--good-ink)} .delta.bad{color:var(--crit-ink)} .delta.flat{color:var(--muted)}
+.bullet{display:flex;flex-direction:column;gap:3px}
+.bullet .bt{position:relative;height:8px;border-radius:4px;background:var(--surface-2);border:1px solid var(--line)}
+.bullet .bf{position:absolute;left:0;top:-1px;bottom:-1px;border-radius:4px;background:var(--s1)}
+.bullet .bm{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--fg);border-radius:1px}
+.bullet .bl{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+
+/* funnel */
+.funnel{display:flex;flex-direction:column;align-items:center;gap:0}
+.fstep{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#fff;border-radius:10px;padding:10px 16px;min-height:52px}
+.fstep .fl{display:flex;align-items:center;gap:8px;font-size:13px}
+.fstep .fv{font-size:20px;font-weight:650}
+.fgap{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--fg-2);padding:6px 0}
+.fgap .ico{color:var(--muted)}
+.fpeer{font-size:12px}
+
+/* charts */
+svg text{font-family:var(--font)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--fg-2);align-items:center}
+.legend .k{display:inline-flex;align-items:center;gap:6px}
+.dumb .row:hover rect.hit,.bars .row:hover rect.hit{fill:var(--accent-soft)}
+#tip{position:fixed;z-index:50;pointer-events:none;background:var(--fg);color:var(--bg);font-size:12px;padding:6px 9px;border-radius:8px;max-width:260px;opacity:0;transition:opacity .08s;white-space:pre-line}
+
+/* status board */
+.status{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,210px),1fr));gap:10px}
+.st{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;align-items:center}
+.st .nm{font-weight:600;display:flex;align-items:center;gap:6px}
+.st ul{grid-column:1/-1;margin:4px 0 0;padding-left:1.1em;font-size:12px;color:var(--muted)}
+
+/* report */
+.hl{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.hl li{display:flex;gap:8px;align-items:flex-start}
+.hl .ico{margin-top:2px}
+.tone-good{color:var(--good-ink)} .tone-bad{color:var(--crit-ink)} .tone-neutral{color:var(--muted)}
+.items{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,420px),1fr));gap:12px}
+.item{position:relative;padding-left:20px}
+.item::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:4px;border-radius:0 4px 4px 0;background:var(--lv)}
+.item h3{margin:6px 0 2px;font-size:15px;line-height:1.4}
 .tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.tag{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:99px;padding:0 8px}
-.watch{margin:0;padding-left:1.2em}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;min-width:0}
-.card h3{margin:0 0 4px;font-size:15px}
-.card p{margin:4px 0 0}
-.lede{background:var(--accent-soft);border-radius:12px;padding:14px 16px}
-.platform{display:flex;flex-direction:column;gap:8px}
-.tbl{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.tag{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--fg-2);background:var(--surface-2);border:1px solid var(--line);border-radius:99px;padding:0 8px}
+.kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 10px;margin:10px 0 0}
+.kv dt{display:flex;align-items:center;gap:4px;color:var(--muted);font-size:12px;padding-top:1px;white-space:nowrap}
+.kv dd{margin:0;min-width:0}
+.item .foot{display:flex;justify-content:flex-end;margin-top:10px}
+select{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:4px 8px}
+
+/* to-dos */
+.board{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:12px}
+.lane h3{margin:0 0 8px;font-size:13px;display:flex;align-items:center;gap:6px}
+.lane .cnt{font-size:11px;color:var(--muted);background:var(--surface-2);border-radius:99px;padding:0 7px}
+.todo{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:start;padding:8px 0;border-top:1px solid var(--line)}
+.todo:first-of-type{border-top:0}
+.todo .t{font-size:13px}
+.todo.done .t{text-decoration:line-through;color:var(--muted)}
+.chk{width:22px;height:22px;border-radius:7px;border:1.5px solid var(--line);background:var(--surface);display:grid;place-items:center;cursor:pointer;padding:0;color:transparent}
+.chk:hover{border-color:var(--accent)} .todo.done .chk{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.addtodo{display:flex;gap:8px;flex-wrap:wrap}
+.addtodo input{flex:1 1 220px;min-width:0;border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:7px 10px}
+
+/* details */
+details.pfd{background:var(--surface);border:1px solid var(--line);border-radius:12px}
+details.pfd summary{cursor:pointer;padding:12px 14px;display:flex;align-items:center;gap:8px;font-weight:600;list-style:none}
+details.pfd summary::-webkit-details-marker{display:none}
+details.pfd[open] summary .chev{transform:rotate(90deg)}
+.tbl{overflow-x:auto;border-top:1px solid var(--line)}
 table{border-collapse:collapse;width:100%;min-width:560px}
-th,td{text-align:left;padding:9px 12px;white-space:nowrap;border-bottom:1px solid var(--line);vertical-align:middle}
+th,td{text-align:left;padding:8px 14px;white-space:nowrap;border-bottom:1px solid var(--line);vertical-align:middle}
 th{font-size:12px;color:var(--muted);font-weight:500}
 tr:last-child td{border-bottom:0}
-td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
-.up{color:var(--ok)} .down{color:var(--bad)} .flat{color:var(--muted)}
-svg.spark{display:block}
-.empty{color:var(--muted);background:var(--surface);border:1px dashed var(--line);border-radius:12px;padding:16px}
-.err{background:var(--bad-soft);color:var(--bad);border-radius:10px;padding:12px 14px}
-.health{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
-.chip .why{font-size:12px;color:var(--muted);margin:2px 0 0;padding-left:1.1em}
-.vs{font-size:12px}
-/* Phone: tables become one card per row, each cell labelled from its column header. */
-@media (max-width:640px){
-  .wrap{gap:22px;padding-top:16px}
-  h1{font-size:20px}
-  .kv{grid-template-columns:1fr}
-  .kv dt{margin-top:4px}
-  .tbl{overflow:visible;background:none;border:0}
-  table.stack{min-width:0}
-  table.stack thead{display:none}
-  table.stack tr{display:grid;grid-template-columns:1fr 1fr;gap:2px 12px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px}
-  table.stack td{border:0;padding:2px 0;white-space:normal}
-  table.stack td.full{grid-column:1/-1}
-  table.stack td[data-l]::before{content:attr(data-l);display:block;font-size:11px;color:var(--muted)}
+td.num{font-variant-numeric:tabular-nums}
+
+/* copilot */
+.cop{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;background:var(--surface);border-left:1px solid var(--line)}
+.cop-h{padding:16px 16px 12px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.cop-h .row{display:flex;align-items:center;gap:10px}
+.cop-h .av{width:34px;height:34px;border-radius:11px;background:linear-gradient(135deg,var(--s7),var(--s1));color:#fff;display:grid;place-items:center}
+.cop-h b{font-size:15px}
+.caps{display:flex;flex-wrap:wrap;gap:6px}
+.cap{display:inline-flex;align-items:center;gap:4px;font-size:11px;border-radius:99px;padding:1px 8px;background:var(--surface-2);border:1px solid var(--line);color:var(--fg-2)}
+.cap.off{color:var(--muted);border-style:dashed}
+.msgs{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.msg{max-width:92%;font-size:13px;line-height:1.6}
+.msg.user{align-self:flex-end;background:var(--accent);color:var(--accent-ink);padding:8px 12px;border-radius:14px 14px 4px 14px}
+.msg.bot{align-self:flex-start;background:var(--surface-2);border:1px solid var(--line);padding:10px 12px;border-radius:14px 14px 14px 4px}
+.msg.bot p{margin:0 0 6px} .msg.bot p:last-child{margin:0}
+.msg.bot ul{margin:4px 0 6px;padding-left:1.2em}
+.msg.err{border-color:var(--crit);color:var(--crit-ink)}
+.acts{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.actc{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;gap:8px;align-items:flex-start}
+.actc .x{flex:1;min-width:0}
+.actc .x b{display:block;font-size:13px}
+.typing{display:inline-flex;gap:4px}
+.typing i{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:b 1s infinite}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes b{0%,80%,100%{opacity:.3}40%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.typing i{animation:none}}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 10px}
+.chip{font-size:12px;border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:4px 10px;cursor:pointer;color:var(--fg-2)}
+.chip:hover{border-color:var(--accent);color:var(--fg)}
+.compose{border-top:1px solid var(--line);padding:12px 16px 16px;display:flex;gap:8px;align-items:flex-end}
+.compose textarea{flex:1;min-width:0;resize:none;border:1px solid var(--line);background:var(--surface-2);border-radius:12px;padding:9px 12px;min-height:42px;max-height:140px}
+.compose textarea:focus{outline:none;border-color:var(--accent)}
+.fab{display:none}
+.cop .close{display:none}
+@media (max-width:1179px){
+  .cop{position:fixed;inset:0;z-index:40;height:100dvh;border-left:0;transform:translateY(100%);transition:transform .2s;visibility:hidden}
+  .cop.open{transform:none;visibility:visible}
+  .cop .close{display:inline-flex;margin-left:auto}
+  .fab{display:inline-flex;position:fixed;right:16px;bottom:16px;z-index:30;align-items:center;gap:8px;border:0;border-radius:99px;padding:12px 18px;background:linear-gradient(135deg,var(--s7),var(--s1));color:#fff;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.2);cursor:pointer}
 }
+@media (max-width:560px){
+  .tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .tile{padding:12px}
+  .tile .tv{font-size:22px}
+  .tile .ti{width:28px;height:28px}
+  .tile .tl .meta{display:block;font-size:11px}
+  .bullet .bl{flex-direction:column;gap:0}
+  .tile svg[width="92"]{display:none}
+  .counter .n{font-size:24px}
+  .call p{font-size:15px}
+}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:10px;font-size:13px;z-index:60;opacity:0;transition:opacity .15s;pointer-events:none}
+.toast.on{opacity:1}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <div>
-      <h1>OTA 驾驶舱</h1>
-      <div class="meta">Wyndham Garden Phuket Kamala · 每天 10:20 从各平台后台只读采集</div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-octagon" viewBox="0 0 24 24"><path d="M7.86 2h8.28L22 7.86v8.28L16.14 22H7.86L2 16.14V7.86z"/><path d="M12 8v4"/><path d="M12 16h.01"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/></symbol>
+  <symbol id="i-bed" viewBox="0 0 24 24"><path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/></symbol>
+  <symbol id="i-coins" viewBox="0 0 24 24"><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r="1"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-click" viewBox="0 0 24 24"><path d="M14 4.1 12 6"/><path d="m5.1 8-2.9-.8"/><path d="m6 12-1.9 2"/><path d="M7.2 2.2 8 5.1"/><path d="M9.037 9.69a.498.498 0 0 1 .653-.653l11 4.5a.5.5 0 0 1-.074.949l-4.349 1.041a1 1 0 0 0-.74.739l-1.04 4.35a.5.5 0 0 1-.95.074z"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></symbol>
+  <symbol id="i-smile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01"/><path d="M15 9h.01"/></symbol>
+  <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-checkc" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></symbol>
+  <symbol id="i-funnel" viewBox="0 0 24 24"><path d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/></symbol>
+  <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></symbol>
+  <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></symbol>
+  <symbol id="i-msg" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+  <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
+</svg>
+
+<div class="app">
+<main class="main" id="main">
+  <header class="top">
+    <div class="mark"><svg class="ico lg"><use href="#i-pulse"/></svg></div>
+    <div class="ttl">
+      <h1>OTA 运营驾驶舱</h1>
+      <div class="sub">Wyndham Garden Phuket Kamala · 每天 10:20 从 7 个平台后台只读采集</div>
     </div>
-    <div class="meta"><span id="last-run">加载中…</span> · <a href="/logout">退出</a></div>
+    <div class="right">
+      <span class="pill" id="last-run"><svg class="ico sm"><use href="#i-db"/></svg>加载中…</span>
+      <a class="btn ghost" href="/logout">退出</a>
+    </div>
   </header>
 
-  <section>
-    <div class="rhead"><h2 style="margin:0">每日分析建议</h2>
-      <label class="meta">报告日期 <select id="report-day" aria-label="选择报告日期"></select></label></div>
-    <div class="advice" id="advice" style="margin-top:12px"></div>
+  <section class="hero">
+    <div class="call" id="call">
+      <svg class="deco" viewBox="0 0 24 24" fill="none" stroke-width="1.2"><use href="#i-pulse"/></svg>
+      <div class="eyebrow"><svg class="ico sm"><use href="#i-spark"/></svg><span>今日判断</span></div>
+      <p>正在读取…</p>
+    </div>
+    <div class="counters" id="counters"></div>
   </section>
 
-  <section>
-    <h2>核心 KPI（近 30 / 90 天）</h2>
-    <p class="meta" style="margin:-6px 0 10px">曝光、浏览、点击率、转化、预订、间夜、房价、收入。“较同类”是平台自己给的同类酒店对比值，以及我们比它高或低多少。“未接入”表示这个平台的数据页还没找到或拿不到这个时段。</p>
-    <div class="tbl"><table id="kpi" class="stack">
-      <thead><tr><th>指标</th><th>平台</th><th>近 30 天</th><th>近 90 天</th><th>较同类</th><th>日期</th></tr></thead>
-      <tbody></tbody></table></div>
+  <section class="sec" id="sec-alerts">
+    <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-bell"/></svg></span><h2>主动预警</h2>
+      <span class="hint">每次采集后自动对比同类和上周，发现问题就列在这里，并给出谁去做什么</span></div>
+    <div class="alerts"><div class="alist" id="alerts"></div><div class="wins" id="wins"></div></div>
   </section>
 
-  <section>
-    <h2>平台状态</h2>
-    <p class="meta" style="margin:-6px 0 10px">每个平台最近一次读取的结果。没读到的会写明原因和怎么恢复。</p>
-    <div class="health" id="health"></div>
+  <section class="sec">
+    <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-target"/></svg></span><h2>核心 KPI</h2>
+      <span class="hint">蓝条是我们，黑线是平台给的同类值（Medallia 为温德姆品牌均值）</span></div>
+    <div class="tiles" id="tiles"></div>
   </section>
 
-  <section>
-    <h2>各平台指标</h2>
-    <div id="platforms" style="display:flex;flex-direction:column;gap:22px"></div>
+  <section class="grid2">
+    <div class="card">
+      <div class="sec-h" style="margin-bottom:12px"><span class="badge-ico"><svg class="ico"><use href="#i-funnel"/></svg></span><h2>Booking 转化漏斗</h2>
+        <span class="hint tail" id="funnel-when"></span></div>
+      <div id="funnel"></div>
+    </div>
+    <div class="card">
+      <div class="sec-h" style="margin-bottom:8px"><span class="badge-ico"><svg class="ico"><use href="#i-star"/></svg></span><h2>各平台口碑 vs 温德姆品牌</h2></div>
+      <div id="dumb"></div>
+    </div>
   </section>
+
+  <section class="grid2">
+    <div class="card">
+      <div class="sec-h" style="margin-bottom:8px"><span class="badge-ico"><svg class="ico"><use href="#i-heart"/></svg></span><h2>客人遇到的问题</h2>
+        <span class="hint">Medallia 近 12 个月，越短越好</span></div>
+      <div id="problems"></div>
+    </div>
+    <div class="card">
+      <div class="sec-h" style="margin-bottom:12px"><span class="badge-ico"><svg class="ico"><use href="#i-globe"/></svg></span><h2>平台连接状态</h2></div>
+      <div class="status" id="status"></div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-file"/></svg></span><h2>每日分析建议</h2>
+      <label class="meta tail">报告日期 <select id="report-day" aria-label="选择报告日期"></select></label></div>
+    <div id="report"></div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-list"/></svg></span><h2>运营待办</h2>
+      <span class="hint">从预警、报告或 Copilot 一键加入，做完勾掉</span></div>
+    <form class="addtodo" id="addtodo">
+      <input id="todo-title" placeholder="手动加一条待办，例如：周五前更新 Booking 首图" aria-label="待办内容" maxlength="200" />
+      <select id="todo-owner" aria-label="负责部门"></select>
+      <button class="btn primary" type="submit"><svg class="ico sm"><use href="#i-plus"/></svg>加入</button>
+    </form>
+    <div class="board" id="board"></div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-db"/></svg></span><h2>全部指标明细</h2>
+      <span class="hint">每个平台采到的所有数字和近 30 次走势</span></div>
+    <div id="details" style="display:flex;flex-direction:column;gap:8px"></div>
+  </section>
+</main>
+
+<aside class="cop" id="cop" aria-label="运营 Copilot">
+  <div class="cop-h">
+    <div class="row">
+      <span class="av"><svg class="ico"><use href="#i-spark"/></svg></span>
+      <div><b>运营 Copilot</b><div class="meta">读全部 OTA 数据，回答、分析、安排待办</div></div>
+      <button class="btn ghost close" id="cop-close" aria-label="关闭 Copilot"><svg class="ico"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="caps">
+      <span class="cap"><svg class="ico sm"><use href="#i-check"/></svg>读数据</span>
+      <span class="cap"><svg class="ico sm"><use href="#i-check"/></svg>分析原因</span>
+      <span class="cap"><svg class="ico sm"><use href="#i-check"/></svg>生成待办</span>
+      <span class="cap"><svg class="ico sm"><use href="#i-check"/></svg>写文案 / 汇报</span>
+      <span class="cap off"><svg class="ico sm"><use href="#i-lock"/></svg>后台执行：需人确认（筹备中）</span>
+    </div>
+  </div>
+  <div class="msgs" id="msgs" aria-live="polite"></div>
+  <div class="chips" id="chips"></div>
+  <form class="compose" id="compose">
+    <textarea id="q" rows="1" placeholder="问数据、要建议、写汇报…" aria-label="问 Copilot"></textarea>
+    <button class="btn primary" type="submit" aria-label="发送"><svg class="ico"><use href="#i-send"/></svg></button>
+  </form>
+</aside>
 </div>
+<button class="fab" id="fab"><svg class="ico"><use href="#i-spark"/></svg>问 Copilot</button>
+<div id="tip" role="tooltip"></div>
+<div class="toast" id="toast" role="status"></div>
 
 <script>
-const NAMES = {booking:"Booking.com", agoda:"Agoda", expedia:"Expedia", ctrip:"携程 / 去哪儿 / 同程",
-  google:"Google", tripadvisor:"TripAdvisor", medallia:"Medallia（品牌问卷）"};
-const STATUS = {ok:["正常","s-ok"], signed_out:["未登录","s-bad"], page_missing:["页面缺失","s-warn"], error:["出错","s-warn"]};
-const RANK = {ok:0, page_missing:1, error:2, signed_out:3};
+const PLATFORMS = {booking:["Booking.com","--s1"], agoda:["Agoda","--s2"], expedia:["Expedia","--s3"], ctrip:["携程 / 去哪儿","--s4"],
+  google:["Google","--s5"], tripadvisor:["TripAdvisor","--s6"], medallia:["Medallia 问卷","--s7"], all:["全部平台","--muted"]};
+const OWNERS = ["收益/销售","前台","客房","工程","餐饮","市场/内容","总经理"];
+const LEVEL = {critical:["紧急","i-octagon"], serious:["重要","i-alert"], warning:["注意","i-alert"], info:["提示","i-info"]};
+const PRIORITY = {high:["优先","critical"], medium:["近期","warning"], low:["可选","info"]};
+const AREAS = {price:["价格","i-tag"], traffic:["流量曝光","i-eye"], conversion:["转化","i-click"], reputation:["口碑评分","i-star"],
+  experience:["客人体验","i-heart"], content:["页面内容","i-file"], data:["数据缺口","i-db"]};
 const PERIODS = {last_30_days:"近 30 天", next_30_days:"未来 30 天", last_12_months:"近 12 个月", last_13_months:"近 13 个月",
   last_90_days:"近 90 天", last_28_days:"近 28 天", next_28_days:"未来 28 天", next_90_days:"未来 90 天",
-  funnel:"排名看板默认时段", month_to_date:"本月至今", last_month:"上月", latest_month:"最近一个月",
+  funnel:"排名看板时段", month_to_date:"本月至今", last_month:"上月", latest_month:"最近一个月",
   booked_last_30_days:"近 30 天新增", booked_last_90_days:"近 90 天新增"};
-const PRIORITY = {high:["优先","s-bad"], medium:["近期","s-warn"], low:["可选","s-ok"]};
-const AREAS = {price:"价格", traffic:"流量曝光", conversion:"转化", reputation:"口碑评分", experience:"客人体验", content:"页面内容", data:"数据缺口"};
+const LOWER_BETTER = /(^|_)(rank|problem|sort_order|response_hours|pending|had_problem)/;
 
-const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const fmt = (v, unit) => {
-  const n = Math.abs(v) >= 1000 ? v.toLocaleString("en-US", {maximumFractionDigits:0}) : (+v.toFixed(2)).toString();
-  return unit === "%" ? n + "%" : unit ? `${n} ${unit}` : n;
-};
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const icon = (id, cls = "") => `<svg class="ico ${cls}" aria-hidden="true"><use href="#${id}"/></svg>`;
+const pf = p => { const [n, c] = PLATFORMS[p] || [p, "--muted"]; return `<span class="pf" style="--c:var(${c})"><i></i>${esc(n)}</span>`; };
+const num = v => Math.abs(v) >= 1000 ? Math.round(v).toLocaleString("en-US") : String(+(+v).toFixed(2));
+const fmt = (v, unit) => unit === "%" ? num(v) + "%" : unit && !unit.startsWith("/") ? `${num(v)} ${unit}` : num(v) + (unit || "");
+// Big numbers the Chinese way: 368,843 → 36.9万.
+const compact = v => Math.abs(v) >= 1e8 ? `${+(v / 1e8).toFixed(2)}亿` : Math.abs(v) >= 1e4 ? `${+(v / 1e4).toFixed(1)}万` : num(v);
+let STATE = null;
 
-function spark(points){
-  if (points.length < 2) return "";
-  const w = 96, h = 26, xs = points.map((_, i) => i * (w - 4) / (points.length - 1) + 2);
-  const lo = Math.min(...points), hi = Math.max(...points), span = hi - lo || 1;
-  const ys = points.map(v => h - 3 - (v - lo) / span * (h - 6));
+function toast(text){ const t = $("toast"); t.textContent = text; t.classList.add("on"); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("on"), 2200); }
+
+// ── tooltip: any element with data-tip; text is set with textContent ──
+document.addEventListener("pointerover", e => { const el = e.target.closest("[data-tip]"); const tip = $("tip");
+  if (!el) { tip.style.opacity = 0; return; } tip.textContent = el.dataset.tip; tip.style.opacity = 1; });
+document.addEventListener("pointermove", e => { const tip = $("tip");
+  tip.style.left = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8) + "px"; tip.style.top = (e.clientY + 14) + "px"; });
+document.addEventListener("focusin", e => { const el = e.target.closest("[data-tip]"); const tip = $("tip");
+  if (!el) return; const r = el.getBoundingClientRect(); tip.textContent = el.dataset.tip; tip.style.opacity = 1;
+  tip.style.left = Math.min(r.left, innerWidth - tip.offsetWidth - 8) + "px"; tip.style.top = (r.bottom + 6) + "px"; });
+document.addEventListener("focusout", () => { $("tip").style.opacity = 0; });
+
+// ── data helpers ──
+function series(state){
+  const by = {};
+  for (const m of state.metrics) (by[`${m.platform}|${m.metric}@${m.period || ""}`] ||= []).push(m);
+  return by;
+}
+function prior(rows){
+  const last = rows.at(-1); const cut = Date.parse(last.day) - 7 * 864e5;
+  return last.period ? [...rows].reverse().find(r => Date.parse(r.day) <= cut) : rows.at(-2);
+}
+function spark(values, w = 92, h = 26){
+  if (values.length < 2) return "";
+  const xs = values.map((_, i) => 2 + i * (w - 6) / (values.length - 1));
+  const lo = Math.min(...values), hi = Math.max(...values), span = hi - lo || 1;
+  const ys = values.map(v => h - 4 - (v - lo) / span * (h - 8));
   const d = xs.map((x, i) => `${i ? "L" : "M"}${x.toFixed(1)} ${ys[i].toFixed(1)}`).join("");
-  return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">
-    <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
-    <circle cx="${xs.at(-1)}" cy="${ys.at(-1)}" r="2.5" fill="var(--accent)"/></svg>`;
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><path d="${d}" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-linejoin="round"/>
+    <circle cx="${xs.at(-1)}" cy="${ys.at(-1)}" r="3" fill="var(--s1)" stroke="var(--surface)" stroke-width="1.5"/></svg>`;
+}
+function ring(frac, color, size = 44){
+  const r = size / 2 - 4, c = 2 * Math.PI * r, f = Math.max(0, Math.min(1, frac));
+  return `<svg class="ring" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true">
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--line)" stroke-width="5"/>
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round"
+      stroke-dasharray="${(c * f).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 ${size/2} ${size/2})"/></svg>`;
 }
 
-// Why a page gave no numbers, in words the hotel team can act on.
-function why(p){
-  const page = p.page === "landing" ? "首页" : p.page;
-  if (p.status === "signed_out") return p.page === "landing"
-    ? "未登录：点评系统下次自动登录（09:15 / 14:45）后会恢复"
-    : `${page}：要单独登录一次（需人工登录）`;
-  if (p.status === "page_missing") return `${page}：数据页地址待确认`;
-  if (p.status === "error") return `${page}：数据没加载出来，下次再读`;
-  return "";
+// ── hero ──
+function hero(state){
+  const r = state.advice[0], mon = state.monitor || {alerts: [], wins: []};
+  $("call").querySelector("p").textContent = r ? r.summary : "还没有当天的分析报告。每天采集完会自动生成，建议都附依据数字。";
+  $("call").querySelector(".eyebrow span").textContent = r ? `今日判断 · ${r.id}` : "今日判断";
+  if (!$("call").querySelector(".btn")) $("call").insertAdjacentHTML("beforeend",
+    `<button class="btn" type="button" data-ask="今天最该先做哪 3 件事？每件写清楚谁去做、在哪个后台、看哪个指标。">${icon("i-spark","sm")}让 Copilot 排今天的优先级</button>`);
+  const serious = mon.alerts.filter(a => a.level === "critical" || a.level === "serious").length;
+  const open = (state.todos || []).filter(t => t.status === "open").length;
+  const pfs = state.platforms.filter(p => state.pages.some(x => x.platform === p && x.page === "landing" && x.status === "ok")).length;
+  $("counters").innerHTML = `
+    <div class="counter"><span class="i" style="background:var(--crit-soft);color:var(--crit-ink)">${icon("i-bell")}</span>
+      <span class="n">${mon.alerts.length}</span><span class="l">条预警 · ${serious} 条重要</span></div>
+    <div class="counter"><span class="i" style="background:var(--accent-soft);color:var(--accent)">${icon("i-list")}</span>
+      <span class="n">${open}</span><span class="l">项待办未完成</span></div>
+    <div class="counter" data-tip="${esc(`${pfs} / ${state.platforms.length} 个平台今天首页读取正常`)}"><div style="display:flex;align-items:center;gap:8px">
+      ${ring(pfs / state.platforms.length, pfs === state.platforms.length ? "var(--good)" : "var(--warn)")}<span class="n">${pfs}<small class="l">/${state.platforms.length}</small></span></div>
+      <span class="l">平台在线</span></div>`;
 }
-const runTime = id => `${id.slice(4,6)}-${id.slice(6,8)} ${id.slice(9,11)}:${id.slice(11,13)}`;
 
-function health(state){
-  document.getElementById("health").innerHTML = state.platforms.map(pf => {
-    const pages = state.pages.filter(x => x.platform === pf);
-    if (!pages.length) return `<div class="chip"><b>${esc(NAMES[pf])}</b><span class="pill s-warn">没有数据</span>
-      <span class="meta">最近 3 天没有读取记录</span></div>`;
-    const worst = pages.reduce((a, b) => RANK[b.status] > RANK[a.status] ? b : a);
-    const landing = pages.find(x => x.page === "landing");
-    // A platform is "部分可读" when its home page works but some report pages do not.
-    const [label, cls] = worst.status === "ok" ? STATUS.ok
-      : landing && landing.status === "ok" ? ["部分可读", "s-warn"] : STATUS[worst.status];
-    const ok = pages.filter(x => x.status === "ok").length;
-    const last = pages.map(x => x.run_id).sort().at(-1);
-    const reasons = pages.filter(x => x.status !== "ok").map(why);
-    const metricCount = state.metrics.filter(m => m.platform === pf && m.day === state.metrics.filter(n => n.platform === pf).at(-1)?.day).length;
-    return `<div class="chip"><b>${esc(NAMES[pf])}</b><span class="pill ${cls}">${label}</span>
-      <span class="meta">${ok}/${pages.length} 个页面读到${metricCount ? ` · ${metricCount} 个指标` : ""} · ${esc(runTime(last))}</span>
-      ${reasons.length ? `<ul class="why">${reasons.map(r => `<li>${esc(r)}</li>`).join("")}</ul>` : ""}</div>`;
+// ── alerts ──
+function alerts(state){
+  const mon = state.monitor || {alerts: [], wins: []};
+  const SHOW = 5, more = mon.alerts.length - SHOW;
+  $("alerts").innerHTML = mon.alerts.length ? mon.alerts.map((a, i) => {
+    const [lab, ic] = LEVEL[a.level] || LEVEL.info;
+    return `<div class="alert lv-${a.level}" ${i >= SHOW ? "data-more hidden" : ""}>
+      <span class="lv">${icon(ic)}</span>
+      <div><b><span class="lvtag">${lab}</span>${esc(a.title)}</b>
+        <div class="d">${[a.detail ? esc(a.detail) : "", pf(a.platform), `负责：${esc(a.owner)}`].filter(Boolean).join(" · ")}</div>
+        <div class="act">${icon("i-wrench","sm")}<span>${esc(a.action)}</span></div></div>
+      <div class="ops"><button class="btn" data-todo-alert="${i}">${icon("i-plus","sm")}加入待办</button>
+        <button class="btn ghost" data-ask="${esc(`这个预警怎么处理？「${a.title}」${a.detail}`)}">${icon("i-spark","sm")}问 Copilot</button></div></div>`;
+  }).join("") + (more > 0 ? `<button class="btn" id="more-alerts" style="align-self:flex-start">${icon("i-chev","sm")}再看 ${more} 条</button>` : "")
+    : `<div class="empty">${icon("i-checkc","sm")} 目前没有预警，各项指标都不低于同类和上周。</div>`;
+  if (more > 0) $("more-alerts").onclick = e => { document.querySelectorAll("[data-more]").forEach(el => el.hidden = false); e.currentTarget.remove(); };
+  $("wins").innerHTML = `<div class="meta" style="display:flex;align-items:center;gap:6px">${icon("i-trophy","sm")}做得好的地方</div>` +
+    (mon.wins.length ? mon.wins.slice(0, 5).map(w => `<div class="win">${icon("i-up")}<div><b>${esc(w.title)}</b><div class="d">${esc(w.detail)}</div></div></div>`).join("")
+      : `<div class="empty">数据积累几天后，这里会列出明显好于同类的指标。</div>`);
+}
+
+// ── KPI tiles: first source that has data wins ──
+const TILES = [
+  ["收入", "i-coins", [["booking","revenue_30d@last_30_days"],["booking","revenue_mtd@month_to_date"],["expedia","revenue_28d@last_28_days"]]],
+  ["间夜", "i-bed", [["booking","room_nights_30d@last_30_days"],["booking","room_nights_mtd@month_to_date"],["expedia","room_nights_28d@last_28_days"]]],
+  ["平均房价 ADR", "i-tag", [["booking","adr_30d@last_30_days"],["booking","adr_mtd@month_to_date"]]],
+  ["搜索曝光", "i-eye", [["booking","search_views@funnel"],["tripadvisor","listing_impressions@last_30_days"]]],
+  ["曝光 → 访问点击率", "i-click", [["booking","click_rate@funnel"]]],
+  ["访问 → 预订转化率", "i-cal", [["booking","book_rate@funnel"],["booking","conversion_rate_90d@last_90_days"],["expedia","conversion_rate_28d@last_28_days"]]],
+  ["综合口碑分", "i-star", [["medallia","site_score_all@last_13_months"],["medallia","social_score_12m@last_12_months"]]],
+  ["NPS 净推荐值", "i-smile", [["medallia","nps_12m@last_12_months"],["medallia","nps@last_13_months"]]],
+];
+function tiles(state, by){
+  $("tiles").innerHTML = TILES.map(([label, ic, srcs]) => {
+    const hit = srcs.map(([p, k]) => by[`${p}|${k}`]).find(Boolean);
+    if (!hit) return `<div class="tile na"><div class="th"><span class="ti">${icon(ic)}</span><span class="tl">${esc(label)}</span></div>
+      <div class="tv">待采集</div><div class="meta">数据页还没接上，接上后自动出现</div></div>`;
+    const m = hit.at(-1), ref = prior(hit), low = LOWER_BETTER.test(m.metric);
+    const unitTxt = m.unit === "%" ? "%" : m.unit || "";
+    const big = m.unit === "%" ? num(m.value) : compact(m.value);
+    let delta = "";
+    if (ref && ref.value) {
+      const d = m.unit === "%" ? m.value - ref.value : (m.value - ref.value) / Math.abs(ref.value) * 100;
+      const good = low ? d < 0 : d > 0, cls = Math.abs(d) < 0.05 ? "flat" : good ? "good" : "bad";
+      delta = `<span class="delta ${cls}" data-tip="${esc(`${ref.day}：${fmt(ref.value, m.unit)}`)}">${icon(d >= 0 ? "i-up" : "i-down","sm")}${d >= 0 ? "+" : "−"}${Math.abs(d).toFixed(1)}${m.unit === "%" ? " 点" : "%"}</span>`;
+    }
+    let bullet = "";
+    if (m.benchmark != null) {
+      const max = Math.max(m.value, m.benchmark) * 1.15 || 1;
+      const ahead = low ? m.value <= m.benchmark : m.value >= m.benchmark;
+      const gap = m.unit === "%" ? `${(m.value - m.benchmark) >= 0 ? "+" : "−"}${Math.abs(m.value - m.benchmark).toFixed(2)} 点`
+        : m.benchmark ? `${m.value >= m.benchmark ? "+" : "−"}${Math.abs((m.value - m.benchmark) / m.benchmark * 100).toFixed(1)}%` : "";
+      bullet = `<div class="bullet" data-tip="${esc(`我们 ${fmt(m.value, m.unit)}\n同类 ${fmt(m.benchmark, m.unit)}`)}" tabindex="0">
+        <div class="bt"><div class="bf" style="width:${(m.value / max * 100).toFixed(1)}%"></div><div class="bm" style="left:calc(${(m.benchmark / max * 100).toFixed(1)}% - 1px)"></div></div>
+        <div class="bl"><span>${m.platform === "medallia" ? "品牌" : "同类"} ${esc(m.unit === "%" ? fmt(m.benchmark, m.unit) : compact(m.benchmark))}</span><span class="${ahead ? "tone-good" : "tone-bad"}">${icon(ahead ? "i-up" : "i-down","sm")} ${esc(gap)}</span></div></div>`;
+    }
+    return `<div class="tile"><div class="th"><span class="ti">${icon(ic)}</span><span class="tl">${esc(label)}<br><span class="meta">${pf(m.platform)} · ${esc(PERIODS[m.period] || "最新")}</span></span></div>
+      <div class="tv">${esc(big)}<small>${esc(unitTxt === "%" ? "%" : unitTxt.startsWith("/") ? unitTxt : unitTxt)}</small></div>
+      ${bullet}<div class="tf">${delta || `<span class="meta">${esc(m.day)}</span>`}${spark(hit.slice(-30).map(r => r.value))}</div></div>`;
   }).join("");
 }
 
-function advice(state){
-  const el = document.getElementById("advice"), pick = document.getElementById("report-day");
-  if (!state.advice.length) {
-    pick.hidden = true;
-    el.innerHTML = `<div class="empty">还没有报告。每天采集完会自动生成一份，每条建议都附上依据的数字。</div>`;
-    return;
-  }
+// ── Booking funnel: stylised steps (widths are decoration, the numbers carry the values) ──
+function funnel(by){
+  const g = k => by[`booking|${k}`]?.at(-1);
+  const views = g("search_views@funnel"), visits = g("page_visits@funnel"), books = g("bookings@funnel");
+  const ctr = g("click_rate@funnel"), br = g("book_rate@funnel"), vsPeer = g("search_views_vs_peer@funnel");
+  if (!views && !visits && !books) { $("funnel").innerHTML = `<div class="empty">Booking 排名看板还没读到。</div>`; return; }
+  $("funnel-when").textContent = (views || visits || books).day;
+  const step = (m, label, ic, w, bg) => `<div class="fstep" style="width:${w}%;background:${bg}"><span class="fl">${icon(ic)}${label}</span>
+    <span class="fv">${m ? esc(compact(m.value)) : "—"}</span></div>`;
+  const gap = (m, label) => {
+    if (!m) return `<div class="fgap"><span class="meta">↓ ${label}：未读到</span></div>`;
+    const behind = m.benchmark != null && m.value < m.benchmark;
+    const peer = m.benchmark == null ? "" : `<span class="fpeer ${behind ? "tone-bad" : "tone-good"}">${icon(behind ? "i-down" : "i-up","sm")} 同类 ${esc(fmt(m.benchmark, m.unit))}</span>`;
+    return `<div class="fgap"><span class="meta">↓</span><span>${label} <b>${esc(fmt(m.value, m.unit))}</b></span>${peer}</div>`;
+  };
+  $("funnel").innerHTML = `<div class="funnel">
+    ${step(views, "搜索结果曝光", "i-eye", 100, "var(--s1)")}
+    ${gap(ctr, "点击率")}
+    ${step(visits, "房源页访问", "i-click", 78, "var(--s1)")}
+    ${gap(br, "预订转化")}
+    ${step(books, "预订", "i-cal", 56, "var(--s1)")}</div>
+    ${vsPeer ? `<p class="meta" style="margin:10px 0 0;text-align:center">搜索曝光比同类 ${vsPeer.value >= 0 ? "多" : "少"} ${esc(num(Math.abs(vsPeer.value)))}%</p>` : ""}`;
+}
+
+// ── reputation dumbbell: hotel vs Wyndham brand, per review site (Medallia) ──
+const SITES = [["google","Google"],["expedia","Expedia"],["ctrip","携程"],["booking","Booking"],["tripadvisor","TripAdvisor"],["agoda","Agoda"],["all","所有网站"]];
+function dumbbell(by){
+  const rows = SITES.map(([k, name]) => ({k, name, m: by[`medallia|site_score_${k}@last_13_months`]?.at(-1)})).filter(r => r.m && r.m.benchmark != null);
+  if (!rows.length) { $("dumb").innerHTML = `<div class="empty">Medallia 口碑分还没读到。</div>`; return; }
+  rows.sort((a, b) => (b.m.value - b.m.benchmark) - (a.m.value - a.m.benchmark));
+  const vals = rows.flatMap(r => [r.m.value, r.m.benchmark]);
+  const lo = Math.floor((Math.min(...vals) - 0.1) * 10) / 10, hi = Math.ceil((Math.max(...vals) + 0.05) * 10) / 10;
+  const W = 560, L = 92, R = 70, rowH = 30, H = rows.length * rowH + 28;
+  const x = v => L + (v - lo) / (hi - lo) * (W - L - R);
+  const ticks = []; for (let t = lo; t <= hi + 1e-9; t += (hi - lo) > 0.6 ? 0.2 : 0.1) ticks.push(+t.toFixed(1));
+  const body = rows.map((r, i) => {
+    const y = 14 + i * rowH + rowH / 2, d = r.m.value - r.m.benchmark, ahead = d >= 0;
+    return `<g class="row" data-tip="${esc(`${r.name}\n我们 ${num(r.m.value)} / 5\n品牌 ${num(r.m.benchmark)} / 5`)}" tabindex="0">
+      <rect class="hit" x="0" y="${y - rowH/2}" width="${W}" height="${rowH}" fill="transparent" rx="6"/>
+      <text x="${L - 10}" y="${y + 4}" text-anchor="end" font-size="12" fill="var(--fg-2)">${esc(r.name)}</text>
+      <line x1="${x(r.m.benchmark)}" x2="${x(r.m.value)}" y1="${y}" y2="${y}" stroke="var(--s1-soft)" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="${x(r.m.benchmark)}" cy="${y}" r="5" fill="var(--surface)" stroke="var(--muted)" stroke-width="2"/>
+      <circle cx="${x(r.m.value)}" cy="${y}" r="6" fill="var(--s1)" stroke="var(--surface)" stroke-width="2"/>
+      <text x="${W - R + 10}" y="${y + 4}" font-size="12" font-weight="600" fill="${ahead ? "var(--good-ink)" : "var(--crit-ink)"}">${ahead ? "▲" : "▼"} ${Math.abs(d).toFixed(2)}</text></g>`;
+  }).join("");
+  const grid = ticks.map(t => `<line x1="${x(t)}" x2="${x(t)}" y1="10" y2="${H - 18}" stroke="var(--line)"/>
+    <text x="${x(t)}" y="${H - 4}" text-anchor="middle" font-size="11" fill="var(--muted)">${t.toFixed(1)}</text>`).join("");
+  $("dumb").innerHTML = `<div class="legend" style="margin-bottom:6px"><span class="k"><svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="var(--s1)"/></svg>我们</span>
+    <span class="k"><svg width="12" height="12"><circle cx="6" cy="6" r="4" fill="none" stroke="var(--muted)" stroke-width="2"/></svg>温德姆品牌均值</span>
+    <span class="meta">满分 5 · Medallia 近 13 个月 · ${esc(rows[0].m.day)}</span></div>
+    <svg class="dumb" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="各平台口碑我们对比品牌均值">${grid}${body}</svg>`;
+}
+
+// ── guest problem areas: one hue, brand value as a tick; lower is better ──
+const PROBLEMS = [["problem_checkin","入住"],["problem_checkout","退房"],["problem_hvac","空调通风"],["problem_cleanliness","客房清洁"],
+  ["problem_noise","噪音"],["problem_repairs","设施损坏"],["problem_hot_water","水压热水"],["problem_staff","员工服务"],["problem_fnb","餐饮"]];
+function problems(by){
+  const rows = PROBLEMS.map(([k, name]) => ({name, m: by[`medallia|${k}@last_12_months`]?.at(-1)})).filter(r => r.m);
+  const share = by["medallia|had_problem_share@last_12_months"]?.at(-1);
+  if (!rows.length) { $("problems").innerHTML = `<div class="empty">Medallia 问题分布还没读到。</div>`; return; }
+  rows.sort((a, b) => b.m.value - a.m.value);
+  const max = Math.max(...rows.flatMap(r => [r.m.value, r.m.benchmark ?? 0])) * 1.1 || 1;
+  const W = 560, L = 80, R = 70, rowH = 26, H = rows.length * rowH + 6;
+  const x = v => L + v / max * (W - L - R);
+  const body = rows.map((r, i) => {
+    const y = 4 + i * rowH, worse = r.m.benchmark != null && r.m.value > r.m.benchmark + 1;
+    return `<g class="row" data-tip="${esc(`${r.name}\n我们 ${num(r.m.value)}%${r.m.benchmark != null ? `\n品牌 ${num(r.m.benchmark)}%` : ""}`)}" tabindex="0">
+      <rect class="hit" x="0" y="${y}" width="${W}" height="${rowH}" fill="transparent" rx="6"/>
+      <text x="${L - 10}" y="${y + 17}" text-anchor="end" font-size="12" fill="var(--fg-2)">${esc(r.name)}</text>
+      <rect x="${L}" y="${y + 6}" width="${Math.max(2, x(r.m.value) - L)}" height="14" rx="4" fill="var(--s1)"/>
+      ${r.m.benchmark != null ? `<line x1="${x(r.m.benchmark)}" x2="${x(r.m.benchmark)}" y1="${y + 2}" y2="${y + 24}" stroke="var(--fg)" stroke-width="2"/>` : ""}
+      <text x="${W - 4}" y="${y + 17}" text-anchor="end" font-size="12" fill="var(--fg)" font-weight="${worse ? 600 : 400}">${num(r.m.value)}%${worse ? " ▲" : ""}</text></g>`;
+  }).join("");
+  $("problems").innerHTML = `<div class="legend" style="margin-bottom:6px"><span class="k"><svg width="12" height="10"><rect width="12" height="10" rx="3" fill="var(--s1)"/></svg>遇到该问题的客人占比</span>
+    <span class="k"><svg width="4" height="14"><rect width="2" height="14" x="1" fill="var(--fg)"/></svg>品牌均值</span>
+    ${share ? `<span class="meta">整体遇到问题 ${num(share.value)}%${share.benchmark != null ? `（品牌 ${num(share.benchmark)}%）` : ""}</span>` : ""}</div>
+    <svg class="bars" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="客人遇到的问题占比">${body}</svg>
+    <p class="meta" style="margin:4px 0 0">▲ 表示比品牌均值高 1 个百分点以上</p>`;
+}
+
+// ── platform connection status ──
+function why(p){
+  const page = p.page === "landing" ? "首页" : p.page;
+  if (p.status === "signed_out") return p.page === "landing" ? "未登录：点评系统 09:15 / 14:45 自动登录后恢复" : `${page}：要单独人工登录一次`;
+  if (p.status === "page_missing") return `${page}：数据页地址待确认`;
+  if (p.status === "error") return `${page}：没加载出来，下次再读`;
+  return "";
+}
+function status(state, by){
+  $("status").innerHTML = state.platforms.map(p => {
+    const pages = state.pages.filter(x => x.platform === p);
+    const ok = pages.filter(x => x.status === "ok").length, total = pages.length;
+    const landing = pages.find(x => x.page === "landing");
+    const color = !total ? "var(--line)" : ok === total ? "var(--good)" : landing && landing.status === "ok" ? "var(--warn)" : "var(--crit)";
+    const label = !total ? "没有记录" : ok === total ? "全部正常" : landing && landing.status === "ok" ? "部分可读" : "未登录";
+    const score = by[`${p}|review_score@`]?.at(-1);
+    const reasons = pages.filter(x => x.status !== "ok").map(why).filter(Boolean);
+    return `<div class="st">${ring(total ? ok / total : 0, color, 46)}
+      <div><div class="nm">${pf(p)}</div><div class="meta">${label} · ${ok}/${total} 页${score ? ` · 评分 ${esc(fmt(score.value, score.unit))}` : ""}</div></div>
+      ${reasons.length ? `<ul>${reasons.map(r => `<li>${esc(r)}</li>`).join("")}</ul>` : ""}</div>`;
+  }).join("");
+}
+
+// ── daily report ──
+function report(state){
+  const pick = $("report-day");
+  if (!state.advice.length) { pick.hidden = true; $("report").innerHTML = `<div class="empty">还没有报告。每天采集完会自动生成一份。</div>`; return; }
   pick.hidden = false;
   pick.innerHTML = state.advice.map((a, i) => `<option value="${i}">${esc(a.id)}</option>`).join("");
   pick.onchange = () => renderReport(state.advice[+pick.value]);
   renderReport(state.advice[0]);
 }
-
 function renderReport(a){
-  const el = document.getElementById("advice");
-  const hl = (a.highlights || []).length ? `<div class="card"><h3>今日要点</h3><ul class="hl">${a.highlights.map(h =>
-      `<li><span class="dot ${h.tone === "good" ? "good" : h.tone === "bad" ? "bad" : ""}"></span><span>${NAMES[h.platform] ? `<b>${esc(NAMES[h.platform])}</b> ` : ""}${esc(h.text)}</span></li>`).join("")}</ul></div>` : "";
+  const hl = (a.highlights || []).length ? `<div class="card"><ul class="hl">${a.highlights.map(h => {
+      const t = h.tone === "good" ? "good" : h.tone === "bad" ? "bad" : "neutral";
+      return `<li><span class="tone-${t}">${icon(t === "good" ? "i-up" : t === "bad" ? "i-down" : "i-info")}</span><span>${PLATFORMS[h.platform] && h.platform !== "all" ? pf(h.platform) + " " : ""}${esc(h.text)}</span></li>`;
+    }).join("")}</ul></div>` : "";
   const order = {high:0, medium:1, low:2};
-  const items = [...(a.items || [])].sort((x, y) => (order[x.priority] ?? 1) - (order[y.priority] ?? 1)).map(it => {
-    const [pl, pc] = PRIORITY[it.priority] || PRIORITY.medium;
-    const row = (k, v) => v ? `<dt>${k}</dt><dd>${esc(v)}</dd>` : "";
-    return `<div class="card"><div class="tags"><span class="pill ${pc}">${pl}</span>
-        <span class="tag">${esc(NAMES[it.platform] || "全部平台")}</span>${AREAS[it.area] ? `<span class="tag">${AREAS[it.area]}</span>` : ""}
-        ${it.owner ? `<span class="tag">负责：${esc(it.owner)}</span>` : ""}</div>
-      <h3 style="margin-top:8px">${esc(it.title)}</h3>
-      <dl class="kv">${row("依据", it.evidence)}${row("分析", it.analysis)}${row("怎么做", it.action)}${row("看效果", it.expected)}</dl></div>`;
+  const items = (a.items || []).map((it, i) => ({it, i})).sort((x, y) => (order[x.it.priority] ?? 1) - (order[y.it.priority] ?? 1)).map(({it, i}) => {
+    const [pl, lv] = PRIORITY[it.priority] || PRIORITY.medium;
+    const [al, ai] = AREAS[it.area] || ["其他", "i-info"];
+    const row = (k, ic, v) => v ? `<dt>${icon(ic,"sm")}${k}</dt><dd>${esc(v)}</dd>` : "";
+    return `<div class="card item lv-${lv}"><div class="tags"><span class="lvtag">${pl}</span>${pf(it.platform || "all")}
+        <span class="tag">${icon(ai,"sm")}${al}</span>${it.owner ? `<span class="tag">负责：${esc(it.owner)}</span>` : ""}</div>
+      <h3>${esc(it.title)}</h3>
+      <dl class="kv">${row("依据","i-db",it.evidence)}${row("分析","i-pulse",it.analysis)}${row("怎么做","i-wrench",it.action)}${row("看效果","i-target",it.expected)}</dl>
+      <div class="foot"><button class="btn" data-todo-report="${esc(a.id)}#${i}">${icon("i-plus","sm")}加入待办</button></div></div>`;
   }).join("");
-  const watch = (a.watch || []).length ? `<div class="card"><h3>明天继续盯</h3><ul class="watch">${a.watch.map(w => `<li>${esc(w)}</li>`).join("")}</ul></div>` : "";
-  el.innerHTML = `<div class="lede"><b>${esc(a.id)}</b> · ${esc(a.summary)}</div>` + hl + items + watch;
+  const watch = (a.watch || []).length ? `<div class="card"><div class="sec-h" style="margin-bottom:6px">${icon("i-eye")}<b>明天继续盯</b></div>
+    <ul class="hl">${a.watch.map(w => `<li>${icon("i-chev","sm")}<span>${esc(w)}</span></li>`).join("")}</ul></div>` : "";
+  $("report").innerHTML = `<div style="display:flex;flex-direction:column;gap:12px">${hl}<div class="items">${items}</div>${watch}</div>`;
 }
 
-function platforms(state){
-  const el = document.getElementById("platforms");
-  if (!state.metrics.length) { el.innerHTML = `<div class="empty">还没有指标。每天采集后会从各平台页面里提取数字放到这里。</div>`; return; }
-  const by = {};
-  for (const m of state.metrics) {
-    const key = `${m.platform}|${m.metric}|${m.period}`;
-    (by[key] ||= []).push(m);
-  }
-  el.innerHTML = state.platforms.map(pf => {
-    const series = Object.entries(by).filter(([k]) => k.startsWith(pf + "|")).map(([, rows]) => rows);
-    if (!series.length) return "";
-    const rows = series.map(rows => {
-      const last = rows.at(-1), lastDay = Date.parse(last.day);
-      const ref = [...rows].reverse().find(r => lastDay - Date.parse(r.day) >= 7 * 864e5);
-      let delta = "—", cls = "flat";
-      if (ref) {
-        const d = last.value - ref.value;
-        cls = d > 0 ? "up" : d < 0 ? "down" : "flat";
-        delta = `${d > 0 ? "+" : ""}${fmt(d, last.unit)}`;
-      }
-      return `<tr><td class="full">${esc(last.label)}${last.period ? `<div class="meta">${esc(PERIODS[last.period] || last.period)}</div>` : ""}</td>
-        <td class="num" data-l="最新"><b>${esc(fmt(last.value, last.unit))}</b></td>
-        <td class="num ${cls}" data-l="比 7 天前">${esc(delta)}</td>
-        <td class="num" data-l="平台对比值">${last.benchmark == null ? "—" : esc(fmt(last.benchmark, last.unit))}</td>
-        <td data-l="趋势">${spark(rows.slice(-30).map(r => r.value)) || `<span class="meta">—</span>`}</td>
-        <td class="meta full">${esc(last.day)}</td></tr>`;
+// ── to-dos ──
+function board(state){
+  const todos = state.todos || [];
+  if (!todos.length) { $("board").innerHTML = `<div class="empty">还没有待办。点预警或建议上的“加入待办”，或让 Copilot 安排。</div>`; return; }
+  const lanes = OWNERS.map(o => [o, todos.filter(t => t.owner === o)]).filter(([, l]) => l.length);
+  $("board").innerHTML = lanes.map(([o, list]) => `<div class="card lane"><h3>${esc(o)} <span class="cnt">${list.filter(t => t.status === "open").length} 项未完成</span></h3>
+    ${list.map(t => `<div class="todo ${t.status === "done" ? "done" : ""}">
+      <button class="chk" data-toggle="${t.id}" aria-label="${t.status === "done" ? "标为未完成" : "标为完成"}">${icon("i-check","sm")}</button>
+      <div><div class="t">${esc(t.title)}</div><div class="meta">${pf(t.platform)} · ${{alert:"来自预警",report:"来自报告",copilot:"来自 Copilot",manual:"手动"}[t.source] || ""} · ${esc(String(t.created_at).slice(5,10))}</div>
+        ${t.detail ? `<div class="meta" style="margin-top:2px">${esc(t.detail)}</div>` : ""}</div>
+      <button class="btn ghost" data-drop="${t.id}" aria-label="删除" data-tip="不做了">${icon("i-x","sm")}</button></div>`).join("")}</div>`).join("");
+}
+async function post(path, body){
+  const r = await fetch(path, {method: "POST", credentials: "same-origin", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+  return j;
+}
+async function addTodo(t){
+  try {
+    const res = await post("/api/todos", t);
+    if (!res.existing) STATE.todos = [{...t, id: res.id, status: "open", created_at: new Date().toISOString(), detail: t.detail || "", platform: t.platform || "all"}, ...(STATE.todos || [])];
+    board(STATE); hero(STATE); toast(res.existing ? "已经在待办里了" : `已加入待办 · ${t.owner}`);
+  } catch (e) { toast(`没加上：${e.message}`); }
+}
+async function setTodo(id, statusVal){
+  const t = (STATE.todos || []).find(x => x.id === id); if (!t) return;
+  const before = t.status; t.status = statusVal; board(STATE); hero(STATE);
+  try { await post(`/api/todos/${id}`, {status: statusVal}); if (statusVal === "dropped") { STATE.todos = STATE.todos.filter(x => x.id !== id); board(STATE); } }
+  catch (e) { t.status = before; board(STATE); hero(STATE); toast(`没保存：${e.message}`); }
+}
+
+// ── details ──
+function details(state, by){
+  $("details").innerHTML = state.platforms.map(p => {
+    const list = Object.entries(by).filter(([k]) => k.startsWith(p + "|")).map(([, rows]) => rows);
+    if (!list.length) return "";
+    const rows = list.map(rows => {
+      const m = rows.at(-1), ref = prior(rows);
+      let delta = "—";
+      if (ref) { const d = m.value - ref.value; delta = `${d > 0 ? "+" : ""}${fmt(d, m.unit)}`; }
+      return `<tr><td>${esc(m.label)}${m.period ? ` <span class="meta">${esc(PERIODS[m.period] || m.period)}</span>` : ""}</td>
+        <td class="num"><b>${esc(fmt(m.value, m.unit))}</b></td><td class="num">${esc(delta)}</td>
+        <td class="num">${m.benchmark == null ? "—" : esc(fmt(m.benchmark, m.unit))}</td><td>${spark(rows.slice(-30).map(r => r.value)) || "—"}</td>
+        <td class="meta">${esc(m.day)}</td></tr>`;
     }).join("");
-    return `<div class="platform"><h2 style="margin:0">${esc(NAMES[pf])}</h2><div class="tbl"><table class="stack">
-      <thead><tr><th>指标</th><th>最新</th><th>比 7 天前</th><th>平台对比值</th><th>近 30 次</th><th>日期</th></tr></thead>
-      <tbody>${rows}</tbody></table></div></div>`;
+    return `<details class="pfd"><summary>${icon("i-chev","sm chev")}${pf(p)}<span class="meta">${list.length} 个指标</span></summary>
+      <div class="tbl"><table><thead><tr><th>指标</th><th>最新</th><th>较上次/7 天前</th><th>平台对比值</th><th>走势</th><th>日期</th></tr></thead>
+      <tbody>${rows}</tbody></table></div></details>`;
   }).join("");
 }
 
-// 杨总's KPI list → where each number comes from. [platform, metric@period for 30 days, for 90 days, note].
-const KPI = [
-  ["搜索曝光", [["booking", "search_views@funnel", null, "90 天需在页面上切换"], ["tripadvisor", "listing_impressions@last_30_days", null]]],
-  ["房源页浏览", [["booking", "page_visits@funnel", null], ["expedia", "page_views_28d@last_28_days", null, "Expedia 为近 28 天"],
-    ["tripadvisor", "unique_visitors@last_30_days", null]]],
-  ["点击率（曝光→浏览）", [["booking", "click_rate@funnel", null]]],
-  ["预订转化率", [["booking", "book_rate@funnel", "conversion_rate_90d@last_90_days"], ["expedia", "conversion_rate_28d@last_28_days", null]]],
-  ["预订数（毛）", [["booking", "bookings@funnel", null], ["tripadvisor", "booking_clicks@last_30_days", null, "TripAdvisor 为预订点击"]]],
-  ["净预订（扣取消）", [["booking", null, null, "取消数据页还没找到"]]],
-  ["间夜", [["booking", "room_nights_30d@last_30_days", "room_nights_90d@last_90_days"], ["expedia", "room_nights_28d@last_28_days", null]]],
-  ["平均房价 ADR", [["booking", "adr_30d@last_30_days", "adr_90d@last_90_days"]]],
-  ["收入", [["booking", "revenue_30d@last_30_days", "revenue_90d@last_90_days"], ["expedia", "revenue_28d@last_28_days", null]]],
-];
-const KPI_MISSING = [["agoda", "数据分析页地址待确认"], ["ctrip", "数据分析页地址待确认"]];
-
-function kpis(state){
-  const latest = {};
-  for (const m of state.metrics) latest[`${m.platform}|${m.metric}@${m.period}`] = m;
-  const cell = (pf, key) => {
-    const m = key && latest[`${pf}|${key}`];
-    return m ? `<b>${esc(fmt(m.value, m.unit))}</b>` : `<span class="meta">未接入</span>`;
-  };
-  // "较同类": the platform's own comparison value and how far above (green) or below (red) we are.
-  // Percentages compare in points (2.56% vs 3.10% → −0.54 pt); everything else in relative %.
-  const versus = (pf, k30, k90) => [[k30, "30 天"], [k90, "90 天"]].map(([k, w]) => {
-    const m = k && latest[`${pf}|${k}`];
-    if (!m || m.benchmark == null) return "";
-    const d = m.unit === "%" ? m.value - m.benchmark : m.benchmark ? (m.value - m.benchmark) / Math.abs(m.benchmark) * 100 : null;
-    const tag = d == null ? "" : `<span class="${d > 0 ? "up" : d < 0 ? "down" : "flat"}">${d > 0 ? "+" : d < 0 ? "−" : "±"}${Math.abs(d).toFixed(m.unit === "%" ? 2 : 1)}${m.unit === "%" ? " 个百分点" : "%"}</span>`;
-    return `<div>${tag} <span class="meta vs">${k30 && k90 ? w + " · " : ""}同类 ${esc(fmt(m.benchmark, m.unit))}</span></div>`;
-  }).join("");
-  const rows = [];
-  for (const [label, sources] of KPI) {
-    for (const [pf, k30, k90, note] of sources) {
-      const ref = latest[`${pf}|${k30}`] || latest[`${pf}|${k90}`];
-      rows.push(`<tr><td class="full"><b>${esc(label)}</b></td><td class="full" data-l="平台">${esc(NAMES[pf])}${note ? `<div class="meta">${esc(note)}</div>` : ""}</td>
-        <td class="num" data-l="近 30 天">${cell(pf, k30)}</td><td class="num" data-l="近 90 天">${cell(pf, k90)}</td>
-        <td class="num full" data-l="较同类">${versus(pf, k30, k90) || "—"}</td>
-        <td class="meta full">${ref ? esc(ref.day) : ""}</td></tr>`);
-    }
-  }
-  for (const [pf, why] of KPI_MISSING) rows.push(`<tr><td class="full"><b>全部 KPI</b></td><td class="full">${esc(NAMES[pf])}</td><td colspan="4" class="meta full">${esc(why)}</td></tr>`);
-  document.querySelector("#kpi tbody").innerHTML = rows.join("");
+// ── copilot ──
+const CHIPS = ["今天最该先做哪 3 件事？", "Booking 转化为什么比同类低？怎么改？", "写一段给杨总的本周 OTA 汇报", "哪些问题要工程部和客房部处理？", "我们的价格和同类比怎么样？"];
+let chat = [];
+try { chat = JSON.parse(sessionStorage.getItem("ota-chat") || "[]"); } catch { chat = []; }
+const saveChat = () => { try { sessionStorage.setItem("ota-chat", JSON.stringify(chat.slice(-20))); } catch {} };
+function rich(text){
+  // Escape first, then light formatting: "- " lines become a list, blank lines split paragraphs.
+  const blocks = esc(text).split(/\n{2,}/);
+  return blocks.map(b => {
+    const lines = b.split("\n");
+    if (lines.every(l => /^\s*[-•]\s/.test(l))) return `<ul>${lines.map(l => `<li>${l.replace(/^\s*[-•]\s/, "")}</li>`).join("")}</ul>`;
+    return `<p>${lines.join("<br>")}</p>`;
+  }).join("").replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
 }
+function renderChat(pending = false){
+  const el = $("msgs");
+  const intro = `<div class="msg bot"><p>你好，我是 OTA 运营 Copilot。我能看到 7 个平台每天采集的数据、自动预警和每日报告。</p>
+    <p>可以问我“为什么”，让我排今天的优先级、写汇报和房源文案；需要有人去做的事，我会给出待办，你点一下就加入。</p></div>`;
+  el.innerHTML = intro + chat.map((m, i) => m.role === "user" ? `<div class="msg user">${esc(m.content)}</div>`
+    : `<div class="msg bot ${m.error ? "err" : ""}">${rich(m.content)}${(m.actions || []).length ? `<div class="acts">${m.actions.map((a, j) =>
+      `<div class="actc">${icon("i-list","sm")}<div class="x"><b>${esc(a.title)}</b><span class="meta">${esc(a.owner)} · ${PLATFORMS[a.platform] ? esc(PLATFORMS[a.platform][0]) : ""}</span>
+        ${a.detail ? `<div class="meta">${esc(a.detail)}</div>` : ""}</div>
+        <button class="btn" data-act="${i}:${j}" ${a.added ? "disabled" : ""}>${a.added ? icon("i-check","sm") + "已加入" : icon("i-plus","sm") + "加入待办"}</button></div>`).join("")}</div>` : ""}</div>`).join("")
+    + (pending ? `<div class="msg bot"><span class="typing"><i></i><i></i><i></i></span> 正在看数据…</div>` : "");
+  el.scrollTop = el.scrollHeight;
+  $("chips").innerHTML = chat.length > 2 ? "" : CHIPS.map(c => `<button class="chip" data-ask="${esc(c)}">${esc(c)}</button>`).join("");
+}
+let busy = false;
+async function askCopilot(text){
+  text = String(text || "").trim(); if (!text || busy) return;
+  openCop(); busy = true;
+  chat.push({role: "user", content: text}); renderChat(true);
+  try {
+    const res = await post("/api/copilot", {messages: chat.filter(m => !m.error).map(m => ({role: m.role, content: m.content}))});
+    chat.push({role: "assistant", content: res.reply, actions: res.actions || []});
+  } catch (e) { chat.push({role: "assistant", content: `没答上来：${e.message}`, error: true}); }
+  busy = false; saveChat(); renderChat();
+}
+function openCop(){ $("cop").classList.add("open"); }
+$("fab").onclick = () => { openCop(); $("q").focus(); };
+$("cop-close").onclick = () => $("cop").classList.remove("open");
+$("compose").onsubmit = e => { e.preventDefault(); const v = $("q").value; $("q").value = ""; askCopilot(v); };
+$("q").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); $("compose").requestSubmit(); } });
+$("q").addEventListener("input", e => { e.target.style.height = "auto"; e.target.style.height = Math.min(140, e.target.scrollHeight) + "px"; });
+
+// ── one click handler for every button that carries data-* ──
+document.addEventListener("click", e => {
+  const b = e.target.closest("button,[data-ask]"); if (!b) return;
+  const d = b.dataset;
+  if (d.ask) return askCopilot(d.ask);
+  if (d.todoAlert) { const a = STATE.monitor.alerts[+d.todoAlert];
+    return addTodo({title: a.title, detail: a.action, owner: a.owner, platform: a.platform, source: "alert", source_ref: a.id}); }
+  if (d.todoReport) { const [day, i] = d.todoReport.split("#"); const r = STATE.advice.find(x => x.id === day); const it = r.items[+i];
+    return addTodo({title: it.title, detail: it.action, owner: OWNERS.includes(it.owner) ? it.owner : "总经理", platform: it.platform || "all", source: "report", source_ref: d.todoReport}); }
+  if (d.toggle) { const t = STATE.todos.find(x => x.id === +d.toggle); return setTodo(+d.toggle, t.status === "done" ? "open" : "done"); }
+  if (d.drop) return setTodo(+d.drop, "dropped");
+  if (d.act) { const [i, j] = d.act.split(":").map(Number); const a = chat[i].actions[j];
+    a.added = true; saveChat(); renderChat();
+    return addTodo({title: a.title, detail: a.detail, owner: a.owner, platform: a.platform, source: "copilot", source_ref: `copilot:${a.title}`.slice(0, 120)}); }
+});
+$("todo-owner").innerHTML = OWNERS.map(o => `<option>${esc(o)}</option>`).join("");
+$("addtodo").onsubmit = e => { e.preventDefault(); const t = $("todo-title").value.trim(); if (!t) return;
+  $("todo-title").value = ""; addTodo({title: t, owner: $("todo-owner").value, platform: "all", source: "manual"}); };
 
 async function load(){
   try {
     const r = await fetch("/api/state", {credentials: "same-origin"});
     if (r.status === 401) { location.href = "/login"; return; }
     const state = await r.json();
+    state.todos ||= []; state.monitor ||= {alerts: [], wins: []};
+    STATE = state;
     const run = state.latest_run;
-    document.getElementById("last-run").textContent = run
-      ? `最近一次采集 ${run.id.slice(0,4)}-${run.id.slice(4,6)}-${run.id.slice(6,8)} ${run.id.slice(9,11)}:${run.id.slice(11,13)}（${run.outcome === "done" ? "完成" : run.outcome || "进行中"}）`
-      : "还没有采集记录";
-    health(state); advice(state); kpis(state); platforms(state);
+    $("last-run").innerHTML = icon("i-db","sm") + esc(run ? `最近采集 ${run.id.slice(4,6)}-${run.id.slice(6,8)} ${run.id.slice(9,11)}:${run.id.slice(11,13)}` : "还没有采集记录");
+    const by = series(state);
+    hero(state); alerts(state); tiles(state, by); funnel(by); dumbbell(by); problems(by); status(state, by); report(state); board(state); details(state, by);
   } catch (e) {
-    document.querySelector(".wrap").insertAdjacentHTML("beforeend", `<div class="err">读取数据失败：${esc(e.message)}。刷新页面再试。</div>`);
+    $("main").insertAdjacentHTML("beforeend", `<div class="empty" style="color:var(--crit-ink)">读取数据失败：${esc(e.message)}。刷新页面再试。</div>`);
   }
 }
+renderChat();
 load();
 </script>
 </body>

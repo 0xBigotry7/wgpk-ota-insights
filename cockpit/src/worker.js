@@ -2,7 +2,11 @@
 //
 // Writes come only from the hotel Mac mini's collector (Bearer OTA_INGEST_TOKEN) and carry aggregate
 // numbers, page health and daily analysis reports; never page text or guest data. Separate Worker, database and
-// secrets from the Review Desk.
+// secrets from the Review Desk. Viewers (password session) can only manage the cockpit's own to-do list and ask the
+// copilot; nothing here reaches an OTA back office.
+
+import { monitor, digest } from "./monitor.js";
+import { ask, context, OWNERS } from "./copilot.js";
 
 const SESSION_COOKIE = "wgpk_ota_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
@@ -11,6 +15,8 @@ const PAGE_STATUS_DAYS = 3;
 const PLATFORMS = ["booking", "agoda", "expedia", "ctrip", "google", "tripadvisor", "medallia"];
 const PAGE_STATUSES = ["ok", "signed_out", "page_missing", "error"];
 const BASE_CSP = "frame-ancestors 'none'";
+const TODO_STATUSES = ["open", "done", "dropped"];
+const COPILOT_PER_HOUR = 60;
 
 const jsonHeaders = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
 
@@ -29,9 +35,18 @@ export default {
 
     if (path.startsWith("/api/")) {
       if (request.method === "POST") {
-        if (!ingestAuthorized(request, env)) return json({ error: "unauthorized" }, 401);
-        if (path === "/api/ingest") return handleIngest(request, env);
-        if (path === "/api/advice") return handleAdvice(request, env);
+        if (path === "/api/ingest" || path === "/api/advice") {
+          if (!ingestAuthorized(request, env)) return json({ error: "unauthorized" }, 401);
+          return path === "/api/ingest" ? handleIngest(request, env) : handleAdvice(request, env);
+        }
+        // Viewer writes: a password session from this site's own pages (no cross-site posts).
+        if (!(await sessionAuthorized(request, env)) || request.headers.get("Origin") !== url.origin) {
+          return json({ error: "unauthorized" }, 401);
+        }
+        if (path === "/api/todos") return createTodo(request, env);
+        const todo = path.match(/^\/api\/todos\/(\d+)$/);
+        if (todo) return updateTodo(request, env, Number(todo[1]));
+        if (path === "/api/copilot") return handleCopilot(request, env);
         return json({ error: "not found" }, 404);
       }
       if (!(ingestAuthorized(request, env) || (await sessionAuthorized(request, env)))) {
@@ -47,7 +62,24 @@ export default {
     headers.set("Cache-Control", "no-store");
     return new Response(response.body, { status: response.status, headers });
   },
+
+  // Daily push after the 10:20 collection (+ the 11:30 fallback): only when TELEGRAM_BOT_TOKEN and
+  // TELEGRAM_CHAT_ID are set, so nothing is sent anywhere until someone chooses a chat for it.
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil(pushDigest(env));
+  },
 };
+
+export async function pushDigest(env, send = fetch) {
+  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return { sent: false, reason: "not configured" };
+  const state = await loadState(env);
+  const text = digest(state.monitor, state.advice[0], env.COCKPIT_URL || "https://ota.wyndhamgardenkamala.com");
+  const r = await send(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: env.TELEGRAM_CHAT_ID, text, disable_web_page_preview: true }),
+  });
+  return { sent: r.ok };
+}
 
 // ─────────────────────── ingest ───────────────────────
 
@@ -163,12 +195,15 @@ async function handleAdvice(request, env) {
 
 async function loadState(env) {
   const since = new Date(Date.now() - HISTORY_DAYS * 864e5).toISOString().slice(0, 10);
-  const [runs, metrics, advice] = await Promise.all([
+  let [runs, metrics, advice, todos] = await Promise.all([
     all(env.DB.prepare("select * from runs order by id desc limit 14")),
     all(env.DB.prepare(
       "select day, platform, metric, period, label, value, unit, benchmark, page from metrics where day >= ? order by day"
     ).bind(since)),
     all(env.DB.prepare("select * from advice order by generated_at desc limit 30")),
+    all(env.DB.prepare(
+      "select * from todos where status = 'open' or updated_at >= ? order by status = 'open' desc, id desc limit 100"
+    ).bind(new Date(Date.now() - 14 * 864e5).toISOString())),
   ]);
   const latest = runs[0] || null;
   // Each platform's pages from the last run that read that platform, not only the very last run: a
@@ -179,14 +214,75 @@ async function loadState(env) {
        join (select platform, max(run_id) as run_id from page_status where run_id >= ? group by platform) l
          on l.platform = p.platform and l.run_id = p.run_id`
   ).bind(recent));
+  // Rows stored before the extractor learned to drop them: a 0 score is an unrendered tile, a 0 comparison a misread.
+  metrics = metrics.filter((m) => !(m.value === 0 && String(m.unit).startsWith("/")))
+    .map((m) => (m.benchmark === 0 ? { ...m, benchmark: null } : m));
   return {
     latest_run: latest,
     runs,
     pages,
     metrics,
     advice: advice.map(readReport),
+    todos,
+    monitor: monitor({ metrics, pages, runs }),
     platforms: PLATFORMS,
   };
+}
+
+// ─────────────────────── to-dos and copilot (viewer writes) ───────────────────────
+
+export function validateTodo(body) {
+  const errors = [];
+  if (!body || !String(body.title || "").trim()) errors.push("title is required");
+  if (body && body.owner && !OWNERS.includes(body.owner)) errors.push("owner unknown");
+  if (body && body.platform && body.platform !== "all" && !PLATFORMS.includes(body.platform)) errors.push("platform unknown");
+  if (body && body.source && !["report", "alert", "copilot", "manual"].includes(body.source)) errors.push("source unknown");
+  return errors;
+}
+
+async function createTodo(request, env) {
+  const body = await request.json().catch(() => null);
+  const errors = validateTodo(body);
+  if (errors.length) return json({ error: "validation failed", details: errors }, 400);
+  const now = new Date().toISOString();
+  const ref = clip(body.source_ref, 120);
+  // The same alert or report item twice is one to-do.
+  if (ref) {
+    const dup = await env.DB.prepare("select id from todos where source_ref = ? and status = 'open'").bind(ref).first();
+    if (dup) return json({ ok: true, id: dup.id, existing: true });
+  }
+  const row = await env.DB.prepare(
+    `insert into todos (created_at, updated_at, title, detail, owner, platform, source, source_ref, status)
+     values (?, ?, ?, ?, ?, ?, ?, ?, 'open') returning id`
+  ).bind(now, now, clip(body.title, 200).trim(), clip(body.detail, 800), body.owner || "总经理", body.platform || "all",
+    body.source || "manual", ref).first();
+  return json({ ok: true, id: row && row.id });
+}
+
+async function updateTodo(request, env, id) {
+  const body = await request.json().catch(() => null);
+  if (!body || !TODO_STATUSES.includes(body.status)) return json({ error: "status must be open, done or dropped" }, 400);
+  await env.DB.prepare("update todos set status = ?, updated_at = ? where id = ?").bind(body.status, new Date().toISOString(), id).run();
+  return json({ ok: true, id, status: body.status });
+}
+
+async function handleCopilot(request, env) {
+  const body = await request.json().catch(() => null);
+  const history = Array.isArray(body && body.messages) ? body.messages.filter((m) => m && m.content) : [];
+  if (!history.length || history.at(-1).role !== "user") return json({ error: "messages must end with a user message" }, 400);
+  const hourAgo = new Date(Date.now() - 3600e3).toISOString();
+  const used = await env.DB.prepare("select count(*) as n from copilot_log where at >= ?").bind(hourAgo).first();
+  if (used && used.n >= COPILOT_PER_HOUR) return json({ error: "Copilot 这一小时问得太多了，稍后再试" }, 429);
+  const state = await loadState(env);
+  let answer;
+  try {
+    answer = await ask(env, history, context(state, state.monitor));
+  } catch (e) {
+    return json({ error: `模型暂时不可用（${String(e.message).slice(0, 80)}），稍后再试` }, 502);
+  }
+  await env.DB.prepare("insert into copilot_log (at, question, reply, model) values (?, ?, ?, ?)")
+    .bind(new Date().toISOString(), clip(history.at(-1).content, 2000), clip(answer.reply, 4000), clip(answer.model, 80)).run();
+  return json(answer);
 }
 
 // ─────────────────────── auth ───────────────────────

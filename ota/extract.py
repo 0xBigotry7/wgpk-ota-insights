@@ -80,8 +80,11 @@ def check(values: list[dict], metrics: dict[str, Metric], text: str) -> list[tup
             continue
         if round(float(val), 4) not in seen:
             continue
+        # A 0 score or a 0 comparison value is a page that did not render that number (a "0" elsewhere on the page).
+        if val == 0 and m.unit.startswith("/"):
+            continue
         bench = v.get("benchmark")
-        bench = float(bench) if isinstance(bench, int | float) and round(float(bench), 4) in seen else None
+        bench = float(bench) if isinstance(bench, int | float) and bench != 0 and round(float(bench), 4) in seen else None
         kept.append((m, float(val), bench))
     return kept
 
