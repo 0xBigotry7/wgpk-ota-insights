@@ -257,3 +257,24 @@ test("a skipped run does not count as fresh data", () => {
   assert.ok(ids.includes("run:skipped"));
   assert.ok(ids.includes("run:stale"));
 });
+
+test("pace vs last year, cancellations and lost bookings", () => {
+  const now = new Date("2026-10-23T12:00:00Z");
+  const metrics = [
+    mk({ platform: "booking", metric: "otb_room_nights_30d", period: "next_30_days", label: "未来30天在手间夜", value: 739, benchmark: 1009, day: "2026-10-23" }),
+    mk({ platform: "booking", metric: "otb_adr_30d", period: "next_30_days", label: "未来30天在手房价", value: 6448, unit: "THB", benchmark: 4944, day: "2026-10-23" }),
+    mk({ platform: "booking", metric: "cancellation_rate", period: "", label: "取消率", value: 38, unit: "%", benchmark: 31, day: "2026-10-23" }),
+    mk({ platform: "agoda", metric: "bookings_lost_30d", period: "next_30_days", label: "流失", value: 58, day: "2026-10-23" }),
+  ];
+  const { alerts, wins } = monitor({ metrics, pages: [], runs: [{ id: "20261023-190541", outcome: "done" }] }, now);
+  const pace = alerts.find((a) => a.id === "diag:booking:otb-pace");
+  assert.match(pace.title, /少 27%，房价高 30%/);
+  assert.ok(!alerts.some((a) => a.id === "gap:booking|otb_room_nights_30d@next_30_days"));
+  const cancel = alerts.find((a) => a.id === "gap:booking|cancellation_rate@");
+  assert.ok(cancel, "a higher cancellation rate is bad");
+  assert.match(cancel.title, /比同类高/);
+  assert.ok(!wins.some((w) => /cancellation/.test(w.id)));
+  assert.equal(alerts.find((a) => a.id === "rule:agoda|bookings_lost_30d@next_30_days").level, "serious");
+  const adr = [...alerts, ...wins].find((x) => x.id.endsWith("otb_adr_30d@next_30_days"));
+  assert.match(adr.title, /去年同期/);
+});

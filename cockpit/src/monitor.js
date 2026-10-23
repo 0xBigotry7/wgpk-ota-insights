@@ -4,16 +4,28 @@
 
 import { season } from "./knowledge.js";
 
-const LOWER_BETTER = /(^|_)(rank|problem|sort_order|response_hours|pending|had_problem)/;
+const LOWER_BETTER = /(^|_)(rank|problem|sort_order|response_hours|pending|had_problem|cancellation|lost)/;
 export const lowerIsBetter = (metric) => LOWER_BETTER.test(metric);
 
 // Mix and size numbers: not good or bad on their own.
-const NEUTRAL = /^(lowest_rate|peer_group_size|compset_size|area_size|popularity_of|review_count|survey_count|leisure_share|todays_new_orders|pending_review_replies|availability_for_search)/;
+const NEUTRAL = /^(book_window_days|avg_los|business_share|lowest_rate|peer_group_size|compset_size|area_size|popularity_of|review_count|survey_count|leisure_share|todays_new_orders|pending_review_replies|availability_for_search)/;
 const SCORE_UNIT = /^\/(5|10)$|^score/;
 
 // Which team acts on a metric, why it matters and what to do, from the OTA knowledge in knowledge.js.
 // Order matters: first match wins. `action` is the one-line version used in to-dos and the daily push.
 const PLAYBOOK = [
+  { re: /cancellation/, area: "price", owner: "收益/销售",
+    why: "取消多了，看起来卖掉的房会在临近时放回，最后只能低价甩卖；普吉 OTA 取消率常见 30% 上下",
+    steps: ["收益经理在 OPERA / SynXis 给旺季和高需求日期加一档不可取消价（便宜 8–12%），让客人自己选",
+      "前台对入住前 7 天内的 OTA 订单发一次确认消息，提前释放会取消的房",
+      "看 Booking 客源分析里取消率高的来源市场和提前期，针对性收紧政策"],
+    kpi: "取消率较同类、临近入住的空房", eta: "2–4 周" },
+  { re: /lost/, area: "price", owner: "收益/销售",
+    why: "客人看过我们最后订了别家，通常是同日期价格或价型（含早、免费取消）不如竞品",
+    steps: ["在 Agoda 分析中心“流失预订”页看流失到哪家、哪些入住日期、差价多少",
+      "差价集中的日期，由收益经理在 OPERA / SynXis 调整，不在 Agoda 后台直接改价",
+      "检查 Agoda 上是否缺含早或免费取消的价型"],
+    kpi: "流失预订数", eta: "1–2 周" },
   { re: /adr|revenue|room_nights|pace_/, area: "price", owner: "收益/销售",
     why: "价格比同类低很多时，多卖的间夜往往补不回少收的房价；2026 年普吉是靠价格增长的市场",
     steps: ["收益经理在 OPERA / SynXis 按日期看 BAR 与竞品组价差（不要直接在 OTA 后台改价）",
@@ -108,7 +120,7 @@ function steps(m) {
 }
 
 // Medallia compares with the Wyndham brand average; the OTAs with a comp set they choose.
-const peerWord = (m) => (m.platform === "medallia" ? "品牌均值" : "同类");
+const peerWord = (m) => (m.platform === "medallia" ? "品牌均值" : /^(otb|stayed)_/.test(m.metric) ? "去年同期" : "同类");
 // Wording follows the raw numbers ("高" when our value is higher), whatever direction is good for the metric.
 const gapText = (m, g) => {
   const raw = lowerIsBetter(m.metric) ? -g : g;
@@ -311,7 +323,7 @@ export function monitor({ metrics = [], pages = [], runs = [], history = [] }, n
   const diag = (a) => add({ area: "price", owner: "收益/销售", ...a });
 
   // Rate-led volume: more room nights than the comp set at a much lower ADR (MPI-like high, ARI-like low).
-  for (const [suffix, words] of [["mtd@month_to_date", "本月至今"], ["30d@last_30_days", "近 30 天"], ["90d@last_90_days", "近 90 天"]]) {
+  for (const [suffix, words] of [["30d@last_30_days", "近 30 天"], ["mtd@month_to_date", "本月至今"], ["90d@last_90_days", "近 90 天"]]) {
     const adr = cur(`booking|adr_${suffix}`), rn = cur(`booking|room_nights_${suffix}`);
     if (!adr || !rn || !adr.benchmark || !rn.benchmark) continue;
     const ari = (adr.value / adr.benchmark) * 100, mpi = (rn.value / rn.benchmark) * 100;
@@ -347,6 +359,26 @@ export function monitor({ metrics = [], pages = [], runs = [], history = [] }, n
       gap: views.value, title: `Booking 搜索曝光比同类少 ${fmt(Math.abs(views.value), "%")}`, detail: views.day, ...how(plan) });
   }
 
+  // Pace: on-the-books room nights for the next 30 days vs the same window last year.
+  const otbRn = cur("booking|otb_room_nights_30d@next_30_days"), otbAdr = cur("booking|otb_adr_30d@next_30_days");
+  if (otbRn && otbRn.benchmark) {
+    const d = ((otbRn.value - otbRn.benchmark) / otbRn.benchmark) * 100;
+    const ad = otbAdr && otbAdr.benchmark ? ((otbAdr.value - otbAdr.benchmark) / otbAdr.benchmark) * 100 : null;
+    if (d <= -15) {
+      diag({ id: "diag:booking:otb-pace", level: "serious", platform: "booking", metric: "booking|otb_room_nights_30d@next_30_days", gap: d,
+        title: `Booking 未来 30 天在手间夜比去年少 ${Math.round(-d)}%${ad != null && ad > 10 ? `，房价高 ${Math.round(ad)}%` : ""}`,
+        detail: `在手 ${fmt(otbRn.value)} 间夜，去年同期 ${fmt(otbRn.benchmark)}${otbAdr ? `；在手 ADR ${fmt(otbAdr.value, "THB")}，去年 ${fmt(otbAdr.benchmark, "THB")}` : ""} · ${otbRn.day}`,
+        why: ad != null && ad > 10 ? "近期日期价格提得比去年多、间夜跟不上；远期在手是好的，说明问题在近 30 天的临近订单"
+          : "近 30 天在手明显落后去年，临近订单要补，否则只能临时低价",
+        steps: ["收益经理在 OPERA / SynXis 按日期列出未来 30 天在手最低的 5–7 天",
+          "只对这些日期开临近促销（Booking 移动价 / Last-minute、Agoda 当日特价），不整体降 BAR",
+          "每周一看这 30 天的 pickup，追平去年后撤掉促销"],
+        kpi: "未来 30 天在手间夜对比去年、在手 ADR", eta: "1–2 周",
+        action: "收益经理挑出未来 30 天在手最低的日期，只对这些日期开临近促销，不整体降价" });
+      suppress.add("gap:booking|otb_room_nights_30d");
+    }
+  }
+
   // Platform thresholds that change what a guest sees or what we qualify for.
   const thresholds = [
     ["booking|review_score@", (v) => v < 7.5 ? "serious" : v < 8 ? "warning" : null, "reputation",
@@ -357,6 +389,8 @@ export function monitor({ metrics = [], pages = [], runs = [], history = [] }, n
     ["booking|property_page_score@", (v) => v < 100 ? "warning" : null, "content", (v) => `Booking 房源页完整度 ${v}%，未满分`],
     ["booking|availability_for_search@funnel", (v) => v < 90 ? "warning" : null, "traffic",
       (v) => `Booking 可售率 ${v}%：可售是排名第一因素`],
+    ["agoda|bookings_lost_30d@next_30_days", (v) => v >= 50 ? "serious" : v >= 20 ? "warning" : null, "price",
+      (v) => `Agoda 未来 30 天有 ${v} 单预订流失给竞品`],
     ["medallia|rapid_response_hours@last_12_months", (v) => v > 48 ? "warning" : null, "reputation",
       (v) => `Medallia 问卷快速回复平均要 ${Math.round(v)} 小时`],
   ];
