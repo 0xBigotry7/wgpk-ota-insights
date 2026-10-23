@@ -145,6 +145,26 @@ svg text{font-family:var(--font)}
 
 /* status board */
 .status{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,210px),1fr));gap:10px}
+.health{display:grid;gap:12px;margin-bottom:12px}
+.hgrid{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px;overflow-x:auto}
+.hgrid table{border-collapse:separate;border-spacing:3px;font-size:12px;width:100%;min-width:560px;table-layout:fixed}
+.hgrid col.p{width:128px}.hgrid col.last{width:84px}
+.hgrid th{font-weight:500;color:var(--muted);text-align:center;white-space:nowrap}
+.hgrid th.p{text-align:left;padding-right:8px}
+.hgrid td.p{white-space:nowrap;padding-right:8px}
+.hgrid td.c{height:22px;border-radius:5px;background:var(--surface-2)}
+.c-ok{background:var(--good)!important}.c-partial{background:var(--warn)!important}
+.c-signed_out{background:var(--crit)!important}.c-failed{background:var(--serious)!important}
+.hgrid td.last{white-space:nowrap;color:var(--muted);padding-left:8px}
+.hgrid td.last.bad{color:var(--crit-ink);font-weight:600}
+.legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px;background:var(--surface-2);border:1px solid var(--line)}
+.hstats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.hstat{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;gap:10px;align-items:center}
+.hstat .ring{flex-shrink:0}
+.hstat .n{font-size:22px;font-weight:700}.hstat .l{font-size:12px;color:var(--muted)}
+.hmiss{font-size:12px;color:var(--muted);margin:6px 0 0;padding-left:1.1em}
+@media (max-width:560px){.hstats{grid-template-columns:1fr}}
 .st{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;align-items:center}
 .st .nm{font-weight:600;display:flex;align-items:center;gap:6px}
 .st ul{grid-column:1/-1;margin:4px 0 0;padding-left:1.1em;font-size:12px;color:var(--muted)}
@@ -374,7 +394,9 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
   </section>
 
   <section class="sec">
-    <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-globe"/></svg></span><h2>平台连接状态</h2></div>
+    <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-globe"/></svg></span><h2>数据可靠性</h2>
+      <span class="hint">每天每个平台有没有读到、读到几页；数字缺了会自动报警</span></div>
+    <div class="health" id="health"></div>
     <div class="status" id="status"></div>
   </section>
 
@@ -676,6 +698,30 @@ function why(p){
   if (p.status === "error") return `${page}：没加载出来，下次再读`;
   return "";
 }
+const CELL = {ok: "全部读到", partial: "部分读到", signed_out: "未登录", failed: "都没读到", none: "没有采集"};
+function health(state){
+  const h = (state.monitor || {}).health;
+  if (!h) { $("health").innerHTML = ""; return; }
+  const cov = h.coverage, frac = cov.expected ? cov.got / cov.expected : 0;
+  const head = h.days.map((d, i) => `<th>${i % 2 === (h.days.length - 1) % 2 ? esc(d.slice(5).replace("-", "/")) : ""}</th>`).join("");
+  const rows = h.platforms.map(p => `<tr><td class="p">${pf(p.platform)}</td>${p.cells.map(c =>
+      `<td class="c c-${c.state}" data-tip="${esc(`${c.day} · ${CELL[c.state]}${c.total ? ` · ${c.ok}/${c.total} 页` : ""}`)}" tabindex="0"
+        aria-label="${esc(`${p.platform} ${c.day} ${CELL[c.state]}`)}"></td>`).join("")}
+      <td class="last${p.days_since_data != null && p.days_since_data >= 2 ? " bad" : ""}">${p.last_data
+        ? (p.days_since_data ? `${p.days_since_data} 天前` : "今天") : p.cells.some(c => c.state !== "none") ? "不采指标" : "还没有数字"}</td></tr>`).join("");
+  const miss = cov.missing.length ? `<ul class="hmiss">${cov.missing.map(m =>
+      `<li>${esc((PLATFORMS[m.platform] || [m.platform])[0])} 缺 ${m.count} 项：${esc(m.labels.join("、"))}${m.count > m.labels.length ? " 等" : ""}</li>`).join("")}</ul>` : "";
+  $("health").innerHTML = `<div class="hstats">
+      <div class="hstat">${ring(frac, frac >= .9 ? "var(--good)" : frac >= .6 ? "var(--warn)" : "var(--crit)")}
+        <div><div class="n">${cov.got}<small class="l">/${cov.expected}</small></div><div class="l">最新一天（${esc(h.latest_day || "无")}）收到的指标</div>${miss}</div></div>
+      <div class="hstat">${ring(h.runs.days_with_run / h.days.length, "var(--accent)")}
+        <div><div class="n">${h.runs.days_with_run}<small class="l">/${h.days.length}</small></div><div class="l">近 ${h.days.length} 天有采集的天数 · 定时 ${h.runs.scheduled} 次 / 共 ${h.runs.total} 次</div></div></div>
+      <div class="hstat">${ring(h.platforms.filter(p => p.days_since_data === 0).length / h.platforms.length, "var(--good)")}
+        <div><div class="n">${h.platforms.filter(p => p.days_since_data === 0).length}<small class="l">/${h.platforms.length}</small></div><div class="l">个平台今天有新数字</div></div></div>
+    </div>
+    <div class="hgrid"><table><colgroup><col class="p">${h.days.map(() => "<col>").join("")}<col class="last"></colgroup><thead><tr><th class="p">平台</th>${head}<th>最后有数字</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="legend">${Object.entries(CELL).map(([k, v]) => `<span><i class="c-${k}"></i>${v}</span>`).join("")}</div></div>`;
+}
 function status(state, by){
   $("status").innerHTML = state.platforms.map(p => {
     const pages = state.pages.filter(x => x.platform === p);
@@ -940,7 +986,7 @@ async function load(){
     const run = state.latest_run;
     $("last-run").innerHTML = icon("i-db","sm") + esc(run ? `最近采集 ${run.id.slice(4,6)}-${run.id.slice(6,8)} ${run.id.slice(9,11)}:${run.id.slice(11,13)}` : "还没有采集记录");
     const by = series(state);
-    hero(state); alerts(state); tiles(state, by); kpis(by); funnel(by); matrix(by); dumbbell(by); problems(by); routines(state); status(state, by); report(state); board(state); details(state, by);
+    hero(state); alerts(state); tiles(state, by); kpis(by); funnel(by); matrix(by); dumbbell(by); problems(by); routines(state); health(state); status(state, by); report(state); board(state); details(state, by);
   } catch (e) {
     $("main").insertAdjacentHTML("beforeend", `<div class="empty" style="color:var(--crit-ink)">读取数据失败：${esc(e.message)}。刷新页面再试。</div>`);
   }
