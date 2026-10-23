@@ -22,7 +22,7 @@ AVOID_SLOTS = [s.strip() for s in os.environ.get("WGPK_OTA_AVOID", "09:15,14:45"
 AVOID_MARGIN_MIN = int(os.environ.get("WGPK_OTA_AVOID_MARGIN_MIN", "60"))
 
 # Hard ceiling for one whole collection (all platforms), and per page.
-RUN_DEADLINE_S = int(os.environ.get("WGPK_OTA_DEADLINE_S", "600"))
+RUN_DEADLINE_S = int(os.environ.get("WGPK_OTA_DEADLINE_S", "900"))   # ~36 pages; 10:20 start ends by 10:35
 PAGE_TIMEOUT_MS = 45000
 SETTLE_MS = 6000          # let a dashboard finish rendering before reading it
 PAUSE_BETWEEN_PAGES_MS = 4000
