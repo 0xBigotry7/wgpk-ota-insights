@@ -4,6 +4,7 @@
 // the viewer presses.
 
 import { NAMES, fmt, seriesOf } from "./monitor.js";
+import { KNOWLEDGE, season } from "./knowledge.js";
 
 export const OWNERS = ["收益/销售", "前台", "客房", "工程", "餐饮", "市场/内容", "总经理"];
 const PLATFORM_KEYS = [...Object.keys(NAMES), "all"];
@@ -17,6 +18,7 @@ const SYSTEM = `你是普吉岛卡马拉温德姆花园酒店（Wyndham Garden P
 - 价格和房态由 OPERA / SynXis 同步到各 OTA：调价建议写成“收益经理在 OPERA / SynXis 调整”，不要建议在 OTA 后台直接改价。
 - 你不能登录或操作任何 OTA 后台；能做的是把事情变成待办（actions），由人点按钮确认。
 - 需要写文案（房源描述、促销文案、给杨总的汇报）时直接写好。
+- 判断原因时用下面“运营知识”里的规则（排名因素、项目门槛、症状→原因→动作），说清是哪条规则；知识里标“第三方说法”或“以后台为准”的，提醒以平台后台为准。
 
 只输出一个 JSON 对象，不要别的文字：
 {"reply": "给用户看的回答，可以用换行和 - 列表，不超过 400 字",
@@ -67,9 +69,12 @@ export function parseAnswer(text) {
  * Ask the configured model. COPILOT_API_KEY (+ COPILOT_BASE_URL, COPILOT_MODEL) selects any OpenAI-compatible API,
  * e.g. DeepSeek or OpenAI; without it the Workers AI binding is used; without either the copilot says so.
  */
-export async function ask(env, history, data) {
+export async function ask(env, history, data, now = new Date()) {
+  const bkk = new Date(now.getTime() + 7 * 3600e3);
+  const s = season(bkk.getUTCMonth() + 1);
+  const today = `今天是 ${bkk.toISOString().slice(0, 10)}（曼谷），普吉${s.name}：${s.tip}。`;
   const messages = [
-    { role: "system", content: `${SYSTEM}\n\n# 数据\n${data}` },
+    { role: "system", content: `${SYSTEM}\n\n${today}\n\n# 运营知识${KNOWLEDGE}\n# 数据\n${data}` },
     ...history.slice(-10).map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: String(m.content).slice(0, 2000) })),
   ];
   if (env.COPILOT_API_KEY) {

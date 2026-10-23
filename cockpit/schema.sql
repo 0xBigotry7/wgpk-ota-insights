@@ -65,3 +65,11 @@ CREATE TABLE IF NOT EXISTS copilot_log (
   model TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS copilot_log_at ON copilot_log (at);
+
+-- Routine checks (knowledge.js ROUTINES) ticked off per period: a day, an ISO week or a month (Bangkok).
+CREATE TABLE IF NOT EXISTS routine_ticks (
+  period TEXT NOT NULL,           -- 2026-10-23 | 2026-W43 | 2026-10
+  item TEXT NOT NULL,             -- routine id, e.g. d-pickup
+  done_at TEXT NOT NULL,
+  PRIMARY KEY (period, item)
+);

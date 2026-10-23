@@ -14,6 +14,7 @@ import datetime as dt
 import json
 import re
 import sys
+from pathlib import Path
 
 from . import cockpit, config, llm, store
 
@@ -50,6 +51,11 @@ PROMPT = """你是普吉岛卡马拉温德姆花园酒店（Wyndham Garden Phuke
 - changes：程序算好的变化（较上次采集、较 7 天前、较平台对比值）。
 - pages：今天每个页面的采集状态；不是 ok 的页面说明数据缺失。
 数据覆盖 {days} 天。天数少时，主要和平台对比值、页面上的月度数据比；天数多了再看趋势。
+普吉现在是{season}。
+
+下面是 OTA 运营知识（各平台排名因素、项目门槛、症状→原因→动作、收益管理日常）。判断原因、给动作时按这些规则来，
+在 analysis 里说清依据的是哪条规则；知识里标“第三方说法”或“以后台为准”的，写成“以后台为准”。
+{knowledge}
 
 请用中文写一份今天的 OTA 分析建议报告，写细：
 - summary：2 到 3 句，今天最重要的判断。
@@ -70,12 +76,38 @@ PROMPT = """你是普吉岛卡马拉温德姆花园酒店（Wyndham Garden Phuke
 """
 
 
+KNOWLEDGE_JS = Path(__file__).resolve().parent.parent / "cockpit" / "src" / "knowledge.js"
+
+
+def knowledge() -> str:
+    """The OTA playbook text shared with the cockpit copilot (single source: cockpit/src/knowledge.js)."""
+    try:
+        text = KNOWLEDGE_JS.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    m = re.search(r"KNOWLEDGE = String\.raw`(.*?)`;", text, re.S)
+    return m.group(1).strip() if m else ""
+
+
+def season(day: str) -> str:
+    month = int(day[5:7])
+    if month == 10:
+        return "旺季前爬坡期（11 月起进入旺季，1 月最高）"
+    if month >= 11 or month <= 4:
+        return "旺季"
+    return "旺转淡" if month == 5 else "淡季（6–9 月）"
+
+
 def history(db, days: int = 120) -> dict:
     since = (dt.date.today() - dt.timedelta(days=days)).isoformat()
     out: dict = {}
     for day, cid, metric, period, label, value, unit, bench in db.execute(
             "SELECT day, cid, metric, period, label, value, unit, benchmark FROM metric_values WHERE day >= ? "
             "ORDER BY cid, metric, day", (since,)):
+        # A 0 score is an unrendered tile and a 0 comparison a misread (rows stored before extract.check dropped them).
+        if value == 0 and (unit or "").startswith("/"):
+            continue
+        bench = bench or None
         s = out.setdefault(cid, {}).setdefault(f"{metric}{'@' + period if period else ''}",
                                                {"label": label, "unit": unit, "points": []})
         s["points"].append([day, value] + ([bench] if bench is not None else []))
@@ -121,7 +153,8 @@ def build(db, day: str, ask=llm.ask_json) -> dict | None:
     if not days:
         return None
     facts = {"series": data, "changes": changes(data), "pages": page_health(db, day)}
-    res = ask(PROMPT.format(day=day, days=days, data=json.dumps(facts, ensure_ascii=False)), SCHEMA, timeout=420)
+    res = ask(PROMPT.format(day=day, days=days, season=season(day), knowledge=knowledge(),
+                            data=json.dumps(facts, ensure_ascii=False)), SCHEMA, timeout=420)
     items = [it for it in res.get("items", []) if cites_data(it.get("evidence", ""), facts)][:10]
     highlights = [h for h in res.get("highlights", []) if cites_data(h.get("text", ""), facts)][:8]
     return {"id": day, "generated_at": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),

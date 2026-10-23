@@ -241,6 +241,23 @@ td.num{font-variant-numeric:tabular-nums}
   .counter .n{font-size:24px}
   .call p{font-size:15px}
 }
+details.how{margin-top:6px;font-size:12px}
+details.how summary{cursor:pointer;color:var(--accent);list-style:none;display:inline-flex;align-items:center;gap:4px}
+details.how summary::-webkit-details-marker{display:none}
+details.how[open] summary .chev{transform:rotate(90deg)}
+details.how .body{margin-top:6px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--fg-2)}
+details.how ol{margin:4px 0;padding-left:1.3em}
+details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
+.season{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.14);border-radius:99px;padding:2px 10px;font-size:12px}
+.qi{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;border:1px solid var(--line);font-size:10px;color:var(--muted);cursor:help;margin-left:4px;vertical-align:1px}
+.routines{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:12px}
+.rt{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:start;padding:7px 0;border-top:1px solid var(--line)}
+.rt:first-of-type{border-top:0}
+.rt.done .t{color:var(--muted);text-decoration:line-through}
+.rt .chk{margin-top:1px}
+.rt.done .chk{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.prog{height:6px;border-radius:3px;background:var(--surface-2);border:1px solid var(--line);overflow:hidden;margin:4px 0 8px}
+.prog i{display:block;height:100%;background:var(--good)}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:10px;font-size:13px;z-index:60;opacity:0;transition:opacity .15s;pointer-events:none}
 .toast.on{opacity:1}
 </style>
@@ -317,6 +334,14 @@ td.num{font-variant-numeric:tabular-nums}
     <div class="tiles" id="tiles"></div>
   </section>
 
+  <section class="sec">
+    <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-file"/></svg></span><h2>杨总 KPI 对照：近 30 / 90 天</h2>
+      <span class="hint">曝光、点击、转化、预订、间夜、房价、收入，和平台给的同类值</span></div>
+    <div class="card" style="padding:0"><div class="tbl" style="border-top:0"><table id="kpi">
+      <thead><tr><th>指标</th><th>平台</th><th>近 30 天</th><th>近 90 天</th><th>较同类</th><th>日期</th></tr></thead>
+      <tbody></tbody></table></div></div>
+  </section>
+
   <section class="grid2">
     <div class="card">
       <div class="sec-h" style="margin-bottom:12px"><span class="badge-ico"><svg class="ico"><use href="#i-funnel"/></svg></span><h2>Booking 转化漏斗</h2>
@@ -324,21 +349,33 @@ td.num{font-variant-numeric:tabular-nums}
       <div id="funnel"></div>
     </div>
     <div class="card">
-      <div class="sec-h" style="margin-bottom:8px"><span class="badge-ico"><svg class="ico"><use href="#i-star"/></svg></span><h2>各平台口碑 vs 温德姆品牌</h2></div>
-      <div id="dumb"></div>
+      <div class="sec-h" style="margin-bottom:8px"><span class="badge-ico"><svg class="ico"><use href="#i-target"/></svg></span><h2>量价矩阵</h2>
+        <span class="hint">Booking 间夜和房价各是同类的多少</span></div>
+      <div id="matrix"></div>
     </div>
   </section>
 
   <section class="grid2">
     <div class="card">
+      <div class="sec-h" style="margin-bottom:8px"><span class="badge-ico"><svg class="ico"><use href="#i-star"/></svg></span><h2>各平台口碑 vs 温德姆品牌</h2></div>
+      <div id="dumb"></div>
+    </div>
+    <div class="card">
       <div class="sec-h" style="margin-bottom:8px"><span class="badge-ico"><svg class="ico"><use href="#i-heart"/></svg></span><h2>客人遇到的问题</h2>
         <span class="hint">Medallia 近 12 个月，越短越好</span></div>
       <div id="problems"></div>
     </div>
-    <div class="card">
-      <div class="sec-h" style="margin-bottom:12px"><span class="badge-ico"><svg class="ico"><use href="#i-globe"/></svg></span><h2>平台连接状态</h2></div>
-      <div class="status" id="status"></div>
-    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-check"/></svg></span><h2>运营例行检查</h2>
+      <span class="hint">按收益管理的日常做法整理，做完打勾，按天 / 周 / 月自动重置</span></div>
+    <div class="routines" id="routines"></div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-globe"/></svg></span><h2>平台连接状态</h2></div>
+    <div class="status" id="status"></div>
   </section>
 
   <section class="sec">
@@ -460,6 +497,10 @@ function hero(state){
   const r = state.advice[0], mon = state.monitor || {alerts: [], wins: []};
   $("call").querySelector("p").textContent = r ? r.summary : "还没有当天的分析报告。每天采集完会自动生成，建议都附依据数字。";
   $("call").querySelector(".eyebrow span").textContent = r ? `今日判断 · ${r.id}` : "今日判断";
+  const s = (state.monitor || {}).season;
+  const old = $("call").querySelector(".season"); if (old) old.remove();
+  if (s) $("call").querySelector("p").insertAdjacentHTML("afterend",
+    `<span class="season" data-tip="${esc(s.tip)}" tabindex="0">${icon("i-cal","sm")}普吉${esc(s.name)}：${esc(s.tip)}</span>`);
   if (!$("call").querySelector(".btn")) $("call").insertAdjacentHTML("beforeend",
     `<button class="btn" type="button" data-ask="今天最该先做哪 3 件事？每件写清楚谁去做、在哪个后台、看哪个指标。">${icon("i-spark","sm")}让 Copilot 排今天的优先级</button>`);
   const serious = mon.alerts.filter(a => a.level === "critical" || a.level === "serious").length;
@@ -476,6 +517,14 @@ function hero(state){
 }
 
 // ── alerts ──
+// The playbook behind an alert: why it matters, the steps, what to watch and how long it takes.
+function howTo(a){
+  if (!(a.steps || []).length && !a.why) return "";
+  return `<details class="how"><summary>${icon("i-chev","sm chev")}为什么 · 怎么做 · 看什么</summary><div class="body">
+    ${a.why ? `<div><b>为什么：</b>${esc(a.why)}</div>` : ""}
+    ${(a.steps || []).length ? `<ol>${a.steps.map(x => `<li>${esc(x)}</li>`).join("")}</ol>` : ""}
+    <div class="row">${a.kpi ? `<span>${icon("i-target","sm")} 看：${esc(a.kpi)}</span>` : ""}${a.eta ? `<span>${icon("i-cal","sm")} 多久见效：${esc(a.eta)}</span>` : ""}</div></div></details>`;
+}
 function alerts(state){
   const mon = state.monitor || {alerts: [], wins: []};
   const SHOW = 5, more = mon.alerts.length - SHOW;
@@ -485,7 +534,8 @@ function alerts(state){
       <span class="lv">${icon(ic)}</span>
       <div><b><span class="lvtag">${lab}</span>${esc(a.title)}</b>
         <div class="d">${[a.detail ? esc(a.detail) : "", pf(a.platform), `负责：${esc(a.owner)}`].filter(Boolean).join(" · ")}</div>
-        <div class="act">${icon("i-wrench","sm")}<span>${esc(a.action)}</span></div></div>
+        <div class="act">${icon("i-wrench","sm")}<span>${esc(a.action)}</span></div>
+        ${howTo(a)}</div>
       <div class="ops"><button class="btn" data-todo-alert="${i}">${icon("i-plus","sm")}加入待办</button>
         <button class="btn ghost" data-ask="${esc(`这个预警怎么处理？「${a.title}」${a.detail}`)}">${icon("i-spark","sm")}问 Copilot</button></div></div>`;
   }).join("") + (more > 0 ? `<button class="btn" id="more-alerts" style="align-self:flex-start">${icon("i-chev","sm")}再看 ${more} 条</button>` : "")
@@ -531,7 +581,8 @@ function tiles(state, by){
         <div class="bt"><div class="bf" style="width:${(m.value / max * 100).toFixed(1)}%"></div><div class="bm" style="left:calc(${(m.benchmark / max * 100).toFixed(1)}% - 1px)"></div></div>
         <div class="bl"><span>${m.platform === "medallia" ? "品牌" : "同类"} ${esc(m.unit === "%" ? fmt(m.benchmark, m.unit) : compact(m.benchmark))}</span><span class="${ahead ? "tone-good" : "tone-bad"}">${icon(ahead ? "i-up" : "i-down","sm")} ${esc(gap)}</span></div></div>`;
     }
-    return `<div class="tile"><div class="th"><span class="ti">${icon(ic)}</span><span class="tl">${esc(label)}<br><span class="meta">${pf(m.platform)} · ${esc(PERIODS[m.period] || "最新")}</span></span></div>
+    const gl = (state.glossary || {})[m.metric];
+    return `<div class="tile"><div class="th"><span class="ti">${icon(ic)}</span><span class="tl">${esc(label)}${gl ? `<span class="qi" data-tip="${esc(gl)}" tabindex="0" aria-label="${esc(gl)}">?</span>` : ""}<br><span class="meta">${pf(m.platform)} · ${esc(PERIODS[m.period] || "最新")}</span></span></div>
       <div class="tv">${esc(big)}<small>${esc(unitTxt === "%" ? "%" : unitTxt.startsWith("/") ? unitTxt : unitTxt)}</small></div>
       ${bullet}<div class="tf">${delta || `<span class="meta">${esc(m.day)}</span>`}${spark(hit.slice(-30).map(r => r.value))}</div></div>`;
   }).join("");
@@ -678,7 +729,7 @@ function board(state){
   $("board").innerHTML = lanes.map(([o, list]) => `<div class="card lane"><h3>${esc(o)} <span class="cnt">${list.filter(t => t.status === "open").length} 项未完成</span></h3>
     ${list.map(t => `<div class="todo ${t.status === "done" ? "done" : ""}">
       <button class="chk" data-toggle="${t.id}" aria-label="${t.status === "done" ? "标为未完成" : "标为完成"}">${icon("i-check","sm")}</button>
-      <div><div class="t">${esc(t.title)}</div><div class="meta">${pf(t.platform)} · ${{alert:"来自预警",report:"来自报告",copilot:"来自 Copilot",manual:"手动"}[t.source] || ""} · ${esc(String(t.created_at).slice(5,10))}</div>
+      <div><div class="t">${esc(t.title)}</div><div class="meta">${pf(t.platform)} · ${{alert:"来自预警",auto:"自动派单",report:"来自报告",copilot:"来自 Copilot",manual:"手动"}[t.source] || ""} · ${esc(String(t.created_at).slice(5,10))}</div>
         ${t.detail ? `<div class="meta" style="margin-top:2px">${esc(t.detail)}</div>` : ""}</div>
       <button class="btn ghost" data-drop="${t.id}" aria-label="删除" data-tip="不做了">${icon("i-x","sm")}</button></div>`).join("")}</div>`).join("");
 }
@@ -778,6 +829,7 @@ document.addEventListener("click", e => {
     return addTodo({title: it.title, detail: it.action, owner: OWNERS.includes(it.owner) ? it.owner : "总经理", platform: it.platform || "all", source: "report", source_ref: d.todoReport}); }
   if (d.toggle) { const t = STATE.todos.find(x => x.id === +d.toggle); return setTodo(+d.toggle, t.status === "done" ? "open" : "done"); }
   if (d.drop) return setTodo(+d.drop, "dropped");
+  if (d.routine) return tickRoutine(d.routine);
   if (d.act) { const [i, j] = d.act.split(":").map(Number); const a = chat[i].actions[j];
     a.added = true; saveChat(); renderChat();
     return addTodo({title: a.title, detail: a.detail, owner: a.owner, platform: a.platform, source: "copilot", source_ref: `copilot:${a.title}`.slice(0, 120)}); }
@@ -785,6 +837,98 @@ document.addEventListener("click", e => {
 $("todo-owner").innerHTML = OWNERS.map(o => `<option>${esc(o)}</option>`).join("");
 $("addtodo").onsubmit = e => { e.preventDefault(); const t = $("todo-title").value.trim(); if (!t) return;
   $("todo-title").value = ""; addTodo({title: t, owner: $("todo-owner").value, platform: "all", source: "manual"}); };
+
+// ── 杨总 KPI list: where each 30 / 90-day number comes from. [platform, metric@period for 30 days, for 90 days, note] ──
+const KPI = [
+  ["搜索曝光", [["booking", "search_views@funnel", null, "排名看板时段；90 天需在页面切换"], ["tripadvisor", "listing_impressions@last_30_days", null]]],
+  ["房源页浏览", [["booking", "page_visits@funnel", null], ["expedia", "page_views_28d@last_28_days", null, "Expedia 为近 28 天"],
+    ["tripadvisor", "unique_visitors@last_30_days", null]]],
+  ["点击率（曝光→浏览）", [["booking", "click_rate@funnel", null]]],
+  ["预订转化率", [["booking", "book_rate@funnel", "conversion_rate_90d@last_90_days"], ["expedia", "conversion_rate_28d@last_28_days", null]]],
+  ["预订数（毛）", [["booking", "bookings@funnel", null], ["tripadvisor", "booking_clicks@last_30_days", null, "TripAdvisor 为预订点击"]]],
+  ["净预订（扣取消）", [["booking", null, null, "取消率在 Booking Visibility Dashboard，下一步接入"]]],
+  ["间夜", [["booking", ["room_nights_30d@last_30_days", "room_nights_mtd@month_to_date"], "room_nights_90d@last_90_days"], ["expedia", "room_nights_28d@last_28_days", null]]],
+  ["平均房价 ADR", [["booking", ["adr_30d@last_30_days", "adr_mtd@month_to_date"], ["adr_90d@last_90_days", "rank_factor_adr_90d@last_90_days"]]]],
+  ["收入", [["booking", ["revenue_30d@last_30_days", "revenue_mtd@month_to_date"], "revenue_90d@last_90_days"], ["expedia", "revenue_28d@last_28_days", null]]],
+];
+const KPI_MISSING = [["agoda", "数据页在 Performance → Analytics，地址待确认"], ["ctrip", "数据中心地址待确认"]];
+function kpis(by){
+  // A source may list fallbacks: the first key that has data wins (e.g. 30 days, else month to date).
+  const resolve = (plat, k) => [].concat(k || []).find(x => by[`${plat}|${x}`]) || [].concat(k || [])[0] || null;
+  const last = k => by[k]?.at(-1);
+  const cell = (plat, k, first) => { const m = k && last(`${plat}|${k}`);
+    if (!m) return `<span class="meta">未接入</span>`;
+    const alt = first && k !== first ? `<div class="meta">${esc(PERIODS[m.period] || m.period)}</div>` : "";
+    return `<b>${esc(fmt(m.value, m.unit))}</b>${alt}`; };
+  const versus = (plat, ks) => ks.map(k => k && last(`${plat}|${k}`)).filter(m => m && m.benchmark != null).map(m => {
+    const d = m.unit === "%" ? m.value - m.benchmark : (m.value - m.benchmark) / Math.abs(m.benchmark) * 100;
+    return `<span class="${d >= 0 ? "tone-good" : "tone-bad"}">${d >= 0 ? "+" : "−"}${Math.abs(d).toFixed(m.unit === "%" ? 2 : 1)}${m.unit === "%" ? " 点" : "%"}</span> <span class="meta">同类 ${esc(fmt(m.benchmark, m.unit))}</span>`;
+  }).join("<br>");
+  const rows = [];
+  for (const [label, sources] of KPI) for (const [plat, s30, s90, note] of sources) {
+    const k30 = resolve(plat, s30), k90 = resolve(plat, s90), f30 = [].concat(s30 || [])[0], f90 = [].concat(s90 || [])[0];
+    const ref = (k30 && last(`${plat}|${k30}`)) || (k90 && last(`${plat}|${k90}`));
+    rows.push(`<tr><td><b>${esc(label)}</b></td><td>${pf(plat)}${note ? `<div class="meta">${esc(note)}</div>` : ""}</td>
+      <td class="num">${cell(plat, k30, f30)}</td><td class="num">${cell(plat, k90, f90)}</td><td>${versus(plat, [k30, k90]) || "—"}</td>
+      <td class="meta">${ref ? esc(ref.day) : ""}</td></tr>`);
+  }
+  for (const [p, why] of KPI_MISSING) rows.push(`<tr><td><b>全部 KPI</b></td><td>${pf(p)}</td><td colspan="4" class="meta">${esc(why)}</td></tr>`);
+  document.querySelector("#kpi tbody").innerHTML = rows.join("");
+}
+
+// ── rate / volume matrix: room nights and ADR as % of the comp set (≈ MPI and ARI), 100 = same as peers ──
+function matrix(by){
+  const pick = ["mtd@month_to_date", "30d@last_30_days", "90d@last_90_days", "last_month@last_month"].map(sfx => {
+    const a = by[`booking|adr_${sfx}`]?.at(-1), r = by[`booking|room_nights_${sfx}`]?.at(-1);
+    return a && r && a.benchmark && r.benchmark ? {sfx, a, r, x: r.value / r.benchmark * 100, y: a.value / a.benchmark * 100} : null;
+  }).filter(Boolean);
+  if (!pick.length) { $("matrix").innerHTML = `<div class="empty">需要 Booking 的间夜和房价同类值。</div>`; return; }
+  const W = 360, H = 260, P = 34, lo = 50, hi = 150;
+  const sx = v => P + (Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo) * (W - P - 10);
+  const sy = v => H - P - (Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo) * (H - P - 10);
+  const names = {"mtd@month_to_date": "本月至今", "30d@last_30_days": "近 30 天", "90d@last_90_days": "近 90 天", "last_month@last_month": "上月"};
+  const q = (x, y, w, h, fill, text, tx, ty) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}"/><text x="${tx}" y="${ty}" font-size="11" fill="var(--muted)">${text}</text>`;
+  const cx = sx(100), cy = sy(100);
+  const dots = pick.map((d, i) => `<g data-tip="${esc(`${names[d.sfx]}\n间夜 ${num(d.r.value)}（同类 ${num(d.r.benchmark)}）= ${Math.round(d.x)}%\nADR ${num(d.a.value)}（同类 ${num(d.a.benchmark)}）= ${Math.round(d.y)}%`)}" tabindex="0">
+      <circle cx="${sx(d.x)}" cy="${sy(d.y)}" r="12" fill="transparent"/>
+      <circle cx="${sx(d.x)}" cy="${sy(d.y)}" r="${i ? 5 : 7}" fill="${i ? "var(--s1-soft)" : "var(--s1)"}" stroke="var(--surface)" stroke-width="2"/>
+      <text x="${sx(d.x)}" y="${sy(d.y) + (i % 2 ? 20 : -12)}" text-anchor="middle" font-size="11" fill="var(--fg)">${names[d.sfx]}</text></g>`).join("");
+  const top = pick[0];
+  const verdict = top.x >= 100 && top.y < 100 ? "量高价低：间夜比同类多、房价比同类低，可以收紧折扣、提高需求日期的价格"
+    : top.x < 100 && top.y >= 100 ? "价高量低：房价高于同类但间夜少，检查价格是否超出客人接受范围"
+    : top.x >= 100 ? "量价双高：保持，并在高需求日期继续试探提价" : "量价双低：先查曝光和转化，再决定价格";
+  $("matrix").innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="量价矩阵">
+    ${q(cx, P - 24, W - 10 - cx, cy - P + 24, "var(--good-soft)", "量价双高", W - 70, P - 10)}
+    ${q(P, P - 24, cx - P, cy - P + 24, "var(--surface-2)", "价高量低", P + 6, P - 10)}
+    ${q(cx, cy, W - 10 - cx, H - P - cy, "var(--warn-soft)", "量高价低", W - 70, H - P - 6)}
+    ${q(P, cy, cx - P, H - P - cy, "var(--crit-soft)", "量价双低", P + 6, H - P - 6)}
+    <line x1="${cx}" x2="${cx}" y1="${P - 24}" y2="${H - P}" stroke="var(--muted)" stroke-dasharray="3 3"/>
+    <line x1="${P}" x2="${W - 10}" y1="${cy}" y2="${cy}" stroke="var(--muted)" stroke-dasharray="3 3"/>
+    <text x="${(W + P) / 2}" y="${H - 8}" text-anchor="middle" font-size="11" fill="var(--fg-2)">间夜 ÷ 同类（100 = 一样）</text>
+    <text x="12" y="${(H - P) / 2}" font-size="11" fill="var(--fg-2)" transform="rotate(-90 12 ${(H - P) / 2})" text-anchor="middle">房价 ÷ 同类</text>
+    ${[50, 100, 150].map(v => `<text x="${sx(v)}" y="${H - P + 14}" text-anchor="middle" font-size="10" fill="var(--muted)">${v}</text><text x="${P - 4}" y="${sy(v) + 3}" text-anchor="end" font-size="10" fill="var(--muted)">${v}</text>`).join("")}
+    ${dots}</svg>
+    <p style="margin:6px 0 0"><b>${esc(names[top.sfx])}：</b>间夜 ${Math.round(top.x)}%，房价 ${Math.round(top.y)}%。${esc(verdict)}</p>
+    <p class="meta" style="margin:2px 0 0">近似 MPI / ARI（Booking 平台口径，不是 STR 指数）</p>`;
+}
+
+// ── routine checks ──
+const CADENCE = {daily: "每天", weekly: "每周", monthly: "每月"};
+function routines(state){
+  const r = state.routines || {};
+  $("routines").innerHTML = Object.entries(CADENCE).filter(([c]) => r[c]).map(([c, name]) => {
+    const items = r[c].items, done = items.filter(x => x.done_at).length;
+    return `<div class="card"><div class="sec-h"><b>${name}</b><span class="meta">${esc(r[c].period)}</span><span class="meta tail">${done}/${items.length}</span></div>
+      <div class="prog"><i style="width:${items.length ? done / items.length * 100 : 0}%"></i></div>
+      ${items.map(it => `<div class="rt ${it.done_at ? "done" : ""}"><button class="chk" data-routine="${esc(it.id)}" aria-label="${it.done_at ? "标为未做" : "标为已做"}">${icon("i-check","sm")}</button>
+        <div><div class="t">${esc(it.text)}</div><div class="meta">${esc(it.owner)}${it.done_at ? ` · ${esc(new Date(it.done_at).toLocaleTimeString("zh-CN", {hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok"}))} 完成` : ""}</div></div></div>`).join("")}</div>`;
+  }).join("");
+}
+async function tickRoutine(id){
+  const all = Object.values(STATE.routines || {}).flatMap(c => c.items); const it = all.find(x => x.id === id); if (!it) return;
+  const before = it.done_at; it.done_at = before ? null : new Date().toISOString(); routines(STATE);
+  try { await post("/api/routines", {item: id, done: !before}); } catch (e) { it.done_at = before; routines(STATE); toast(`没保存：${e.message}`); }
+}
 
 async function load(){
   try {
@@ -796,7 +940,7 @@ async function load(){
     const run = state.latest_run;
     $("last-run").innerHTML = icon("i-db","sm") + esc(run ? `最近采集 ${run.id.slice(4,6)}-${run.id.slice(6,8)} ${run.id.slice(9,11)}:${run.id.slice(11,13)}` : "还没有采集记录");
     const by = series(state);
-    hero(state); alerts(state); tiles(state, by); funnel(by); dumbbell(by); problems(by); status(state, by); report(state); board(state); details(state, by);
+    hero(state); alerts(state); tiles(state, by); kpis(by); funnel(by); matrix(by); dumbbell(by); problems(by); routines(state); status(state, by); report(state); board(state); details(state, by);
   } catch (e) {
     $("main").insertAdjacentHTML("beforeend", `<div class="empty" style="color:var(--crit-ink)">读取数据失败：${esc(e.message)}。刷新页面再试。</div>`);
   }
