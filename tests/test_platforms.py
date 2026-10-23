@@ -62,3 +62,14 @@ def test_unusable_pages_are_not_ok(requested, final, text, status):
 ])
 def test_real_dashboards_pass(requested, final):
     assert page_problem(requested, final, "Search results views 368,843") is None
+
+
+def test_booking_window_pages_get_dates_and_session():
+    import datetime as dt
+    page = next(p for p in BY_CID["booking"].pages if p.slug == "sales-90d")
+    url = fill(page.url, "https://admin.booking.com/x?hotel_id=7&ses=s1", today=dt.date(2026, 10, 23))
+    assert "hotel_id=7" in url and "ses=s1" in url
+    assert "fromDate=2026-07-25&untilDate=2026-10-22" in url
+    page30 = next(p for p in BY_CID["booking"].pages if p.slug == "sales-30d")
+    assert "fromDate=2026-09-23&untilDate=2026-10-22" in fill(page30.url, "https://a/?hotel_id=7&ses=s1",
+                                                                today=dt.date(2026, 10, 23))

@@ -67,7 +67,7 @@ svg.spark{display:block}
   <header>
     <div>
       <h1>OTA 驾驶舱</h1>
-      <div class="meta">Wyndham Garden Phuket Kamala · 每天 11:30 从各平台后台只读采集</div>
+      <div class="meta">Wyndham Garden Phuket Kamala · 每天 10:20 从各平台后台只读采集</div>
     </div>
     <div class="meta"><span id="last-run">加载中…</span> · <a href="/logout">退出</a></div>
   </header>
@@ -84,6 +84,14 @@ svg.spark{display:block}
   </section>
 
   <section>
+    <h2>核心 KPI（近 30 / 90 天）</h2>
+    <p class="meta" style="margin:-6px 0 10px">曝光、浏览、点击率、转化、预订、间夜、房价、收入，以及平台给的同类对比值。“未接入”表示这个平台的数据页还没找到或拿不到这个时段。</p>
+    <div class="tbl"><table id="kpi">
+      <thead><tr><th>指标</th><th>平台</th><th>近 30 天</th><th>近 90 天</th><th>同类对比</th><th>日期</th></tr></thead>
+      <tbody></tbody></table></div>
+  </section>
+
+  <section>
     <h2>各平台指标</h2>
     <div id="platforms" style="display:flex;flex-direction:column;gap:22px"></div>
   </section>
@@ -94,7 +102,10 @@ const NAMES = {booking:"Booking.com", agoda:"Agoda", expedia:"Expedia", ctrip:"�
   google:"Google", tripadvisor:"TripAdvisor", medallia:"Medallia（品牌问卷）"};
 const STATUS = {ok:["正常","s-ok"], signed_out:["未登录","s-bad"], page_missing:["页面缺失","s-warn"], error:["出错","s-warn"]};
 const RANK = {ok:0, page_missing:1, error:2, signed_out:3};
-const PERIODS = {last_30_days:"近 30 天", next_30_days:"未来 30 天", last_12_months:"近 12 个月", last_90_days:"近 90 天"};
+const PERIODS = {last_30_days:"近 30 天", next_30_days:"未来 30 天", last_12_months:"近 12 个月", last_13_months:"近 13 个月",
+  last_90_days:"近 90 天", last_28_days:"近 28 天", next_28_days:"未来 28 天", next_90_days:"未来 90 天",
+  funnel:"排名看板默认时段", month_to_date:"本月至今", last_month:"上月", latest_month:"最近一个月",
+  booked_last_30_days:"近 30 天新增", booked_last_90_days:"近 90 天新增"};
 const PRIORITY = {high:["优先","s-bad"], medium:["近期","s-warn"], low:["可选","s-ok"]};
 const AREAS = {price:"价格", traffic:"流量曝光", conversion:"转化", reputation:"口碑评分", experience:"客人体验", content:"页面内容", data:"数据缺口"};
 
@@ -134,7 +145,7 @@ function advice(state){
   const el = document.getElementById("advice"), pick = document.getElementById("report-day");
   if (!state.advice.length) {
     pick.hidden = true;
-    el.innerHTML = `<div class="empty">还没有报告。每天 11:30 采集完会自动生成一份，每条建议都附上依据的数字。</div>`;
+    el.innerHTML = `<div class="empty">还没有报告。每天采集完会自动生成一份，每条建议都附上依据的数字。</div>`;
     return;
   }
   pick.hidden = false;
@@ -194,6 +205,43 @@ function platforms(state){
   }).join("");
 }
 
+// 杨总's KPI list → where each number comes from. [platform, metric@period for 30 days, for 90 days, note].
+const KPI = [
+  ["搜索曝光", [["booking", "search_views@funnel", null, "90 天需在页面上切换"], ["tripadvisor", "listing_impressions@last_30_days", null]]],
+  ["房源页浏览", [["booking", "page_visits@funnel", null], ["expedia", "page_views_28d@last_28_days", null, "Expedia 为近 28 天"],
+    ["tripadvisor", "unique_visitors@last_30_days", null]]],
+  ["点击率（曝光→浏览）", [["booking", "click_rate@funnel", null]]],
+  ["预订转化率", [["booking", "book_rate@funnel", "conversion_rate_90d@last_90_days"], ["expedia", "conversion_rate_28d@last_28_days", null]]],
+  ["预订数（毛）", [["booking", "bookings@funnel", null], ["tripadvisor", "booking_clicks@last_30_days", null, "TripAdvisor 为预订点击"]]],
+  ["净预订（扣取消）", [["booking", null, null, "取消数据页还没找到"]]],
+  ["间夜", [["booking", "room_nights_30d@last_30_days", "room_nights_90d@last_90_days"], ["expedia", "room_nights_28d@last_28_days", null]]],
+  ["平均房价 ADR", [["booking", "adr_30d@last_30_days", "adr_90d@last_90_days"]]],
+  ["收入", [["booking", "revenue_30d@last_30_days", "revenue_90d@last_90_days"], ["expedia", "revenue_28d@last_28_days", null]]],
+];
+const KPI_MISSING = [["agoda", "数据分析页地址待确认"], ["ctrip", "数据分析页地址待确认"]];
+
+function kpis(state){
+  const latest = {};
+  for (const m of state.metrics) latest[`${m.platform}|${m.metric}@${m.period}`] = m;
+  const cell = (pf, key) => {
+    const m = key && latest[`${pf}|${key}`];
+    return m ? `<b>${esc(fmt(m.value, m.unit))}</b>` : `<span class="meta">未接入</span>`;
+  };
+  const rows = [];
+  for (const [label, sources] of KPI) {
+    for (const [pf, k30, k90, note] of sources) {
+      const ref = latest[`${pf}|${k30}`] || latest[`${pf}|${k90}`];
+      const bench = [k30, k90].map(k => latest[`${pf}|${k}`]).filter(m => m && m.benchmark != null)
+        .map(m => esc(fmt(m.benchmark, m.unit))).join(" / ");
+      rows.push(`<tr><td>${esc(label)}</td><td>${esc(NAMES[pf])}${note ? `<div class="meta">${esc(note)}</div>` : ""}</td>
+        <td class="num">${cell(pf, k30)}</td><td class="num">${cell(pf, k90)}</td><td class="num">${bench || "—"}</td>
+        <td class="meta">${ref ? esc(ref.day) : ""}</td></tr>`);
+    }
+  }
+  for (const [pf, why] of KPI_MISSING) rows.push(`<tr><td>全部</td><td>${esc(NAMES[pf])}</td><td colspan="4" class="meta">${esc(why)}</td></tr>`);
+  document.querySelector("#kpi tbody").innerHTML = rows.join("");
+}
+
 async function load(){
   try {
     const r = await fetch("/api/state", {credentials: "same-origin"});
@@ -203,7 +251,7 @@ async function load(){
     document.getElementById("last-run").textContent = run
       ? `最近一次采集 ${run.id.slice(0,4)}-${run.id.slice(4,6)}-${run.id.slice(6,8)} ${run.id.slice(9,11)}:${run.id.slice(11,13)}（${run.outcome === "done" ? "完成" : run.outcome || "进行中"}）`
       : "还没有采集记录";
-    health(state); advice(state); platforms(state);
+    health(state); advice(state); kpis(state); platforms(state);
   } catch (e) {
     document.querySelector(".wrap").insertAdjacentHTML("beforeend", `<div class="err">读取数据失败：${esc(e.message)}。刷新页面再试。</div>`);
   }

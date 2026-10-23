@@ -44,6 +44,13 @@ def finish_run(db: sqlite3.Connection, run_id: str, finished_at: str, outcome: s
     db.commit()
 
 
+def done_run_on(db: sqlite3.Connection, yyyymmdd: str) -> str | None:
+    """The id of a run on that day that finished with outcome 'done', if any."""
+    row = db.execute("SELECT id FROM runs WHERE id LIKE ? AND outcome = 'done' ORDER BY id LIMIT 1",
+                     (yyyymmdd + "-%",)).fetchone()
+    return row[0] if row else None
+
+
 def add_snapshot(db: sqlite3.Connection, **row: object) -> None:
     cols = ", ".join(row)
     db.execute(f"INSERT OR REPLACE INTO snapshots ({cols}) VALUES ({', '.join('?' * len(row))})",

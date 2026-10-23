@@ -9,6 +9,7 @@ IDs are the ones the review operator already uses (wgpk-reviews/operator_v2/sour
 """
 from __future__ import annotations
 
+import datetime as dt
 import re
 from dataclasses import dataclass, field
 from urllib.parse import parse_qs, urlparse
@@ -49,8 +50,17 @@ PLATFORMS: tuple[Platform, ...] = (
         Page("content-score", f"{BOOKING}/content_score.html?{BOOKING_Q}", verified=True),
         Page("sales-insights", f"{BOOKING}/statistics/sales_insights.html?{BOOKING_Q}"
                                "&benchmark=PEER_GROUP&reservationType=BOOKED", verified=True),
+        # Same report over a fixed window, book date: the Total column is the window's figure. fromDate/untilDate
+        # were seen on links of the live page (run 20261023-113000); {from30}/{from90}/{until} are filled per run.
+        Page("sales-30d", f"{BOOKING}/statistics/sales_insights.html?{BOOKING_Q}&benchmark=PEER_GROUP"
+                          "&reservationType=BOOKED&fromDate={from30}&untilDate={until}&granularity=MONTHLY", verified=True),
+        Page("sales-90d", f"{BOOKING}/statistics/sales_insights.html?{BOOKING_Q}&benchmark=PEER_GROUP"
+                          "&reservationType=BOOKED&fromDate={from90}&untilDate={until}&granularity=MONTHLY", verified=True),
         Page("pace-report", f"{BOOKING}/statistics/pace_report.html?{BOOKING_Q}"
                             "&period=DAYS30&benchmark=PEER_GROUP", verified=True),
+        # The selector offers "Last 90 days"; DAYS90 follows the DAYS30 pattern but is not seen in a link yet.
+        Page("pace-90d", f"{BOOKING}/statistics/pace_report.html?{BOOKING_Q}"
+                         "&period=DAYS90&benchmark=PEER_GROUP"),                                  # UNVERIFIED
         Page("search-rank", f"{BOOKING}/showrank.html?{BOOKING_Q}", verified=True),
         Page("inbox", f"{BOOKING}/messaging/inbox.html?{BOOKING_Q}", verified=True),
     )),
@@ -68,6 +78,12 @@ PLATFORMS: tuple[Platform, ...] = (
                               f"?propertyId={EXPEDIA_ID}", verified=True, settle_ms=14000),
         Page("home", f"https://apps.expediapartnercentral.com/supply/home?propertyId={EXPEDIA_ID}",
              verified=True, settle_ms=14000),
+        # The hub's tiles never loaded in our tab (runs 20261022/23). These older report pages are linked from
+        # the hub ("View reports", "Booking insights"); read for calibration, no metrics catalogued yet.
+        Page("reporting-suite", "https://apps.expediapartnercentral.com/lodging/partner-reporting-suite/index.html"
+                                f"?htid={EXPEDIA_ID}", verified=True, settle_ms=14000),
+        Page("booking-insights", "https://apps.expediapartnercentral.com/lodging/booking-insights/index.html"
+                                 f"?htid={EXPEDIA_ID}", verified=True, settle_ms=14000),
     )),
     Platform("ctrip", "Ctrip eBooking", "https://ebooking.ctrip.com/comment/commentList?microJump=true", (
         Page("home", "https://ebooking.ctrip.com/home/oversea?microJump=true", verified=True),
@@ -144,11 +160,21 @@ def page_problem(requested: str, final: str, text: str) -> tuple[str, str] | Non
     return None
 
 
-def fill(url: str, landing_url: str) -> str | None:
-    """Fill {hotel_id}/{ses} from the landing URL's query; None when a placeholder has no value."""
+BKK = dt.timezone(dt.timedelta(hours=7))
+
+
+def date_window(today: dt.date | None = None) -> dict[str, str]:
+    """{until} = yesterday (the last complete day), {from30}/{from90} = the first day of that 30/90-day window."""
+    until = (today or dt.datetime.now(BKK).date()) - dt.timedelta(days=1)
+    return {"until": until.isoformat(), "from30": (until - dt.timedelta(days=29)).isoformat(),
+            "from90": (until - dt.timedelta(days=89)).isoformat()}
+
+
+def fill(url: str, landing_url: str, today: dt.date | None = None) -> str | None:
+    """Fill {hotel_id}/{ses} from the landing URL's query and the date window; None when a placeholder has no value."""
     if "{" not in url:
         return url
-    q = {k: v[0] for k, v in parse_qs(urlparse(landing_url).query).items()}
+    q = date_window(today) | {k: v[0] for k, v in parse_qs(urlparse(landing_url).query).items()}
     try:
         return url.format(**q)
     except KeyError:

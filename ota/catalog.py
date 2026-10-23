@@ -50,6 +50,29 @@ CATALOG: dict[tuple[str, str], tuple[Metric, ...]] = {
           "'Your rank' under Revenue, second-to-last month column: N in 'N out of 26'"),
         m("peer_group_size", "同类酒店数", period="", hint="the M in 'N out of M' in the Your rank rows"),
     ),
+    # sales-30d / sales-90d: the same table over a fixed book-date window (from the URL); the Total column is
+    # the window's figure, benchmark = the "(Peer group)" row's Total, rank = "Your rank" in the Total column.
+    **{("booking", f"sales-{n}d"): (
+        m(f"room_nights_{n}d", f"近{n}天间夜", period=f"last_{n}_days",
+          hint="'Room nights' row, Total column; benchmark: 'Room nights (Peer group)' row, Total column"),
+        m(f"revenue_{n}d", f"近{n}天收入", "THB", f"last_{n}_days",
+          "'Revenue (THB)' row, Total column; benchmark: its '(Peer group)' row, Total column"),
+        m(f"adr_{n}d", f"近{n}天平均房价", "THB", f"last_{n}_days",
+          "'Average daily rate THB' row, Total column; benchmark: its '(Peer group)' row, Total column"),
+        m(f"room_nights_rank_{n}d", f"近{n}天间夜同类排名", "名", f"last_{n}_days",
+          "'Your rank' under Room nights, Total column"),
+        m(f"revenue_rank_{n}d", f"近{n}天收入同类排名", "名", f"last_{n}_days",
+          "'Your rank' under Revenue, Total column"),
+        m(f"adr_rank_{n}d", f"近{n}天房价同类排名", "名", f"last_{n}_days",
+          "'Your rank' under Average daily rate, Total column"),
+    ) for n in (30, 90)},
+    ("booking", "pace-90d"): (
+        m("pace_room_nights_90d", "近90天新增未来间夜", period="booked_last_90_days",
+          hint="'Total' row at the end of 'Breakdown by room and rate': room nights"),
+        m("pace_revenue_90d", "近90天新增未来收入", "THB", "booked_last_90_days", "'Total' row of the breakdown: revenue (THB)"),
+        m("pace_adr_90d", "近90天新增未来平均房价", "THB", "booked_last_90_days",
+          "'Total' row of the breakdown: average daily rate (THB)"),
+    ),
     ("booking", "pace-report"): (
         # Future stays booked within the last 30 days (URL period=DAYS30); the "Total" row of the breakdown.
         m("pace_room_nights_30d", "近30天新增未来间夜", period="booked_last_30_days",
@@ -61,7 +84,7 @@ CATALOG: dict[tuple[str, str], tuple[Metric, ...]] = {
     ),
     ("booking", "search-rank"): (
         # "Factors influencing your search ranking" cover the last 90 days.
-        m("adr_90d", "近90天平均房价", "THB", "last_90_days", "factor 'Average daily rate' (THB)"),
+        m("rank_factor_adr_90d", "排名因素：近90天平均房价", "THB", "last_90_days", "factor 'Average daily rate' (THB)"),
         m("property_page_score", "房源页完整度", "%", hint="factor 'Property page score' percentage"),
         m("conversion_rate_90d", "近90天转化率", "%", "last_90_days", "factor 'Conversion rate' percentage"),
         # "How your searches turned into bookings" funnel, default window; comparisons vs peer group.
