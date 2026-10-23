@@ -99,11 +99,11 @@ def test_tab_closes_even_when_landing_crashes(tmp_path, monkeypatch):
 
 
 class SlowTiles(FakePage):
-    """Expedia: the tiles say "trouble loading" on the first read and load on the second."""
+    """A page with retry on (Expedia's booking-insights): tiles fail on the first read and load on the second."""
     reads = 0
 
     async def inner_text(self, _):
-        if "data-insights" in self.url:
+        if "booking-insights" in self.url:
             self.reads += 1
             return "Revenue\nWe're having trouble loading it." if self.reads == 1 else "Revenue $12,345"
         return self._text
@@ -116,7 +116,7 @@ def test_slow_widgets_get_one_more_wait_and_redirects_are_missing(tmp_path, monk
     assert {r["slug"]: r["status"] for r in rows} == {"landing": "ok", "data-insights": "ok", "home": "ok",
                                                         "reporting-suite": "ok", "booking-insights": "ok",
                                                         "rate-insights": "ok"}
-    assert (tmp_path / "expedia" / "data-insights.txt").read_text() == "Revenue $12,345"
+    assert (tmp_path / "expedia" / "booking-insights.txt").read_text() == "Revenue $12,345"
 
     ctx = FakeCtx(lambda u: ("https://ebooking.ctrip.com/home/oversea" if "datacenter" in u else u, 200, "今日新订 0"))
     rows = run(ctx, "ctrip", tmp_path, monkeypatch)
@@ -129,3 +129,19 @@ def test_signed_out_sub_page_does_not_stop_the_platform(tmp_path, monkeypatch):
     ctx = FakeCtx(lambda u: (logon, 200, "Partner Central - Login") if "reporting-suite" in u else (u, 200, "Revenue $1"))
     rows = {r["slug"]: r["status"] for r in run(ctx, "expedia", tmp_path, monkeypatch)}
     assert rows["reporting-suite"] == "signed_out" and rows["booking-insights"] == "ok"
+
+
+def test_no_retry_wait_where_tiles_never_load(tmp_path, monkeypatch):
+    waits = []
+    ctx = FakeCtx(lambda u: (u, 200, "Revenue\nWe're having trouble loading it." if "supply/" in u else "ok"))
+    orig = ctx.page.wait_for_timeout
+
+    async def spy(ms):
+        waits.append(ms)
+        return await orig(ms)
+    ctx.page.wait_for_timeout = spy
+    monkeypatch.setattr(config, "RETRY_WAIT_MS", 15000)
+    rows = run(ctx, "expedia", tmp_path, monkeypatch)
+    statuses = {r["slug"]: r["status"] for r in rows}
+    assert statuses["data-insights"] == statuses["home"] == statuses["rate-insights"] == "error"
+    assert 15000 not in waits
