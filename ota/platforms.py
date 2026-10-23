@@ -82,11 +82,12 @@ PLATFORMS: tuple[Platform, ...] = (
     Platform("agoda", "Agoda YCS", f"https://portal.agoda.com/mldc/en-us/app/setting/review/{AGODA_ID}", (
         Page("inbox", f"https://portal.agoda.com/mldc/en-us/app/hermes/inbox/ycs/{AGODA_ID}", verified=True),
         # Partner Portal reporting, opened read-only 2026-10-23. The Analytics centre has one URL per tab
-        # (analyticsTab=...); Property performance takes dateRange (last365Days seen; 30/90-day values UNVERIFIED).
+        # (analyticsTab=...); Property performance takes dateRange.
         Page("dashboard", f"https://portal.agoda.com/mldc/en-us/app/reporting/dashboard/{AGODA_ID}", verified=True),
         Page("lost-bookings", f"{AGODA_AC}?analyticsTab=LostBookingInsights", verified=True),
-        Page("performance-30d", f"{AGODA_AC}?analyticsTab=PropertyPerformance&dateRange=last30Days&comparison=competitorSet"),
-        Page("performance-90d", f"{AGODA_AC}?analyticsTab=PropertyPerformance&dateRange=last90Days&comparison=competitorSet"),
+        # dateRange=last30Days shows "Booked in last 30 days"; last90Days silently falls back to 365 days.
+        Page("performance-30d", f"{AGODA_AC}?analyticsTab=PropertyPerformance&dateRange=last30Days&comparison=competitorSet",
+             verified=True),
         Page("traveler-insights", f"{AGODA_AC}?analyticsTab=TravelerInsights", verified=True),
         Page("revenue-distribution", f"{AGODA_AC}?analyticsTab=RevenueDistribution", verified=True),
         Page("content-score", f"{AGODA_AC}?analyticsTab=ContentScore", verified=True),

@@ -66,15 +66,22 @@ CATALOG: dict[tuple[str, str], tuple[Metric, ...]] = {
         m(f"adr_rank_{n}d", f"近{n}天房价同类排名", "名", f"last_{n}_days",
           "'Your rank' under Average daily rate, Total column"),
     ) for n in (30, 90)},
-    # Analytics dashboard "Performance overview", Bookings within the last N days vs Last year: value = ours,
-    # benchmark = the "(Last year)" figure shown in brackets.
+    # Analytics dashboard "Performance overview" has two columns: "Based on bookings in the past N days" (stays
+    # already done) and "Based on bookings for the next N days" (on the books). Each shows ours, then
+    # "+x% (last year's figure)". value = ours, benchmark = last year's figure in brackets.
     **{("booking", f"analytics-{n}d"): (
-        m(f"room_nights_yoy_{n}d", f"近{n}天间夜（对比去年）", period=f"last_{n}_days",
-          hint="Performance overview 'Room nights'; benchmark: the 'Room nights (Last year)' figure in brackets"),
-        m(f"revenue_yoy_{n}d", f"近{n}天收入（对比去年）", "THB", f"last_{n}_days",
-          "Performance overview 'Room revenue' (THB); benchmark: the '(Last year)' revenue in brackets"),
-        m(f"adr_yoy_{n}d", f"近{n}天房价（对比去年）", "THB", f"last_{n}_days",
-          "Performance overview 'Average daily rate' (THB); benchmark: the '(Last year)' ADR in brackets"),
+        m(f"stayed_room_nights_{n}d", f"近{n}天已住间夜", period=f"last_{n}_days",
+          hint=f"'Room nights', first column (past {n} days); benchmark: last year's figure in brackets"),
+        m(f"stayed_revenue_{n}d", f"近{n}天已住收入", "THB", f"last_{n}_days",
+          f"'Room revenue', first column (past {n} days); benchmark: last year's THB in brackets"),
+        m(f"stayed_adr_{n}d", f"近{n}天已住房价", "THB", f"last_{n}_days",
+          f"'Average daily rate', first column (past {n} days); benchmark: last year's THB in brackets"),
+        m(f"otb_room_nights_{n}d", f"未来{n}天在手间夜", period=f"next_{n}_days",
+          hint=f"'Room nights', second column (next {n} days); benchmark: last year's figure in brackets"),
+        m(f"otb_revenue_{n}d", f"未来{n}天在手收入", "THB", f"next_{n}_days",
+          f"'Room revenue', second column (next {n} days); benchmark: last year's THB in brackets"),
+        m(f"otb_adr_{n}d", f"未来{n}天在手房价", "THB", f"next_{n}_days",
+          f"'Average daily rate', second column (next {n} days); benchmark: last year's THB in brackets"),
     ) for n in (30, 90)},
     # Ranking dashboard with period=DAYS90: the same funnel over the last 90 days.
     ("booking", "search-rank-90d"): (
@@ -87,11 +94,14 @@ CATALOG: dict[tuple[str, str], tuple[Metric, ...]] = {
           "'% booked your property'; benchmark: the peer group % in brackets"),
     ),
     ("booking", "booker-insights"): (
-        # Report type Travel purpose; rows Leisure / Business / Unspecified with the peer group row.
-        m("leisure_share", "休闲客占比", "%", hint="row 'Leisure': its share of reservations (%)"),
-        m("business_share", "商务客占比", "%", hint="row 'Business': its share of reservations (%)"),
-        m("cancellation_rate", "取消率", "%",
-          hint="only if a column header names cancellation: the value for all my reservations, else null"),
+        # Table header: Reservations (in %) | Average daily rate | Average book window | Cancellation rate |
+        # Average length of stay. Rows: All reservations, Peer group, then Leisure / Business / Unspecified.
+        m("leisure_share", "休闲客占比", "%", hint="row 'Leisure': Reservations (in %); benchmark: peer group leisure %"),
+        m("business_share", "商务客占比", "%", hint="row 'Business': Reservations (in %)"),
+        m("cancellation_rate", "取消率", "%", hint="row 'All reservations': Cancellation rate; benchmark: row 'Peer group'"),
+        m("book_window_days", "平均提前预订天数", "天", hint="row 'All reservations': Average book window; benchmark: 'Peer group'"),
+        m("avg_los", "平均入住晚数", "晚", hint="row 'All reservations': Average length of stay; benchmark: 'Peer group'"),
+        m("booker_adr", "平均房价（预订人分析）", "THB", hint="row 'All reservations': Average daily rate; benchmark: 'Peer group'"),
     ),
     ("booking", "pace-90d"): (
         m("pace_room_nights_90d", "近90天新增未来间夜", period="booked_last_90_days",
@@ -149,15 +159,12 @@ CATALOG: dict[tuple[str, str], tuple[Metric, ...]] = {
         m("bookings_lost_30d", "未来30天流失到竞品的预订", period="next_30_days",
           hint="the N in 'N total bookings lost to other properties' (check-in date, next 30 days)"),
     ),
-    # Property performance (stay dates, vs competitor set): value and the "% vs previous year".
-    **{("agoda", f"performance-{n}d"): (
-        m(f"net_room_nights_{n}d", f"近{n}天净间夜", period=f"last_{n}_days",
-          hint="'Net room nights' value, only if the page says 'Last {n} days'"),
-        m(f"net_revenue_{n}d", f"近{n}天净收入", "THB", f"last_{n}_days",
-          f"'Net revenue' THB value, only if the page says 'Last {n} days'"),
-        m(f"adr_{n}d", f"近{n}天平均房价", "THB", f"last_{n}_days",
-          f"'Average daily rate' THB value, only if the page says 'Last {n} days'"),
-    ) for n in (30, 90)},
+    # Property performance, "Booked in last 30 days" (the dateRange=last90Days URL falls back to 365 days, so only
+    # 30 days is read). Only the room-night tile is reliable: Net revenue showed "--" on 2026-10-23.
+    ("agoda", "performance-30d"): (
+        m("net_room_nights_30d", "近30天净间夜", period="booked_last_30_days",
+          hint="the number right after 'Net room nights' under 'Booked in last 30 days'"),
+    ),
     ("agoda", "program-performance"): (
         m("adr_plus_extra_revenue", "ADR+ 额外收入", "THB", "last_365_days", "'Additional revenue with ADR+' THB"),
         m("adr_plus_net_revenue", "ADR+ 净收入", "THB", "last_365_days", "'Net revenue' THB under Agoda Dynamic Rates+"),
