@@ -62,14 +62,18 @@ PLATFORMS: tuple[Platform, ...] = (
         Page("pace-90d", f"{BOOKING}/statistics/pace_report.html?{BOOKING_Q}"
                          "&period=DAYS90&benchmark=PEER_GROUP"),                                  # UNVERIFIED
         Page("search-rank", f"{BOOKING}/showrank.html?{BOOKING_Q}", verified=True),
+        # Found in the extranet home page's HTML (discovery 2026-10-23 18:44); not opened yet. The Analytics
+        # overview links every report, so its link list is what calibrates cancellations / Genius / booker pages.
+        Page("analytics", f"{BOOKING}/statistics/dashboard.html?{BOOKING_Q}"),                   # UNVERIFIED
+        Page("opportunities", f"{BOOKING}/opportunities.html?{BOOKING_Q}"),                      # UNVERIFIED
+        Page("competitive-set", f"{BOOKING}/statistics/competitiveset.html?{BOOKING_Q}&activeTab=competitive_set"),
         Page("inbox", f"{BOOKING}/messaging/inbox.html?{BOOKING_Q}", verified=True),
     )),
     Platform("agoda", "Agoda YCS", f"https://portal.agoda.com/mldc/en-us/app/setting/review/{AGODA_ID}", (
         Page("inbox", f"https://portal.agoda.com/mldc/en-us/app/hermes/inbox/ycs/{AGODA_ID}", verified=True),
-        # Both guesses land on portal.agoda.com/en-us/Error/NotFound/ (run 20261022-174905); kept so the
-        # page-status check keeps reporting them until the real report URLs are found.
-        Page("dashboard", f"https://ycs.agoda.com/mldc/en-us/app/dashboard/{AGODA_ID}"),           # UNVERIFIED
-        Page("performance", f"https://ycs.agoda.com/mldc/en-us/app/reports/performance/{AGODA_ID}"),  # UNVERIFIED
+        # The Partner Portal's own route, found in its page HTML (discovery 2026-10-23); replaces the two
+        # ycs.agoda.com guesses that 404'd. Its link list should lead to Performance / Content Score.
+        Page("dashboard", f"https://portal.agoda.com/mldc/en-us/app/reporting/dashboard/{AGODA_ID}"),  # UNVERIFIED
     )),
     Platform("expedia", "Expedia", "https://apps.expediapartnercentral.com/lodging/review/user_reviews.html"
                                    f"?htid={EXPEDIA_ID}", (
@@ -84,6 +88,11 @@ PLATFORMS: tuple[Platform, ...] = (
                                 f"?htid={EXPEDIA_ID}", verified=True, settle_ms=14000),
         Page("booking-insights", "https://apps.expediapartnercentral.com/lodging/booking-insights/index.html"
                                  f"?htid={EXPEDIA_ID}", verified=True, settle_ms=14000),
+        # Linked from the supply/ home ("Go to opportunities", the rate comparison card); same app as home.
+        Page("opportunities", f"https://apps.expediapartnercentral.com/supply/opportunities-hub?htid={EXPEDIA_ID}",
+             settle_ms=14000),                                                                   # UNVERIFIED
+        Page("rate-insights", f"https://apps.expediapartnercentral.com/supply/rate-insights?propertyId={EXPEDIA_ID}",
+             settle_ms=14000),                                                                   # UNVERIFIED
     )),
     Platform("ctrip", "Ctrip eBooking", "https://ebooking.ctrip.com/comment/commentList?microJump=true", (
         Page("home", "https://ebooking.ctrip.com/home/oversea?microJump=true", verified=True),
