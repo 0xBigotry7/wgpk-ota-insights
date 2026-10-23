@@ -15,9 +15,9 @@ const SCORE_UNIT = /^\/(5|10)$|^score/;
 // Order matters: first match wins. `action` is the one-line version used in to-dos and the daily push.
 const PLAYBOOK = [
   { re: /cancellation/, area: "price", owner: "收益/销售",
-    why: "取消多了，看起来卖掉的房会在临近时放回，最后只能低价甩卖；普吉 OTA 取消率常见 30% 上下",
-    steps: ["收益经理在 OPERA / SynXis 给旺季和高需求日期加一档不可取消价（便宜 8–12%），让客人自己选",
-      "前台对入住前 7 天内的 OTA 订单发一次确认消息，提前释放会取消的房",
+    why: "取消率偏高需要按入住日、来源市场与提前期分层核对，不能单凭汇总值推断原因",
+    steps: ["收益经理核对可取消与不可取消价型的净收入和实际洗房量，先提交政策方案",
+      "前台按现有政策核对临近入住的确认状态；不得仅因推测取消而释放已订房",
       "看 Booking 客源分析里取消率高的来源市场和提前期，针对性收紧政策"],
     kpi: "取消率较同类、临近入住的空房", eta: "2–4 周" },
   { re: /lost/, area: "price", owner: "收益/销售",
@@ -27,10 +27,10 @@ const PLAYBOOK = [
       "检查 Agoda 上是否缺含早或免费取消的价型"],
     kpi: "流失预订数", eta: "1–2 周" },
   { re: /adr|revenue|room_nights|pace_/, area: "price", owner: "收益/销售",
-    why: "价格比同类低很多时，多卖的间夜往往补不回少收的房价；2026 年普吉是靠价格增长的市场",
+    why: "ADR 与同类的差距只代表平台汇总信号；房型、入住日、渠道结构和净佣金可能不同",
     steps: ["收益经理在 OPERA / SynXis 按日期看 BAR 与竞品组价差（不要直接在 OTA 后台改价）",
-      "先提高需求日期（周末、节假日、在手已高的日期）5–10%，低需求日期保持",
-      "检查 Genius、移动价、国家价等折扣叠加后的最终价，去掉重复折扣"],
+      "核对逐入住日的在手、可售库存和可比价型；没有这些证据时不建议具体调价幅度",
+      "盘点 Genius、移动价、国家价等折扣的适用范围、叠加后净收入，提交人工评估"],
     kpi: "ADR 与同类差距、转化率不明显下降", eta: "1–2 周" },
   { re: /search_views|impressions|page_visits|page_views|visitors|sort_order|views_rank|popularity|referrals/, area: "traffic", owner: "收益/销售",
     why: "曝光由可售房、价格竞争力、点评分和可见度项目决定；没被看到就没有后面的点击和预订",
@@ -65,7 +65,7 @@ const PLAYBOOK = [
     kpi: "入住问题占比、入住评分", eta: "2–4 周" },
   { re: /rewards/, area: "experience", owner: "前台",
     why: "会员占比高，复购和直订就多，OTA 佣金就少",
-    steps: ["入住时主动邀请入会，说明会员价和积分", "前台和官网突出会员价", "每周看邀请入会比例"],
+    steps: ["核对酒店当前会员政策，再向客人说明已确认的权益，不承诺未确认的积分", "前台和官网突出会员价", "每周看邀请入会比例"],
     kpi: "会员占比、入住时邀请入会比例", eta: "1–2 个月" },
   { re: /page_score/, area: "content", owner: "市场/内容",
     why: "房源页缺项会影响排名，政策字段空着还会掉出筛选结果",
@@ -75,7 +75,7 @@ const PLAYBOOK = [
     why: "问答回复速度计入携程服务质量分",
     steps: ["前台登录携程 ebooking 回复待回复问答", "常见问题整理成标准答案"], kpi: "待回复问答为 0", eta: "当天" },
   { re: /score|rating|osat|nps|response|social/, area: "reputation", owner: "总经理",
-    why: "点评分是各平台排名和转化的核心（Booking 8 分以上曝光稳定，携程 4.7 分以上有“超棒”标签）",
+    why: "评分与客人选择有关；具体排名权重和项目门槛须以当前平台后台为准",
     steps: ["看最近差评的共同主题", "指派对应部门整改并在一周后复查", "点评回复由点评系统自动处理，这里只管整改"],
     kpi: "点评分、新点评里的主题", eta: "1–2 个月" },
 ];
@@ -325,18 +325,18 @@ export function monitor({ metrics = [], pages = [], runs = [], history = [] }, n
   // Rate-led volume: more room nights than the comp set at a much lower ADR (MPI-like high, ARI-like low).
   for (const [suffix, words] of [["30d@last_30_days", "近 30 天"], ["mtd@month_to_date", "本月至今"], ["90d@last_90_days", "近 90 天"]]) {
     const adr = cur(`booking|adr_${suffix}`), rn = cur(`booking|room_nights_${suffix}`);
-    if (!adr || !rn || !adr.benchmark || !rn.benchmark) continue;
+    if (!adr || !rn || adr.day !== rn.day || !adr.benchmark || !rn.benchmark) continue;
     const ari = (adr.value / adr.benchmark) * 100, mpi = (rn.value / rn.benchmark) * 100;
     if (ari < 90 && mpi > 105) {
       diag({ id: "diag:booking:rate-led", level: "serious", platform: "booking", metric: `booking|adr_${suffix}`, gap: ari - 100,
         title: `Booking 量高价低：间夜是同类的 ${Math.round(mpi)}%，房价只有同类的 ${Math.round(ari)}%`,
         detail: `${words}间夜 ${fmt(rn.value)} 对 ${fmt(rn.benchmark)}，ADR ${fmt(adr.value, "THB")} 对 ${fmt(adr.benchmark, "THB")} · ${adr.day}`,
-        why: "多卖的间夜补不回少收的房价，常见原因是折扣叠加（Genius + 移动价 + 国家价 + Flash Sale）；10 月是旺季前爬坡，正是收紧折扣的时候",
-        steps: ["在 Booking 后台“优惠”页列出所有在线促销，看叠加后的最终价，砍掉重复的（先看 Flash Sale SBKFS）",
-          "收益经理在 OPERA / SynXis 把 12 月下旬到 1 月初和周末的 BAR 提 5–10%",
-          "一周后看转化率和在手订单速度，没明显下滑再继续提"],
-        kpi: "ADR 与同类差距（目标先缩到 -10% 以内）、转化率、pace", eta: "1–2 周",
-        action: "盘点 Booking 在线促销并砍掉重复折扣，收益经理在 OPERA / SynXis 提高需求日期 BAR" });
+        why: "这是量价结构差异，不证明低价导致增量或损失；需排查房型、入住日期、客源和折扣构成",
+        steps: ["在 Booking 后台“优惠”页列出在线促销、适用日期与实际叠加价，先核对",
+          "收益经理结合当前 PMS 房态、逐日需求与可比竞品报价，提交有日期边界的方案",
+          "记录人工动作和基线，一周后复查同口径指标；变化不直接等于因果收益"],
+        kpi: "同口径 ADR、转化、在手与净收入；先确认数据是否足够", eta: "1–2 周",
+        action: "核对 Booking 量价结构、可比价型和逐日房态，再提交收益经理评估" });
       suppress.add("gap:booking|adr_");
       break;
     }
@@ -344,13 +344,13 @@ export function monitor({ metrics = [], pages = [], runs = [], history = [] }, n
 
   // Funnel: seen more than peers but clicked less → the list view (photo, price, score), not visibility.
   const views = cur("booking|search_views_vs_peer@funnel"), ctr = cur("booking|click_rate@funnel");
-  if (views && ctr && ctr.benchmark != null && ctr.value < ctr.benchmark && views.value > 0) {
+  if (views && ctr && views.day === ctr.day && ctr.benchmark != null && ctr.value < ctr.benchmark && views.value > 0) {
     const plan = playbook("click_rate");
     diag({ id: "diag:booking:list-view", level: "serious", platform: "booking", metric: "booking|click_rate@funnel", area: "conversion",
       owner: plan.owner, gap: ctr.value - ctr.benchmark,
       title: `Booking 被看到的比同类多 ${fmt(views.value, "%")}，点进来的却更少`,
       detail: `点击率 ${fmt(ctr.value, "%")}，同类 ${fmt(ctr.benchmark, "%")} · ${ctr.day}`,
-      why: "曝光已经够了，问题在搜索列表那一眼：首图、列表价、评分和标签",
+      why: "曝光与点击表现存在差异；首图、可比报价、样本与客源结构都是待验证原因",
       steps: plan.steps, kpi: plan.kpi, eta: plan.eta, action: plan.action });
     suppress.add("gap:booking|click_rate");
   } else if (views && views.value < -10) {
@@ -360,21 +360,22 @@ export function monitor({ metrics = [], pages = [], runs = [], history = [] }, n
   }
 
   // Pace: on-the-books room nights for the next 30 days vs the same window last year.
-  const otbRn = cur("booking|otb_room_nights_30d@next_30_days"), otbAdr = cur("booking|otb_adr_30d@next_30_days");
+  const otbRn = cur("booking|otb_room_nights_30d@next_30_days"), candidateAdr = cur("booking|otb_adr_30d@next_30_days");
+  const otbAdr = candidateAdr?.day === otbRn?.day ? candidateAdr : null;
   if (otbRn && otbRn.benchmark) {
     const d = ((otbRn.value - otbRn.benchmark) / otbRn.benchmark) * 100;
-    const ad = otbAdr && otbAdr.benchmark ? ((otbAdr.value - otbAdr.benchmark) / otbAdr.benchmark) * 100 : null;
+    const ad = otbAdr && otbAdr.day === otbRn.day && otbAdr.benchmark ? ((otbAdr.value - otbAdr.benchmark) / otbAdr.benchmark) * 100 : null;
     if (d <= -15) {
       diag({ id: "diag:booking:otb-pace", level: "serious", platform: "booking", metric: "booking|otb_room_nights_30d@next_30_days", gap: d,
         title: `Booking 未来 30 天在手间夜比去年少 ${Math.round(-d)}%${ad != null && ad > 10 ? `，房价高 ${Math.round(ad)}%` : ""}`,
         detail: `在手 ${fmt(otbRn.value)} 间夜，去年同期 ${fmt(otbRn.benchmark)}${otbAdr ? `；在手 ADR ${fmt(otbAdr.value, "THB")}，去年 ${fmt(otbAdr.benchmark, "THB")}` : ""} · ${otbRn.day}`,
-        why: ad != null && ad > 10 ? "近期日期价格提得比去年多、间夜跟不上；远期在手是好的，说明问题在近 30 天的临近订单"
-          : "近 30 天在手明显落后去年，临近订单要补，否则只能临时低价",
+        why: ad != null && ad > 10 ? "在手价量与去年不同，需核对提前期、入住日、渠道结构及同比快照时点；不能据此推断提价导致掉单"
+          : "在手低于平台给出的去年对比值；需先确认同比窗口与采样时点可比",
         steps: ["收益经理在 OPERA / SynXis 按日期列出未来 30 天在手最低的 5–7 天",
-          "只对这些日期开临近促销（Booking 移动价 / Last-minute、Agoda 当日特价），不整体降 BAR",
-          "每周一看这 30 天的 pickup，追平去年后撤掉促销"],
+          "结合逐日可售库存、净佣金与需求验证，提交人工确认的方案，不预设降价",
+          "复查同入住日不同快照的在手变化；滚动 30 天总量变化不等于 pickup"],
         kpi: "未来 30 天在手间夜对比去年、在手 ADR", eta: "1–2 周",
-        action: "收益经理挑出未来 30 天在手最低的日期，只对这些日期开临近促销，不整体降价" });
+        action: "收益经理核对未来 30 天逐日房态、同比时点与可比价型，再决定方案" });
       suppress.add("gap:booking|otb_room_nights_30d");
     }
   }
@@ -382,13 +383,13 @@ export function monitor({ metrics = [], pages = [], runs = [], history = [] }, n
   // Platform thresholds that change what a guest sees or what we qualify for.
   const thresholds = [
     ["booking|review_score@", (v) => v < 7.5 ? "serious" : v < 8 ? "warning" : null, "reputation",
-      (v) => `Booking 点评分 ${v}：${v < 7.5 ? "低于 Genius 门槛 7.5" : "低于 8 分，曝光开始受限"}`],
+      (v) => `Booking 点评分 ${v}：${v < 7.5 ? "低于内部关注线 7.5（项目资格需后台核验）" : "低于内部关注线 8 分（不代表平台限流）"}`],
     // eBooking shows the score out of 10; 4.7 / 5 ≈ 9.4 / 10. A value of 5 or less is the 5-point scale.
     ["ctrip|review_score@", (v) => (v <= 5 ? v < 4.7 : v < 9.4) ? "warning" : null, "reputation",
-      (v) => `携程点评分 ${v}，低于“超棒”标签门槛 ${v <= 5 ? "4.7" : "约 9.4 / 10（4.7 / 5）"}`],
+      (v) => `携程点评分 ${v}，低于内部关注线，标签需后台核验 ${v <= 5 ? "4.7" : "约 9.4 / 10（4.7 / 5）"}`],
     ["booking|property_page_score@", (v) => v < 100 ? "warning" : null, "content", (v) => `Booking 房源页完整度 ${v}%，未满分`],
     ["booking|availability_for_search@funnel", (v) => v < 90 ? "warning" : null, "traffic",
-      (v) => `Booking 可售率 ${v}%：可售是排名第一因素`],
+      (v) => `Booking 可售率 ${v}%：核对实际可售日期和限制，不推断排名权重`],
     ["agoda|bookings_lost_30d@next_30_days", (v) => v >= 50 ? "serious" : v >= 20 ? "warning" : null, "price",
       (v) => `Agoda 未来 30 天有 ${v} 单预订流失给竞品`],
     ["medallia|rapid_response_hours@last_12_months", (v) => v > 48 ? "warning" : null, "reputation",

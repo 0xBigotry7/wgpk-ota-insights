@@ -280,6 +280,24 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
 .prog i{display:block;height:100%;background:var(--good)}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:10px;font-size:13px;z-index:60;opacity:0;transition:opacity .15s;pointer-events:none}
 .toast.on{opacity:1}
+
+/* Date-based revenue desk: source vintage always visible. */
+.source-banner{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:14px 18px;border:1px solid var(--line);border-radius:12px;background:var(--accent-soft)}
+.source-banner.old{background:var(--warn-soft);border-color:var(--warn)}
+.revenue-desk{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(260px,1fr);gap:16px}
+.calendar{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;margin-top:12px}
+.cal-week{text-align:center;font-size:12px;color:var(--muted);padding:4px}
+.cal-day{min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-height:88px;padding:8px;border:1px solid var(--line);border-radius:9px;background:var(--surface-2);cursor:pointer;text-align:left}
+.cal-day strong{font-size:16px;line-height:1.2}.cal-day small{font-size:10px;white-space:nowrap;color:var(--fg-2)}
+.cal-day.low{background:var(--surface-2)}.cal-day.mid{background:var(--accent-soft)}.cal-day.high{background:var(--hero-2);color:#fff}.cal-day.high small{color:#dbede4}
+.cal-day.selected{outline:2px solid var(--accent);outline-offset:1px}.cal-day:disabled{opacity:.5;cursor:default}.cal-day:focus-visible{outline:3px solid var(--s1)}
+.rev-summary{padding:10px 0;border-top:1px solid var(--line)}.rev-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:8px 0}.rev-kpis small{display:block;font-size:11px;color:var(--muted)}.rev-kpis b{font-size:20px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.rev-facts{display:grid;grid-template-columns:1fr 1fr;gap:10px}.rev-facts dt{color:var(--muted);font-size:12px}.rev-facts dd{margin:0;text-align:right;overflow-wrap:anywhere}
+.evidence-ref{display:block;font-size:10px;overflow-wrap:anywhere;color:var(--muted);margin:7px 0}.op-card{display:flex;flex-direction:column;gap:10px}.op-card h3{margin:0;font-size:16px}.op-block{padding-left:10px;border-left:2px solid var(--line)}.op-block small{color:var(--accent);font-weight:600}.op-block p{margin:2px 0 0}.op-card>.btn{align-self:flex-start;margin-top:auto}
+#operator-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:12px}#operator-decisions{display:grid;gap:12px}.decision-form{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.decision-form input{flex:1;min-width:180px}.observation{background:var(--accent-soft);padding:10px;border-radius:8px}
+.sc-inputs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.sc-inputs label{font-size:12px;color:var(--fg-2)}.sc-inputs input{display:block;width:100%;margin-top:4px}.sc-inputs input,.decision-form input{padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--surface-2)}
+@media(max-width:800px){.revenue-desk{grid-template-columns:1fr}.cal-day{padding:5px;min-height:72px}.cal-day strong{font-size:13px}.cal-day small{font-size:9px}.rev-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.sc-inputs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.source-banner strong{white-space:nowrap}.desk-nav{display:flex;gap:8px;flex-wrap:wrap;position:sticky;top:0;z-index:10;background:var(--bg);padding:8px 0}.desk-nav a{color:var(--fg-2);text-decoration:none;border:1px solid var(--line);border-radius:99px;padding:5px 12px;font-size:12px;background:var(--surface)}.desk-nav a:hover{color:var(--accent);border-color:var(--accent)}section[id]{scroll-margin-top:64px}
 </style>
 </head>
 <body>
@@ -333,6 +351,7 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
     </div>
   </header>
 
+  <nav class="desk-nav" aria-label="工作台分区"><a href="#sec-revenue">经营日历</a><a href="#sec-operator">调查与复查</a><a href="#sec-alerts">渠道预警</a><a href="#sec-health">数据来源</a><a href="#sec-todos">待办</a></nav>
   <section class="hero">
     <div class="call" id="call">
       <svg class="deco" viewBox="0 0 24 24" fill="none" stroke-width="1.2"><use href="#i-pulse"/></svg>
@@ -340,6 +359,27 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
       <p>正在读取…</p>
     </div>
     <div class="counters" id="counters"></div>
+  </section>
+
+
+  <section class="sec" id="sec-revenue">
+    <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-cal"/></svg></span><h2>入住日期 · 经营日历</h2><span class="hint">OTA 信号看渠道，PMS 经营数看酒店整体；两者不混算</span></div>
+    <div id="revenue-source"></div>
+    <div class="revenue-desk">
+      <div class="card"><div class="sec-h"><label>入住月份 <select id="revenue-month" aria-label="入住月份"></select></label><select id="revenue-metric" class="tail" aria-label="日历指标"><option value="occupancy">入住率</option><option value="adr">ADR</option><option value="revpar">RevPAR</option></select></div><div class="calendar" id="revenue-calendar"></div><p class="meta">颜色仅表示当前月所选指标的相对高低，不是价格建议或好坏评分。点击日期查看来源。</p><div id="revenue-totals"></div><p class="meta">加权指标按覆盖日期的收入、已售间夜、可售间夜重算，不平均每日 ADR。缺字段则不计算。</p></div>
+      <div class="card" id="revenue-day"></div>
+    </div>
+    <details class="card"><summary>数据缺口与口径</summary><ul id="revenue-gaps"></ul><p class="meta">只有同一入住日、同一口径、不同来源日期的版本才可比较；旧数据重新上传不会产生 pickup。PMS 未来值变化目前仅是报表修订差值。</p></details>
+  </section>
+  <section class="sec" id="sec-operator">
+    <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-target"/></svg></span><h2>Operator · 证据到复查</h2><span class="hint">事实 → 假设 → 确认调查 → 记录人工执行 → 新数据观察</span></div>
+    <div id="operator-cards"></div><div id="operator-decisions"></div>
+  </section>
+  <section class="sec">
+    <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-coins"/></svg></span><h2>What-if · 算术情景</h2><span class="hint">手动假设，不是 AI 需求预测，不改价</span></div>
+    <form class="card" id="scenario-form"><p class="meta" id="scenario-basis">先从日历选择一天，或手动填写基线。请输入已核实的同一币种。</p><div class="sc-inputs">
+      <label>可售客房<input id="sc-inventory" type="number" step="any" min="1" required></label><label>基线已售间夜<input id="sc-rooms" type="number" step="any" min="0" required></label><label>基线 ADR<input id="sc-adr" type="number" step="any" min="0" required></label><label>假设 ADR 变化 %<input id="sc-rate" type="number" step="any" min="-100" max="100" value="0" required></label><label>假设间夜增减<input id="sc-change" type="number" step="any" value="0" required></label><label>假设渠道佣金 %<input id="sc-commission" type="number" step="any" min="0" max="100" value="0" required></label>
+    </div><p><button class="btn" type="submit">计算情景</button></p><div id="scenario-result" aria-live="polite" class="meta">没有假定价格弹性，不会自动预测订单变化。</div></form>
   </section>
 
   <section class="sec" id="sec-alerts">
@@ -393,7 +433,7 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
     <div class="routines" id="routines"></div>
   </section>
 
-  <section class="sec">
+  <section class="sec" id="sec-health">
     <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-globe"/></svg></span><h2>数据可靠性</h2>
       <span class="hint">每天每个平台有没有读到、读到几页；数字缺了会自动报警</span></div>
     <div class="health" id="health"></div>
@@ -406,7 +446,7 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
     <div id="report"></div>
   </section>
 
-  <section class="sec">
+  <section class="sec" id="sec-todos">
     <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-list"/></svg></span><h2>运营待办</h2>
       <span class="hint">从预警、报告或 Copilot 一键加入，做完勾掉</span></div>
     <form class="addtodo" id="addtodo">
@@ -428,15 +468,15 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
   <div class="cop-h">
     <div class="row">
       <span class="av"><svg class="ico"><use href="#i-spark"/></svg></span>
-      <div><b>运营 Copilot</b><div class="meta">读全部 OTA 数据，回答、分析、安排待办</div></div>
+      <div><b>运营 Copilot</b><div class="meta">OTA + PMS 证据 · 区分事实与假设</div><div class="meta" id="cop-context"></div></div>
       <button class="btn ghost close" id="cop-close" aria-label="关闭 Copilot"><svg class="ico"><use href="#i-x"/></svg></button>
     </div>
     <div class="caps">
       <span class="cap"><svg class="ico sm"><use href="#i-check"/></svg>读数据</span>
-      <span class="cap"><svg class="ico sm"><use href="#i-check"/></svg>分析原因</span>
+      <span class="cap"><svg class="ico sm"><use href="#i-check"/></svg>调查假设</span>
       <span class="cap"><svg class="ico sm"><use href="#i-check"/></svg>生成待办</span>
       <span class="cap"><svg class="ico sm"><use href="#i-check"/></svg>写文案 / 汇报</span>
-      <span class="cap off"><svg class="ico sm"><use href="#i-lock"/></svg>后台执行：需人确认（筹备中）</span>
+      <span class="cap off"><svg class="ico sm"><use href="#i-lock"/></svg>后台只读 · 人工执行</span>
     </div>
   </div>
   <div class="msgs" id="msgs" aria-live="polite"></div>
@@ -451,6 +491,7 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
 <div id="tip" role="tooltip"></div>
 <div class="toast" id="toast" role="status"></div>
 
+<script src="/operator-ui.js"></script>
 <script>
 const PLATFORMS = {booking:["Booking.com","--s1"], agoda:["Agoda","--s2"], expedia:["Expedia","--s3"], ctrip:["携程 / 去哪儿","--s4"],
   google:["Google","--s5"], tripadvisor:["TripAdvisor","--s6"], medallia:["Medallia 问卷","--s7"], all:["全部平台","--muted"]};
@@ -852,7 +893,7 @@ async function askCopilot(text){
   openCop(); busy = true;
   chat.push({role: "user", content: text}); renderChat(true);
   try {
-    const res = await post("/api/copilot", {messages: chat.filter(m => !m.error).map(m => ({role: m.role, content: m.content}))});
+    const res = await post("/api/copilot", {messages: chat.filter(m => !m.error).map(m => ({role: m.role, content: m.content})), stay_date: window.OperatorUI.selectedDate()});
     chat.push({role: "assistant", content: res.reply, actions: res.actions || []});
   } catch (e) { chat.push({role: "assistant", content: `没答上来：${e.message}`, error: true}); }
   busy = false; saveChat(); renderChat();
@@ -949,9 +990,9 @@ function matrix(by){
       <circle cx="${sx(d.x)}" cy="${sy(d.y)}" r="${i ? 5 : 7}" fill="${i ? "var(--s1-soft)" : "var(--s1)"}" stroke="var(--surface)" stroke-width="2"/>
       <text x="${sx(d.x) + LBL[i % 4][0]}" y="${sy(d.y) + LBL[i % 4][1]}" text-anchor="${LBL[i % 4][2]}" font-size="11" fill="var(--fg)">${names[d.sfx]}</text></g>`).join("");
   const top = pick[0];
-  const verdict = top.x >= 100 && top.y < 100 ? "量高价低：间夜比同类多、房价比同类低，可以收紧折扣、提高需求日期的价格"
+  const verdict = top.x >= 100 && top.y < 100 ? "量高价低：先核对房型、日期和折扣结构，不能仅凭汇总值决定提价"
     : top.x < 100 && top.y >= 100 ? "价高量低：房价高于同类但间夜少，检查价格是否超出客人接受范围"
-    : top.x >= 100 ? "量价双高：保持，并在高需求日期继续试探提价" : "量价双低：先查曝光和转化，再决定价格";
+    : top.x >= 100 ? "量价双高：核对净收入和样本可比性，再判断是否需要调整" : "量价双低：先查曝光和转化，再决定价格";
   $("matrix").innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="量价矩阵">
     ${q(cx, P - 24, W - 10 - cx, cy - P + 24, "var(--good-soft)", "量价双高", W - 70, P - 10)}
     ${q(P, P - 24, cx - P, cy - P + 24, "var(--surface-2)", "价高量低", P + 6, P - 10)}
@@ -992,6 +1033,7 @@ async function load(){
     const state = await r.json();
     state.todos ||= []; state.monitor ||= {alerts: [], wins: []};
     STATE = state;
+    window.OperatorUI.render(state, load, toast);
     const run = state.latest_run;
     $("last-run").innerHTML = icon("i-db","sm") + esc(run ? `最近采集 ${run.id.slice(4,6)}-${run.id.slice(6,8)} ${run.id.slice(9,11)}:${run.id.slice(11,13)}` : "还没有采集记录");
     const by = series(state);

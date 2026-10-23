@@ -6,8 +6,10 @@
 // copilot; nothing here reaches an OTA back office.
 
 import { monitor, digest } from "./monitor.js";
-import { ask, context, OWNERS } from "./copilot.js";
+import { ask, context, groundAnswer, OWNERS } from "./copilot.js";
 import { ROUTINES, periodKey, explain } from "./knowledge.js";
+import { validatePms, ingestPms, revenueView, scenario } from "./revenue.js";
+import { operatorView, approveDecision, updateDecision } from "./operator.js";
 
 const SESSION_COOKIE = "wgpk_ota_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
@@ -36,8 +38,15 @@ export default {
 
     if (path.startsWith("/api/")) {
       if (request.method === "POST") {
-        if (path === "/api/ingest" || path === "/api/advice") {
+        if (["/api/ingest", "/api/advice", "/api/pms"].includes(path)) {
           if (!ingestAuthorized(request, env)) return json({ error: "unauthorized" }, 401);
+          if (path === "/api/pms") {
+            let body;
+            try { body = await request.json(); } catch { return json({ error: "body must be JSON" }, 400); }
+            const errors = validatePms(body);
+            if (errors.length) return json({ error: "invalid PMS aggregates", details: errors.slice(0, 20) }, 400);
+            return json(await ingestPms(env.DB, body));
+          }
           return path === "/api/ingest" ? handleIngest(request, env) : handleAdvice(request, env);
         }
         // Viewer writes: a password session from this site's own pages (no cross-site posts).
@@ -49,6 +58,20 @@ export default {
         if (todo) return updateTodo(request, env, Number(todo[1]));
         if (path === "/api/copilot") return handleCopilot(request, env);
         if (path === "/api/routines") return tickRoutine(request, env);
+        if (path === "/api/scenario") {
+          try { return json(scenario(await request.json())); } catch { return json({ error: "请输入有效的房量、房价与假设" }, 400); }
+        }
+        if (path === "/api/operator") {
+          try {
+            const body = await request.json();
+            return json(await approveDecision(env.DB, body, await loadState(env)));
+          } catch (e) { return json({ error: e.message }, 400); }
+        }
+        const decision = path.match(/^\/api\/operator\/(\d+)$/);
+        if (decision) {
+          try { return json(await updateDecision(env.DB, Number(decision[1]), await request.json())); }
+          catch (e) { return json({ error: e.message }, 400); }
+        }
         return json({ error: "not found" }, 404);
       }
       if (!(ingestAuthorized(request, env) || (await sessionAuthorized(request, env)))) {
@@ -242,7 +265,11 @@ async function loadState(env) {
   // Rows stored before the extractor learned to drop them: a 0 score is an unrendered tile, a 0 comparison a misread.
   metrics = metrics.filter((m) => !(m.value === 0 && String(m.unit).startsWith("/")))
     .map((m) => (m.benchmark === 0 ? { ...m, benchmark: null } : m));
-  return {
+  const snapshots = await all(env.DB.prepare("select * from pms_snapshots order by as_of desc, received_at desc, id desc limit 8"));
+  const daily = snapshots.length ? await all(env.DB.prepare(`select * from pms_daily where snapshot_id in (${snapshots.map(() => "?").join(",")})`).bind(...snapshots.map(s => s.id))) : [];
+  const decisions = await all(env.DB.prepare("select * from operator_decisions order by id desc limit 50"));
+  const state = {
+    harness_version: "3.0-evidence-operator",
     latest_run: latest,
     runs,
     pages,
@@ -256,7 +283,11 @@ async function loadState(env) {
     monitor: monitor({ metrics, pages, runs, history }),
     glossary: Object.fromEntries([...new Set(metrics.map((m) => m.metric))].map((k) => [k, explain(k)]).filter(([, v]) => v)),
     platforms: PLATFORMS,
+    revenue: revenueView(snapshots, daily),
   };
+  state.operator = operatorView(state, decisions);
+  state.operator.events = await all(env.DB.prepare("select decision_id, at, event, note from operator_events order by id desc limit 200"));
+  return state;
 }
 
 // ─────────────────────── to-dos and copilot (viewer writes) ───────────────────────
@@ -321,7 +352,8 @@ async function handleCopilot(request, env) {
   const state = await loadState(env);
   let answer;
   try {
-    answer = await ask(env, history, context(state, state.monitor));
+    state.selected_stay_date = state.revenue.days.some(d => d.stay_date === body.stay_date) ? body.stay_date : null;
+    answer = groundAnswer(await ask(env, history, context(state, state.monitor)), state);
   } catch (e) {
     return json({ error: `模型暂时不可用（${String(e.message).slice(0, 80)}），稍后再试` }, 502);
   }

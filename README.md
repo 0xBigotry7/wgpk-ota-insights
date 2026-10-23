@@ -83,3 +83,33 @@ npx wrangler deploy
 #   npx wrangler secret put COPILOT_API_KEY      (+ COPILOT_BASE_URL e.g. https://api.deepseek.com, COPILOT_MODEL e.g. deepseek-chat)
 # Daily push (off until set): npx wrangler secret put TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID
 ```
+
+## Evidence-first operator workspace (v3)
+
+The existing cockpit now includes an OPERA property-day calendar, source-vintage warnings, weighted revenue KPIs,
+manual arithmetic what-if, evidence-bound investigation cards and human action/review records. The Copilot sees
+selected-date data and source gaps. It still cannot write to an OTA, PMS or the review operator.
+See [design, IDeaS references and limits](docs/OPERATOR-HARNESS.md).
+
+### Aggregate PMS bridge
+
+```sh
+# Legacy parsed operating export. Source date comes from its `exported` field, never file mtime.
+python -m ota.pms /private/path/opera_daily.json --output /private/path/payload.json
+# Raw property-day History & Forecast TSV needs the actual report export date.
+python -m ota.pms /private/path/history_forecast.txt --exported YYYY-MM-DD --push
+# Add --currency THB ONLY after checking the report's currency. Unknown is allowed.
+```
+
+`--push` loads the same collector token as OTA ingest. Payloads contain financial aggregates, so keep them
+outside Git. Upload is idempotent. An old export remains stale even when uploaded today.
+
+Optional collector hook: set `WGPK_PMS_AGGREGATE_FILE` in the existing collector env to a **curated JSON** with
+an explicit `exported` source date (and optionally `WGPK_PMS_CURRENCY` once verified). After each scheduled OTA
+run it imports that file; missing configuration means disabled, and failure does not break OTA collection.
+It neither downloads guest reports nor changes the in-house/departure pipeline. Provision a genuinely updating
+source before enabling—reusing a fixed July file will not create current data.
+
+Apply additive D1 schema before deploying code (`cockpit/schema.sql`, all new tables are IF NOT EXISTS).
+Python collector releases are still manual; Cloudflare deploys on tested main pushes. Local UI acceptance uses
+Chrome + Playwright and a seeded local Worker; run `.venv/bin/python tools/acceptance.py`, never point it at production.
