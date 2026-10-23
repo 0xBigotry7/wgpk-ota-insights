@@ -7,6 +7,7 @@
 const SESSION_COOKIE = "wgpk_ota_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
 const HISTORY_DAYS = 120;
+const PAGE_STATUS_DAYS = 3;
 const PLATFORMS = ["booking", "agoda", "expedia", "ctrip", "google", "tripadvisor", "medallia"];
 const PAGE_STATUSES = ["ok", "signed_out", "page_missing", "error"];
 const BASE_CSP = "frame-ancestors 'none'";
@@ -170,9 +171,14 @@ async function loadState(env) {
     all(env.DB.prepare("select * from advice order by generated_at desc limit 30")),
   ]);
   const latest = runs[0] || null;
-  const pages = latest
-    ? await all(env.DB.prepare("select platform, page, status, detail from page_status where run_id = ?").bind(latest.id))
-    : [];
+  // Each platform's pages from the last run that read that platform, not only the very last run: a
+  // partial run (e.g. `--platforms booking`) must not make the other platforms look empty.
+  const recent = new Date(Date.now() - PAGE_STATUS_DAYS * 864e5).toISOString().slice(0, 10).replaceAll("-", "");
+  const pages = await all(env.DB.prepare(
+    `select p.platform, p.page, p.status, p.detail, p.run_id from page_status p
+       join (select platform, max(run_id) as run_id from page_status where run_id >= ? group by platform) l
+         on l.platform = p.platform and l.run_id = p.run_id`
+  ).bind(recent));
   return {
     latest_run: latest,
     runs,

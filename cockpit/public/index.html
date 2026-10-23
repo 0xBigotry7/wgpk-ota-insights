@@ -60,6 +60,23 @@ td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
 svg.spark{display:block}
 .empty{color:var(--muted);background:var(--surface);border:1px dashed var(--line);border-radius:12px;padding:16px}
 .err{background:var(--bad-soft);color:var(--bad);border-radius:10px;padding:12px 14px}
+.health{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.chip .why{font-size:12px;color:var(--muted);margin:2px 0 0;padding-left:1.1em}
+.vs{font-size:12px}
+/* Phone: tables become one card per row, each cell labelled from its column header. */
+@media (max-width:640px){
+  .wrap{gap:22px;padding-top:16px}
+  h1{font-size:20px}
+  .kv{grid-template-columns:1fr}
+  .kv dt{margin-top:4px}
+  .tbl{overflow:visible;background:none;border:0}
+  table.stack{min-width:0}
+  table.stack thead{display:none}
+  table.stack tr{display:grid;grid-template-columns:1fr 1fr;gap:2px 12px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px}
+  table.stack td{border:0;padding:2px 0;white-space:normal}
+  table.stack td.full{grid-column:1/-1}
+  table.stack td[data-l]::before{content:attr(data-l);display:block;font-size:11px;color:var(--muted)}
+}
 </style>
 </head>
 <body>
@@ -73,22 +90,23 @@ svg.spark{display:block}
   </header>
 
   <section>
-    <h2>平台状态</h2>
-    <div class="health" id="health"></div>
-  </section>
-
-  <section>
-    <div class="rhead"><h2 style="margin:0">今日分析建议</h2>
+    <div class="rhead"><h2 style="margin:0">每日分析建议</h2>
       <label class="meta">报告日期 <select id="report-day" aria-label="选择报告日期"></select></label></div>
     <div class="advice" id="advice" style="margin-top:12px"></div>
   </section>
 
   <section>
     <h2>核心 KPI（近 30 / 90 天）</h2>
-    <p class="meta" style="margin:-6px 0 10px">曝光、浏览、点击率、转化、预订、间夜、房价、收入，以及平台给的同类对比值。“未接入”表示这个平台的数据页还没找到或拿不到这个时段。</p>
-    <div class="tbl"><table id="kpi">
-      <thead><tr><th>指标</th><th>平台</th><th>近 30 天</th><th>近 90 天</th><th>同类对比</th><th>日期</th></tr></thead>
+    <p class="meta" style="margin:-6px 0 10px">曝光、浏览、点击率、转化、预订、间夜、房价、收入。“较同类”是平台自己给的同类酒店对比值，以及我们比它高或低多少。“未接入”表示这个平台的数据页还没找到或拿不到这个时段。</p>
+    <div class="tbl"><table id="kpi" class="stack">
+      <thead><tr><th>指标</th><th>平台</th><th>近 30 天</th><th>近 90 天</th><th>较同类</th><th>日期</th></tr></thead>
       <tbody></tbody></table></div>
+  </section>
+
+  <section>
+    <h2>平台状态</h2>
+    <p class="meta" style="margin:-6px 0 10px">每个平台最近一次读取的结果。没读到的会写明原因和怎么恢复。</p>
+    <div class="health" id="health"></div>
   </section>
 
   <section>
@@ -126,18 +144,35 @@ function spark(points){
     <circle cx="${xs.at(-1)}" cy="${ys.at(-1)}" r="2.5" fill="var(--accent)"/></svg>`;
 }
 
+// Why a page gave no numbers, in words the hotel team can act on.
+function why(p){
+  const page = p.page === "landing" ? "首页" : p.page;
+  if (p.status === "signed_out") return p.page === "landing"
+    ? "未登录：点评系统下次自动登录（09:15 / 14:45）后会恢复"
+    : `${page}：要单独登录一次（需人工登录）`;
+  if (p.status === "page_missing") return `${page}：数据页地址待确认`;
+  if (p.status === "error") return `${page}：数据没加载出来，下次再读`;
+  return "";
+}
+const runTime = id => `${id.slice(4,6)}-${id.slice(6,8)} ${id.slice(9,11)}:${id.slice(11,13)}`;
+
 function health(state){
-  const worst = {};
-  for (const p of state.pages) {
-    if (!(p.platform in worst) || RANK[p.status] > RANK[worst[p.platform].status]) worst[p.platform] = p;
-  }
   document.getElementById("health").innerHTML = state.platforms.map(pf => {
-    const p = worst[pf];
-    const [label, cls] = p ? STATUS[p.status] : ["没有数据", "s-warn"];
-    const n = state.pages.filter(x => x.platform === pf && x.status === "ok").length;
-    const total = state.pages.filter(x => x.platform === pf).length;
+    const pages = state.pages.filter(x => x.platform === pf);
+    if (!pages.length) return `<div class="chip"><b>${esc(NAMES[pf])}</b><span class="pill s-warn">没有数据</span>
+      <span class="meta">最近 3 天没有读取记录</span></div>`;
+    const worst = pages.reduce((a, b) => RANK[b.status] > RANK[a.status] ? b : a);
+    const landing = pages.find(x => x.page === "landing");
+    // A platform is "部分可读" when its home page works but some report pages do not.
+    const [label, cls] = worst.status === "ok" ? STATUS.ok
+      : landing && landing.status === "ok" ? ["部分可读", "s-warn"] : STATUS[worst.status];
+    const ok = pages.filter(x => x.status === "ok").length;
+    const last = pages.map(x => x.run_id).sort().at(-1);
+    const reasons = pages.filter(x => x.status !== "ok").map(why);
+    const metricCount = state.metrics.filter(m => m.platform === pf && m.day === state.metrics.filter(n => n.platform === pf).at(-1)?.day).length;
     return `<div class="chip"><b>${esc(NAMES[pf])}</b><span class="pill ${cls}">${label}</span>
-      <span class="meta">${total ? `${n}/${total} 个页面读到` : ""}</span></div>`;
+      <span class="meta">${ok}/${pages.length} 个页面读到${metricCount ? ` · ${metricCount} 个指标` : ""} · ${esc(runTime(last))}</span>
+      ${reasons.length ? `<ul class="why">${reasons.map(r => `<li>${esc(r)}</li>`).join("")}</ul>` : ""}</div>`;
   }).join("");
 }
 
@@ -192,14 +227,14 @@ function platforms(state){
         cls = d > 0 ? "up" : d < 0 ? "down" : "flat";
         delta = `${d > 0 ? "+" : ""}${fmt(d, last.unit)}`;
       }
-      return `<tr><td>${esc(last.label)}${last.period ? `<div class="meta">${esc(PERIODS[last.period] || last.period)}</div>` : ""}</td>
-        <td class="num"><b>${esc(fmt(last.value, last.unit))}</b></td>
-        <td class="num ${cls}">${esc(delta)}</td>
-        <td class="num">${last.benchmark == null ? "—" : esc(fmt(last.benchmark, last.unit))}</td>
-        <td>${spark(rows.slice(-30).map(r => r.value))}</td>
-        <td class="meta">${esc(last.day)}</td></tr>`;
+      return `<tr><td class="full">${esc(last.label)}${last.period ? `<div class="meta">${esc(PERIODS[last.period] || last.period)}</div>` : ""}</td>
+        <td class="num" data-l="最新"><b>${esc(fmt(last.value, last.unit))}</b></td>
+        <td class="num ${cls}" data-l="比 7 天前">${esc(delta)}</td>
+        <td class="num" data-l="平台对比值">${last.benchmark == null ? "—" : esc(fmt(last.benchmark, last.unit))}</td>
+        <td data-l="趋势">${spark(rows.slice(-30).map(r => r.value)) || `<span class="meta">—</span>`}</td>
+        <td class="meta full">${esc(last.day)}</td></tr>`;
     }).join("");
-    return `<div class="platform"><h2 style="margin:0">${esc(NAMES[pf])}</h2><div class="tbl"><table>
+    return `<div class="platform"><h2 style="margin:0">${esc(NAMES[pf])}</h2><div class="tbl"><table class="stack">
       <thead><tr><th>指标</th><th>最新</th><th>比 7 天前</th><th>平台对比值</th><th>近 30 次</th><th>日期</th></tr></thead>
       <tbody>${rows}</tbody></table></div></div>`;
   }).join("");
@@ -227,18 +262,26 @@ function kpis(state){
     const m = key && latest[`${pf}|${key}`];
     return m ? `<b>${esc(fmt(m.value, m.unit))}</b>` : `<span class="meta">未接入</span>`;
   };
+  // "较同类": the platform's own comparison value and how far above (green) or below (red) we are.
+  // Percentages compare in points (2.56% vs 3.10% → −0.54 pt); everything else in relative %.
+  const versus = (pf, k30, k90) => [[k30, "30 天"], [k90, "90 天"]].map(([k, w]) => {
+    const m = k && latest[`${pf}|${k}`];
+    if (!m || m.benchmark == null) return "";
+    const d = m.unit === "%" ? m.value - m.benchmark : m.benchmark ? (m.value - m.benchmark) / Math.abs(m.benchmark) * 100 : null;
+    const tag = d == null ? "" : `<span class="${d > 0 ? "up" : d < 0 ? "down" : "flat"}">${d > 0 ? "+" : d < 0 ? "−" : "±"}${Math.abs(d).toFixed(m.unit === "%" ? 2 : 1)}${m.unit === "%" ? " 个百分点" : "%"}</span>`;
+    return `<div>${tag} <span class="meta vs">${k30 && k90 ? w + " · " : ""}同类 ${esc(fmt(m.benchmark, m.unit))}</span></div>`;
+  }).join("");
   const rows = [];
   for (const [label, sources] of KPI) {
     for (const [pf, k30, k90, note] of sources) {
       const ref = latest[`${pf}|${k30}`] || latest[`${pf}|${k90}`];
-      const bench = [k30, k90].map(k => latest[`${pf}|${k}`]).filter(m => m && m.benchmark != null)
-        .map(m => esc(fmt(m.benchmark, m.unit))).join(" / ");
-      rows.push(`<tr><td>${esc(label)}</td><td>${esc(NAMES[pf])}${note ? `<div class="meta">${esc(note)}</div>` : ""}</td>
-        <td class="num">${cell(pf, k30)}</td><td class="num">${cell(pf, k90)}</td><td class="num">${bench || "—"}</td>
-        <td class="meta">${ref ? esc(ref.day) : ""}</td></tr>`);
+      rows.push(`<tr><td class="full"><b>${esc(label)}</b></td><td class="full" data-l="平台">${esc(NAMES[pf])}${note ? `<div class="meta">${esc(note)}</div>` : ""}</td>
+        <td class="num" data-l="近 30 天">${cell(pf, k30)}</td><td class="num" data-l="近 90 天">${cell(pf, k90)}</td>
+        <td class="num full" data-l="较同类">${versus(pf, k30, k90) || "—"}</td>
+        <td class="meta full">${ref ? esc(ref.day) : ""}</td></tr>`);
     }
   }
-  for (const [pf, why] of KPI_MISSING) rows.push(`<tr><td>全部</td><td>${esc(NAMES[pf])}</td><td colspan="4" class="meta">${esc(why)}</td></tr>`);
+  for (const [pf, why] of KPI_MISSING) rows.push(`<tr><td class="full"><b>全部 KPI</b></td><td class="full">${esc(NAMES[pf])}</td><td colspan="4" class="meta full">${esc(why)}</td></tr>`);
   document.querySelector("#kpi tbody").innerHTML = rows.join("");
 }
 
