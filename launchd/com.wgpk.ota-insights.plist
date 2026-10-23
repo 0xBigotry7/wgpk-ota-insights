@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- Read-only OTA collection, once a day at 11:30 local (Asia/Bangkok), on the Wyndham Mac mini.
+<!-- Read-only OTA collection, once a day at 10:20 local (Asia/Bangkok, fallback 11:30), on the Wyndham Mac mini.
      Separate from com.wgpk.review-operator: different repo, different job, no shared code.
      It attaches to the operator's Chrome only while holding the operator's lock, and skips itself
      within 60 min of a review window. Uninstall: launchctl bootout gui/$(id -u)/com.wgpk.ota-insights -->
@@ -21,7 +21,13 @@
     <key>WGPK_OTA_AVOID</key><string>09:15,14:45</string>
   </dict>
   <key>StartCalendarInterval</key>
-  <dict><key>Hour</key><integer>11</integer><key>Minute</key><integer>30</integer></dict>
+  <!-- 10:20: just after the review operator's 09:15 run has refreshed the OTA logins (Booking's session
+       had expired by 11:30 on 2026-10-23). 11:30: fallback when 10:20 was skipped (operator still holding
+       its lock); it exits at once if today's collection is already done. -->
+  <array>
+    <dict><key>Hour</key><integer>10</integer><key>Minute</key><integer>20</integer></dict>
+    <dict><key>Hour</key><integer>11</integer><key>Minute</key><integer>30</integer></dict>
+  </array>
   <key>RunAtLoad</key><false/>
   <key>StandardOutPath</key><string>/Users/wyndham/wgpk-ota-insights/logs/ota.out.log</string>
   <key>StandardErrorPath</key><string>/Users/wyndham/wgpk-ota-insights/logs/ota.err.log</string>

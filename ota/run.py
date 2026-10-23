@@ -35,6 +35,10 @@ def plan(only: set[str] | None) -> None:
 
 def once(only: set[str] | None) -> int:
     started = collect.now()
+    if not only and (prev := store.done_run_on(store.connect(config.DB), started.strftime("%Y%m%d"))):
+        # launchd has a fallback slot; the first run that finishes covers the day.
+        print(f"skipped: today's collection already done ({prev})", flush=True)
+        return 0
     near = guard.near_review_window(started, config.AVOID_SLOTS, config.AVOID_MARGIN_MIN)
     if near:
         print(f"skipped: review window {near} is within {config.AVOID_MARGIN_MIN} min", flush=True)

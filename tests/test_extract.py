@@ -121,3 +121,12 @@ def test_daily_report_cites_stored_numbers_and_keeps_its_day(tmp_path):
     assert body["id"] == "2026-10-22"
     assert len(body["items"]) == 1 and len(body["highlights"]) == 1
     assert "2026-10-22" in sent[0]
+
+
+def test_fallback_slot_sees_the_days_done_run(tmp_path):
+    db = _db(tmp_path)
+    store.start_run(db, "20261023-102000", "x")
+    assert store.done_run_on(db, "20261023") is None
+    store.finish_run(db, "20261023-102000", "y", "done", {})
+    assert store.done_run_on(db, "20261023") == "20261023-102000"
+    assert store.done_run_on(db, "20261024") is None

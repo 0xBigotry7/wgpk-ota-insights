@@ -37,7 +37,7 @@ schedule is changed on the Review Desk, update `WGPK_OTA_AVOID` in the plist to 
 
     python -m ota.run --plan                       # pages per platform, no browser
     python -m ota.run --once --platforms booking   # one platform
-    python -m ota.run --once                       # what launchd runs at 11:30
+    python -m ota.run --once                       # what launchd runs at 10:20 (fallback 11:30)
 
 Exit 0 = done, 3 = skipped by a guard, 1 = failed. Output lives in `$WGPK_OTA_HOME/data/`
 (0700): `snapshots/<run>/<platform>/<page>.{txt,png,links.json}` and `ota.sqlite`

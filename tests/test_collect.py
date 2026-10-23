@@ -81,7 +81,8 @@ def test_booking_pages_use_landing_session_and_survive_errors(tmp_path, monkeypa
     rows = run(ctx, "booking", tmp_path, monkeypatch)
     assert {r["slug"]: r["status"] for r in rows} == {
         "landing": "ok", "reviews": "ok", "content-score": "page_missing", "sales-insights": "error",
-        "pace-report": "ok", "search-rank": "ok", "inbox": "ok"}
+        "sales-30d": "error", "sales-90d": "error", "pace-report": "ok", "pace-90d": "ok", "search-rank": "ok",
+        "inbox": "ok"}
     assert all("hotel_id=9&lang=en&ses=s1" in u for u in ctx.page.visited[1:])
     assert (tmp_path / "booking" / "reviews.txt").read_text() == "Review score 8.6"
     assert ctx.page.closed
@@ -111,7 +112,8 @@ def test_slow_widgets_get_one_more_wait_and_redirects_are_missing(tmp_path, monk
     ctx = FakeCtx(lambda u: (u, 200, "Data and insights"))
     ctx.page = SlowTiles(ctx.page.routes)
     rows = run(ctx, "expedia", tmp_path, monkeypatch)
-    assert {r["slug"]: r["status"] for r in rows} == {"landing": "ok", "data-insights": "ok", "home": "ok"}
+    assert {r["slug"]: r["status"] for r in rows} == {"landing": "ok", "data-insights": "ok", "home": "ok",
+                                                        "reporting-suite": "ok", "booking-insights": "ok"}
     assert (tmp_path / "expedia" / "data-insights.txt").read_text() == "Revenue $12,345"
 
     ctx = FakeCtx(lambda u: ("https://ebooking.ctrip.com/home/oversea" if "datacenter" in u else u, 200, "今日新订 0"))
