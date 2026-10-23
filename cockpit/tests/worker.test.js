@@ -213,3 +213,47 @@ test("routine ticks only accept known items", async () => {
   assert.equal(ok.status, 200);
   assert.equal((await ok.json()).period.length, 10);
 });
+
+test("health grid, coverage and stale-platform alerts", async () => {
+  const { health } = await import("../src/monitor.js");
+  const now = new Date("2026-10-25T06:00:00Z");
+  const history = [
+    { run_id: "20261023-102000", platform: "booking", page: "landing", status: "signed_out" },
+    { run_id: "20261024-102000", platform: "booking", page: "landing", status: "signed_out" },
+    { run_id: "20261025-102000", platform: "booking", page: "landing", status: "signed_out" },
+    { run_id: "20261025-102000", platform: "expedia", page: "landing", status: "ok" },
+    { run_id: "20261025-102000", platform: "expedia", page: "home", status: "error" },
+    { run_id: "20261025-102000", platform: "medallia", page: "landing", status: "ok" },
+  ];
+  const runs = [{ id: "20261025-102000" }, { id: "20261024-102000" }, { id: "20261023-102000" }];
+  const metrics = [
+    { day: "2026-10-22", platform: "booking", metric: "adr_mtd", period: "month_to_date", label: "ADR", value: 5800, unit: "THB" },
+    { day: "2026-10-22", platform: "expedia", metric: "page_views", period: "", label: "浏览", value: 10, unit: "" },
+    { day: "2026-10-25", platform: "medallia", metric: "nps", period: "", label: "NPS", value: 50, unit: "" },
+  ];
+  const h = health({ metrics, runs, history }, now);
+  assert.equal(h.days.length, 14);
+  assert.equal(h.days.at(-1), "2026-10-25");
+  const b = h.platforms.find((p) => p.platform === "booking");
+  assert.equal(b.signed_out_days, 3);
+  assert.equal(b.days_since_data, 3);
+  assert.equal(h.platforms.find((p) => p.platform === "expedia").cells.at(-1).state, "partial");
+  assert.deepEqual([h.coverage.got, h.coverage.expected], [1, 3]);
+  assert.equal(h.runs.days_with_run, 3);
+
+  const pages = [{ platform: "booking", page: "landing", status: "signed_out" }, { platform: "expedia", page: "landing", status: "ok" }];
+  const { alerts } = monitor({ metrics, pages, runs, history }, now);
+  const so = alerts.find((a) => a.id === "page:booking:landing");
+  assert.equal(so.level, "critical");
+  assert.match(so.title, /连续 3 天/);
+  assert.ok(alerts.find((a) => a.id === "stale:expedia"));
+  assert.ok(!alerts.find((a) => a.id === "stale:booking"), "a sign-out already explains booking");
+});
+
+test("a skipped run does not count as fresh data", () => {
+  const now = new Date("2026-10-25T05:00:00Z");
+  const runs = [{ id: "20261025-102000", outcome: "skipped" }, { id: "20261023-102000", outcome: "done" }];
+  const ids = monitor({ metrics: [], pages: [], runs }, now).alerts.map((a) => a.id);
+  assert.ok(ids.includes("run:skipped"));
+  assert.ok(ids.includes("run:stale"));
+});

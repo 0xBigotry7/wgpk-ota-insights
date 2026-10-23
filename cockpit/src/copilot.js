@@ -18,6 +18,7 @@ const SYSTEM = `你是普吉岛卡马拉温德姆花园酒店（Wyndham Garden P
 - 价格和房态由 OPERA / SynXis 同步到各 OTA：调价建议写成“收益经理在 OPERA / SynXis 调整”，不要建议在 OTA 后台直接改价。
 - 你不能登录或操作任何 OTA 后台；能做的是把事情变成待办（actions），由人点按钮确认。
 - 需要写文案（房源描述、促销文案、给杨总的汇报）时直接写好。
+- 先看“数据可靠性”：引用的数字超过 1 天要写日期；某平台没数据就直说，别拿旧数字当今天的。
 - 判断原因时用下面“运营知识”里的规则（排名因素、项目门槛、症状→原因→动作），说清是哪条规则；知识里标“第三方说法”或“以后台为准”的，提醒以平台后台为准。
 
 只输出一个 JSON 对象，不要别的文字：
@@ -27,8 +28,17 @@ const SYSTEM = `你是普吉岛卡马拉温德姆花园酒店（Wyndham Garden P
 actions 最多 4 条，只在确实该有人去做事时给；纯问答时给空列表。`;
 
 /** The data block the model answers from: one line per metric, then alerts, report and to-dos. */
-export function context({ metrics = [], advice = [], todos = [] }, { alerts = [], wins = [] }) {
-  const lines = ["# 指标（最新值；同类=平台给的对比值）"];
+export function context({ metrics = [], advice = [], todos = [] }, { alerts = [], wins = [], health = null }) {
+  const lines = [];
+  if (health) {
+    lines.push("# 数据可靠性（最新数据日 " + (health.latest_day || "无") + `，今天收到 ${health.coverage.got}/${health.coverage.expected} 项指标）`);
+    for (const h of health.platforms) {
+      lines.push(`- ${NAMES[h.platform]}: ${h.last_data ? `最后有数字 ${h.last_data}（${h.days_since_data} 天前）` : "还没有数字"}`
+        + `${h.signed_out_days ? `，连续 ${h.signed_out_days} 天未登录` : ""}`);
+    }
+    lines.push("超过 1 天的数字要说明日期，别当成今天的；缺的平台直接说缺。", "");
+  }
+  lines.push("# 指标（最新值；同类=平台给的对比值）");
   for (const rows of Object.values(seriesOf(metrics))) {
     const m = rows.at(-1);
     const prev = rows.length > 1 ? `；上次 ${fmt(rows.at(-2).value, m.unit)}（${rows.at(-2).day}）` : "";

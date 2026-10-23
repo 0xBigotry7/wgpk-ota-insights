@@ -236,6 +236,9 @@ async function loadState(env) {
        join (select platform, max(run_id) as run_id from page_status where run_id >= ? group by platform) l
          on l.platform = p.platform and l.run_id = p.run_id`
   ).bind(recent));
+  // Page results of the last two weeks, for the reliability grid.
+  const history = await all(env.DB.prepare("select run_id, platform, page, status from page_status where run_id >= ?")
+    .bind(new Date(Date.now() - 15 * 864e5).toISOString().slice(0, 10).replaceAll("-", "")));
   // Rows stored before the extractor learned to drop them: a 0 score is an unrendered tile, a 0 comparison a misread.
   metrics = metrics.filter((m) => !(m.value === 0 && String(m.unit).startsWith("/")))
     .map((m) => (m.benchmark === 0 ? { ...m, benchmark: null } : m));
@@ -250,7 +253,7 @@ async function loadState(env) {
       period: keys[c],
       items: items.map((it) => ({ ...it, done_at: ticks.find((t) => t.period === keys[c] && t.item === it.id)?.done_at || null })),
     }])),
-    monitor: monitor({ metrics, pages, runs }),
+    monitor: monitor({ metrics, pages, runs, history }),
     glossary: Object.fromEntries([...new Set(metrics.map((m) => m.metric))].map((k) => [k, explain(k)]).filter(([, v]) => v)),
     platforms: PLATFORMS,
   };

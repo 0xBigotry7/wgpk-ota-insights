@@ -126,12 +126,85 @@ export function seriesOf(metrics) {
   return by;
 }
 
-export function monitor({ metrics = [], pages = [], runs = [] }, now = new Date()) {
+const PLATFORM_ORDER = Object.keys(NAMES);
+const bkkDay = (d) => new Date(d.getTime() + 7 * 3600e3).toISOString().slice(0, 10);
+const dayOfRun = (id) => `${id.slice(0, 4)}-${id.slice(4, 6)}-${id.slice(6, 8)}`;
+
+/**
+ * How dependable the data is: per platform and Bangkok day, whether the collector got in and how many pages it
+ * read; the last day each platform gave numbers; and how many of the metric series we normally get came in on
+ * the latest day. `history` is page_status rows of recent runs ({run_id, platform, page, status}).
+ */
+export function health({ metrics = [], runs = [], history = [] }, now = new Date(), days = 14) {
+  const today = bkkDay(now);
+  const span = Array.from({ length: days }, (_, i) => bkkDay(new Date(Date.parse(`${today}T12:00:00+07:00`) - (days - 1 - i) * 864e5)));
+  // The last run of each day that read the platform decides that day's cell.
+  const runOf = {};
+  for (const r of history) {
+    const k = `${r.platform}|${dayOfRun(r.run_id)}`;
+    if (!runOf[k] || r.run_id > runOf[k]) runOf[k] = r.run_id;
+  }
+  const lastData = {};
+  for (const m of metrics) if (!lastData[m.platform] || m.day > lastData[m.platform]) lastData[m.platform] = m.day;
+  const ago = (d) => (d ? Math.round((Date.parse(today) - Date.parse(d)) / 864e5) : null);
+
+  const platforms = PLATFORM_ORDER.map((p) => {
+    const cells = span.map((day) => {
+      const run = runOf[`${p}|${day}`];
+      if (!run) return { day, state: "none", ok: 0, total: 0 };
+      const rows = history.filter((r) => r.run_id === run && r.platform === p);
+      const ok = rows.filter((r) => r.status === "ok").length;
+      const landing = rows.find((r) => r.page === "landing");
+      const state = landing && landing.status === "signed_out" ? "signed_out" : ok === rows.length ? "ok" : ok ? "partial" : "failed";
+      return { day, state, ok, total: rows.length, run };
+    });
+    let streak = 0;
+    for (const c of [...cells].reverse()) {
+      if (c.state === "none" && c.day === today && !streak) continue;   // today's run may not have happened yet
+      if (c.state !== "signed_out") break;
+      streak += 1;
+    }
+    return { platform: p, cells, last_data: lastData[p] || null, days_since_data: ago(lastData[p]), signed_out_days: streak };
+  });
+
+  // Coverage: series seen in the window vs series that came in on the latest data day.
+  const since = span[0];
+  const seen = {}, latest = metrics.reduce((d, m) => (m.day > d ? m.day : d), "");
+  for (const m of metrics) {
+    if (m.day < since) continue;
+    const k = `${m.platform}|${m.metric}@${m.period || ""}`;
+    const s = (seen[k] ||= { platform: m.platform, label: m.label, last: m.day });
+    if (m.day > s.last) s.last = m.day;
+  }
+  const all = Object.values(seen);
+  const missing = {};
+  for (const s of all) if (s.last < latest) (missing[s.platform] ||= []).push(s.label);
+  const good = runs.filter((r) => !r.outcome || r.outcome === "done");
+  const scheduled = good.filter((r) => dayOfRun(r.id) >= since && /^(1020|1130)/.test(r.id.slice(9)));
+  return {
+    days: span, platforms, latest_day: latest || null,
+    coverage: { got: all.length - Object.values(missing).flat().length, expected: all.length,
+      missing: Object.entries(missing).map(([platform, labels]) => ({ platform, count: labels.length, labels: labels.slice(0, 6) })) },
+    runs: { total: runs.filter((r) => dayOfRun(r.id) >= since).length, scheduled: scheduled.length,
+      days_with_run: new Set(good.map((r) => dayOfRun(r.id)).filter((d) => d >= since)).size,
+      not_done: runs.filter((r) => dayOfRun(r.id) >= since && r.outcome && r.outcome !== "done").length },
+  };
+}
+
+export function monitor({ metrics = [], pages = [], runs = [], history = [] }, now = new Date()) {
   const alerts = [];
   const wins = [];
   const add = (a) => alerts.push(a);
 
-  const last = runs[0];
+  // A skipped or failed run is proof the collector is alive, not fresh data.
+  const last = runs.find((r) => !r.outcome || r.outcome === "done");
+  const blocked = runs[0] && runs[0] !== last && runs[0].outcome !== "done" ? runs[0] : null;
+  if (blocked) {
+    add({ id: `run:${blocked.outcome}`, level: "serious", platform: "all", area: "data", owner: "收益/销售",
+      title: blocked.outcome === "skipped" ? "最近一次采集被跳过" : `最近一次采集没跑完（${blocked.outcome}）`,
+      detail: `${blocked.id}${last ? ` · 上一次完整采集 ${last.id}` : ""}`,
+      action: blocked.outcome === "skipped" ? "多半是点评系统的 Chrome 没开或正在回复点评；11:30 会自动补跑" : "下一次定时采集会重试；连续两次失败请检查 Mac mini" });
+  }
   if (!last) {
     add({ id: "run:none", level: "critical", platform: "all", area: "data", owner: "收益/销售", title: "还没有任何采集记录",
       detail: "Mac mini 上的每日采集还没跑过", action: "确认 Mac mini 开机，采集任务每天 10:20 运行" });
@@ -149,6 +222,24 @@ export function monitor({ metrics = [], pages = [], runs = [] }, now = new Date(
         why: "没登录就读不到这个平台当天的数字，预警和报告会缺这一块",
         steps: ["等点评系统下一次自动登录（09:15 / 14:45）", "连续两天未登录：在酒店 Mac mini 的 Chrome 里人工登录一次",
           "需要短信或邮箱验证码的平台，找持有手机的同事配合"], kpi: "平台连接状态变绿", eta: "当天" });
+    }
+  }
+
+  // Platforms that used to give numbers and stopped: the cause may be a sign-out, a page change or a misread.
+  const hl = health({ metrics, runs, history }, now);
+  for (const h of hl.platforms) {
+    const so = pages.find((p) => p.platform === h.platform && p.page === "landing" && p.status === "signed_out");
+    if (so && h.signed_out_days >= 2) {
+      const a = alerts.find((x) => x.id === `page:${h.platform}:landing`);
+      if (a) Object.assign(a, { level: "critical", title: `${NAMES[h.platform]} 已连续 ${h.signed_out_days} 天未登录，没有新数据` });
+    }
+    if (h.days_since_data != null && h.days_since_data >= 2 && !so) {
+      add({ id: `stale:${h.platform}`, level: h.days_since_data >= 4 ? "serious" : "warning", platform: h.platform, area: "data",
+        owner: "收益/销售", title: `${NAMES[h.platform]} 已 ${h.days_since_data} 天没有读到新数字`,
+        detail: `最后一次有数字是 ${h.last_data}`,
+        why: "页面能打开却读不出数字，多半是平台改版或数据块没加载，预警和报告会悄悄缺这一块",
+        steps: ["看下方“数据可靠性”里这个平台哪几页出错", "页面改版：让采集重新校准这几页", "数据块没加载：下次采集会自动重试，连续两天仍缺再人工打开一次"],
+        kpi: "数据可靠性里这个平台恢复为绿色", eta: "1–2 天", action: "检查这个平台的采集页面，必要时重新校准" });
     }
   }
 
@@ -260,7 +351,9 @@ export function monitor({ metrics = [], pages = [], runs = [] }, now = new Date(
   const thresholds = [
     ["booking|review_score@", (v) => v < 7.5 ? "serious" : v < 8 ? "warning" : null, "reputation",
       (v) => `Booking 点评分 ${v}：${v < 7.5 ? "低于 Genius 门槛 7.5" : "低于 8 分，曝光开始受限"}`],
-    ["ctrip|review_score@", (v) => v < 4.7 ? "warning" : null, "reputation", (v) => `携程点评分 ${v}，低于“超棒”标签门槛 4.7`],
+    // eBooking shows the score out of 10; 4.7 / 5 ≈ 9.4 / 10. A value of 5 or less is the 5-point scale.
+    ["ctrip|review_score@", (v) => (v <= 5 ? v < 4.7 : v < 9.4) ? "warning" : null, "reputation",
+      (v) => `携程点评分 ${v}，低于“超棒”标签门槛 ${v <= 5 ? "4.7" : "约 9.4 / 10（4.7 / 5）"}`],
     ["booking|property_page_score@", (v) => v < 100 ? "warning" : null, "content", (v) => `Booking 房源页完整度 ${v}%，未满分`],
     ["booking|availability_for_search@funnel", (v) => v < 90 ? "warning" : null, "traffic",
       (v) => `Booking 可售率 ${v}%：可售是排名第一因素`],
@@ -290,7 +383,7 @@ export function monitor({ metrics = [], pages = [], runs = [] }, now = new Date(
   // Diagnoses explain several numbers at once, so they lead their level.
   const order = (a, b) => LEVELS[a.level] - LEVELS[b.level] || (b.id.startsWith("diag:") - a.id.startsWith("diag:")) || Math.abs(b.gap || 0) - Math.abs(a.gap || 0);
   const kept = alerts.filter((a) => ![...suppress].some((p) => a.id.startsWith(p)));
-  return { season: season(now.getUTCMonth() + 1), alerts: dedupe(kept).sort(order).slice(0, 20), wins: dedupe(wins).sort((a, b) => (b.gap || 0) - (a.gap || 0)).slice(0, 8) };
+  return { season: season(now.getUTCMonth() + 1), health: hl, alerts: dedupe(kept).sort(order).slice(0, 20), wins: dedupe(wins).sort((a, b) => (b.gap || 0) - (a.gap || 0)).slice(0, 8) };
 }
 
 /** The daily push: short enough for a phone notification, newest problems first. */
