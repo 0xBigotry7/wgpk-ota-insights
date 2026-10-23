@@ -28,7 +28,7 @@ new 2FA prompts and new risk-control signals on the same accounts the reviews de
 | Skips when the review operator holds `operator.lock`; holds that lock for the whole collection so a review run cannot start on the same Chrome mid-collection | `guard.take_operator_lock` |
 | Skips when the operator's Chrome is not running (never launches it) | `run.cdp_alive` |
 | Opens its own tabs and closes them in `finally`; never touches the operator's tabs | `collect.collect_platform` |
-| Whole run capped at 10 min | `config.RUN_DEADLINE_S` |
+| Whole run capped at 15 min | `config.RUN_DEADLINE_S` |
 
 Trade-off: a reply Gary approves during those minutes waits for the next review run. If the review
 schedule is changed on the Review Desk, update `WGPK_OTA_AVOID` in the plist to match.
