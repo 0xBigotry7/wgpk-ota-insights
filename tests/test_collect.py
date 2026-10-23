@@ -120,3 +120,10 @@ def test_slow_widgets_get_one_more_wait_and_redirects_are_missing(tmp_path, monk
     rows = run(ctx, "ctrip", tmp_path, monkeypatch)
     assert {r["slug"]: r["status"] for r in rows} == {"landing": "ok", "home": "ok", "data-center": "page_missing"}
     assert not (tmp_path / "ctrip" / "data-center.txt").exists()
+
+
+def test_signed_out_sub_page_does_not_stop_the_platform(tmp_path, monkeypatch):
+    logon = "https://www.expediapartnercentral.com/Account/Logon"
+    ctx = FakeCtx(lambda u: (logon, 200, "Partner Central - Login") if "reporting-suite" in u else (u, 200, "Revenue $1"))
+    rows = {r["slug"]: r["status"] for r in run(ctx, "expedia", tmp_path, monkeypatch)}
+    assert rows["reporting-suite"] == "signed_out" and rows["booking-insights"] == "ok"
