@@ -10,10 +10,13 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 import urllib.request
 
 from . import advise, cockpit, collect, config, extract, guard, store
 from .platforms import PLATFORMS
+
+PUSH_RETRY_S = 10
 
 
 def cdp_alive(port: int) -> bool:
@@ -41,17 +44,14 @@ def once(only: set[str] | None) -> int:
         return 0
     near = guard.near_review_window(started, config.AVOID_SLOTS, config.AVOID_MARGIN_MIN)
     if near:
-        print(f"skipped: review window {near} is within {config.AVOID_MARGIN_MIN} min", flush=True)
-        return 3
+        return skipped(started, f"review window {near} is within {config.AVOID_MARGIN_MIN} min")
     if not cdp_alive(config.CDP_PORT):
         # The review operator starts its Chrome; we never do.
-        print(f"skipped: no Chrome on CDP port {config.CDP_PORT} (review operator's browser not running)", flush=True)
-        return 3
+        return skipped(started, f"no Chrome on CDP port {config.CDP_PORT} (review operator's browser not running)")
     try:
         fd = guard.take_operator_lock(config.OPERATOR_LOCK)
     except guard.Busy as e:
-        print(f"skipped: {e}", flush=True)
-        return 3
+        return skipped(started, str(e))
     run_id = started.strftime("%Y%m%d-%H%M%S")
     db = store.connect(config.DB)
     store.start_run(db, run_id, started.isoformat(timespec="seconds"))
@@ -64,11 +64,47 @@ def once(only: set[str] | None) -> int:
         summary, outcome = {"error": f"{type(e).__name__}: {e}"[:300]}, "failed"
     finally:
         guard.release(fd)
+    if outcome != "done":
+        not_reached(db, run_id, only, outcome)
     store.finish_run(db, run_id, collect.now().isoformat(timespec="seconds"), outcome, summary)
     print(json.dumps({"run": run_id, "outcome": outcome, "summary": summary}, ensure_ascii=False), flush=True)
     # The browser and the operator's lock are released by now; the rest only reads local files.
     after(db, run_id, report=not only)       # a partial test run does not rewrite the day's report
     return 0 if outcome == "done" else 1
+
+
+def skipped(started, reason: str) -> int:
+    """A guard stopped the run: still record and push it, so the cockpit sees a skipped day, not silence."""
+    print(f"skipped: {reason}", flush=True)
+    run_id = started.strftime("%Y%m%d-%H%M%S")
+    db = store.connect(config.DB)
+    store.start_run(db, run_id, started.isoformat(timespec="seconds"))
+    store.finish_run(db, run_id, collect.now().isoformat(timespec="seconds"), "skipped", {"skipped": reason})
+    config.load_env()
+    push(db, run_id)
+    return 3
+
+
+def not_reached(db, run_id: str, only: set[str] | None, outcome: str) -> None:
+    """After a timeout or crash, give every platform the run never finished a page row saying so."""
+    done = {c for (c,) in db.execute("SELECT DISTINCT cid FROM snapshots WHERE run_id=?", (run_id,))}
+    for p in PLATFORMS:
+        if (only and p.cid not in only) or p.cid in done:
+            continue
+        store.add_snapshot(db, run_id=run_id, cid=p.cid, slug="landing", captured_at=collect.now().isoformat(timespec="seconds"),
+                           url=p.landing, status="error", detail=f"not read: the run {outcome} before this platform")
+
+
+def push(db, run_id: str, attempts: int = 3) -> None:
+    """Send the run to the cockpit; a short network blip should not lose the day's run proof."""
+    for i in range(attempts):
+        try:
+            print(json.dumps({"cockpit": cockpit.push_run(db, run_id)}), flush=True)
+            return
+        except Exception as e:  # noqa: BLE001
+            print(f"cockpit push failed ({i + 1}/{attempts}): {type(e).__name__}: {e}", flush=True)
+            if i + 1 < attempts:
+                time.sleep(PUSH_RETRY_S * (i + 1))
 
 
 def after(db, run_id: str, report: bool = True) -> None:
@@ -80,10 +116,7 @@ def after(db, run_id: str, report: bool = True) -> None:
         extract.extract_run(db, run_id)
     except Exception as e:  # noqa: BLE001
         print(f"extract failed: {type(e).__name__}: {e}", flush=True)
-    try:
-        print(json.dumps({"cockpit": cockpit.push_run(db, run_id)}), flush=True)
-    except Exception as e:  # noqa: BLE001
-        print(f"cockpit push failed: {type(e).__name__}: {e}", flush=True)
+    push(db, run_id)
     if not report:
         return
     try:
