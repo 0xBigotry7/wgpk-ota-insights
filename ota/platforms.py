@@ -29,6 +29,7 @@ class Page:
     url: str                     # absolute, or a template filled from the landing URL's query (Booking)
     verified: bool = False
     settle_ms: int = 0           # extra wait for slow dashboards, on top of config.SETTLE_MS
+    retry: bool = True           # one more wait when widgets have not loaded; off where they never will
 
 
 @dataclass(frozen=True)
@@ -95,21 +96,21 @@ PLATFORMS: tuple[Platform, ...] = (
     )),
     Platform("expedia", "Expedia", "https://apps.expediapartnercentral.com/lodging/review/user_reviews.html"
                                    f"?htid={EXPEDIA_ID}", (
-        # Expedia's metric tiles load seconds after the page ("We're having trouble loading it" until then).
+        # The supply app's metric tiles never load for this login: 5 / 3 / 3 tiles still say "We're having trouble
+        # loading it" after 90 s (2026-10-23 19:55), so it is a permission issue, not timing. Still read without
+        # extra wait or retry, so page_status keeps reporting the error until a person fixes the account.
         Page("data-insights", "https://apps.expediapartnercentral.com/supply/data-insights-hub"
-                              f"?propertyId={EXPEDIA_ID}", verified=True, settle_ms=14000),
+                              f"?propertyId={EXPEDIA_ID}", verified=True, retry=False),
         Page("home", f"https://apps.expediapartnercentral.com/supply/home?propertyId={EXPEDIA_ID}",
-             verified=True, settle_ms=14000),
-        # The hub's tiles never loaded in our tab (runs 20261022/23). These older report pages are linked from
-        # the hub ("View reports", "Booking insights"); read for calibration, no metrics catalogued yet.
+             verified=True, retry=False),
+        # Older report pages linked from the hub; they need a separate legacy Partner Central sign-in (a person).
         Page("reporting-suite", "https://apps.expediapartnercentral.com/lodging/partner-reporting-suite/index.html"
-                                f"?htid={EXPEDIA_ID}", verified=True, settle_ms=14000),
+                                f"?htid={EXPEDIA_ID}", verified=True),
         Page("booking-insights", "https://apps.expediapartnercentral.com/lodging/booking-insights/index.html"
-                                 f"?htid={EXPEDIA_ID}", verified=True, settle_ms=14000),
-        # rate-insights loads its date grid (Expedia.co.th, THB) but its tiles fail like the hub's; the
-        # opportunities hub only showed "Try a refresh" (2026-10-23), so it is not read.
+                                 f"?htid={EXPEDIA_ID}", verified=True),
+        # rate-insights loads its date grid (Expedia.co.th, THB) but its tiles fail like the hub's.
         Page("rate-insights", f"https://apps.expediapartnercentral.com/supply/rate-insights?propertyId={EXPEDIA_ID}",
-             settle_ms=14000),                                                                   # UNVERIFIED
+             verified=True, retry=False),
     )),
     Platform("ctrip", "Ctrip eBooking", "https://ebooking.ctrip.com/comment/commentList?microJump=true", (
         Page("home", "https://ebooking.ctrip.com/home/oversea?microJump=true", verified=True),
