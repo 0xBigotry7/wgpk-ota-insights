@@ -67,11 +67,11 @@ def once(only: set[str] | None) -> int:
     store.finish_run(db, run_id, collect.now().isoformat(timespec="seconds"), outcome, summary)
     print(json.dumps({"run": run_id, "outcome": outcome, "summary": summary}, ensure_ascii=False), flush=True)
     # The browser and the operator's lock are released by now; the rest only reads local files.
-    after(db, run_id)
+    after(db, run_id, report=not only)       # a partial test run does not rewrite the day's report
     return 0 if outcome == "done" else 1
 
 
-def after(db, run_id: str) -> None:
+def after(db, run_id: str, report: bool = True) -> None:
     """Read numbers off the pages, send aggregates to the cockpit, then write the day's analysis report.
 
     Failures here never fail the run."""
@@ -84,6 +84,8 @@ def after(db, run_id: str) -> None:
         print(json.dumps({"cockpit": cockpit.push_run(db, run_id)}), flush=True)
     except Exception as e:  # noqa: BLE001
         print(f"cockpit push failed: {type(e).__name__}: {e}", flush=True)
+    if not report:
+        return
     try:
         body = advise.report(db, f"{run_id[:4]}-{run_id[4:6]}-{run_id[6:8]}")
         print(json.dumps({"report": body and {"id": body["id"], "items": len(body["items"])}}), flush=True)

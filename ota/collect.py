@@ -65,6 +65,8 @@ async def collect_platform(ctx, p: Platform, run_dir: Path) -> list[dict]:
         if landing["status"] == "signed_out":
             return rows                       # the review operator owns sign-in; we only note it
         landing_url = landing["url"]
+        # A signed-out sub-page is that page's status only: some report apps (Expedia's legacy
+        # /lodging/ pages) want their own login while the landing session is fine.
         for page in p.pages:
             url = fill(page.url, landing_url)
             if url is None:
@@ -76,8 +78,6 @@ async def collect_platform(ctx, p: Platform, run_dir: Path) -> list[dict]:
                 rows.append(await _read_page(tab, url, out, page.slug, page.settle_ms))
             except Exception as e:  # noqa: BLE001 - one page never stops the platform
                 rows.append({"slug": page.slug, "url": url, "status": "error", "detail": f"{type(e).__name__}: {e}"[:300]})
-            if rows[-1]["status"] == "signed_out":
-                break
     finally:
         await tab.close()
     return rows
