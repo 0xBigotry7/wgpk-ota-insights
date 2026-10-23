@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import worker, { validateIngest, validateAdvice, reportBody, readReport, validateTodo, pushDigest } from "../src/worker.js";
+import worker, { validateIngest, validateAdvice, reportBody, readReport, validateTodo, pushDigest, dispatchAlerts } from "../src/worker.js";
+import { KNOWLEDGE, ROUTINES, periodKey, season, explain } from "../src/knowledge.js";
 import { monitor, peerGap, digest } from "../src/monitor.js";
 import { parseAnswer, context } from "../src/copilot.js";
 
@@ -159,4 +160,56 @@ test("the daily push sends nothing until a chat is configured", async () => {
   const sent = [];
   assert.deepEqual(await pushDigest(fakeEnv(), async (...a) => sent.push(a)), { sent: false, reason: "not configured" });
   assert.equal(sent.length, 0);
+});
+
+test("knowledge: season by month, ISO weeks, glossary, routine ids are unique", () => {
+  assert.equal(season(10).name, "旺季前爬坡");
+  assert.equal(season(1).name, "旺季高峰");
+  assert.equal(season(7).name, "淡季");
+  assert.equal(periodKey("weekly", new Date("2026-10-23T05:00:00Z")), "2026-W43");
+  assert.equal(periodKey("daily", new Date("2026-10-23T18:00:00Z")), "2026-10-24", "Bangkok day");
+  assert.equal(periodKey("monthly", new Date("2026-10-23T05:00:00Z")), "2026-10");
+  assert.match(explain("click_rate"), /首图/);
+  const ids = Object.values(ROUTINES).flat().map((r) => r.id);
+  assert.equal(new Set(ids).size, ids.length);
+  assert.ok(!KNOWLEDGE.includes("`"));
+});
+
+test("playbook diagnoses rate-led volume and the list-view problem instead of single gaps", () => {
+  const metrics = [
+    mk({ metric: "adr_mtd", period: "month_to_date", unit: "THB", label: "本月平均房价", value: 5813.79, benchmark: 7372.57, day: "2026-10-22" }),
+    mk({ metric: "adr_last_month", period: "last_month", unit: "THB", label: "上月平均房价", value: 5432, benchmark: 6890, day: "2026-10-22" }),
+    mk({ metric: "room_nights_mtd", period: "month_to_date", label: "本月间夜", value: 950, benchmark: 747, day: "2026-10-22" }),
+    mk({ metric: "search_views_vs_peer", period: "funnel", unit: "%", label: "曝光较同类", value: 36.93, day: "2026-10-22" }),
+    mk({ metric: "click_rate", period: "funnel", unit: "%", label: "点击率", value: 2.56, benchmark: 3.1, day: "2026-10-22" }),
+    mk({ platform: "ctrip", metric: "review_score", unit: "/5", label: "点评分", value: 4.6, day: "2026-10-22" }),
+  ];
+  const { alerts, season: s } = monitor({ metrics, pages: [], runs }, now);
+  const ids = alerts.map((a) => a.id);
+  assert.deepEqual(ids.slice(0, 2), ["diag:booking:rate-led", "diag:booking:list-view"]);
+  assert.ok(!ids.some((id) => id.startsWith("gap:booking|adr_") || id.startsWith("gap:booking|click_rate")));
+  assert.ok(ids.includes("rule:ctrip|review_score@"));
+  assert.match(alerts[0].title, /127%.*79%/);
+  assert.equal(alerts[0].steps.length, 3);
+  assert.equal(s.name, "旺季前爬坡");
+});
+
+test("the daily dispatch turns serious alerts into to-dos once", async () => {
+  const env = fakeEnv();
+  const r = await dispatchAlerts(env);   // empty database: one critical "no runs" alert
+  assert.equal(r.created, 1);
+  assert.match(env.writes[0].sql, /insert into todos/);
+  assert.equal(env.writes[0].a[6], "run:none");
+});
+
+test("routine ticks only accept known items", async () => {
+  const env = fakeEnv();
+  const login = await worker.fetch(new Request("https://x/login", { method: "POST", body: new URLSearchParams({ password: "pw" }) }), env);
+  const cookie = login.headers.get("Set-Cookie").split(";")[0];
+  const post = (body) => worker.fetch(new Request("https://x/api/routines", { method: "POST",
+    headers: { Cookie: cookie, Origin: "https://x" }, body: JSON.stringify(body) }), env);
+  assert.equal((await post({ item: "nope", done: true })).status, 400);
+  const ok = await post({ item: "d-pickup", done: true });
+  assert.equal(ok.status, 200);
+  assert.equal((await ok.json()).period.length, 10);
 });

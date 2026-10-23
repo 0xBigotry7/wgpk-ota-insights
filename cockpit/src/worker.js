@@ -7,6 +7,7 @@
 
 import { monitor, digest } from "./monitor.js";
 import { ask, context, OWNERS } from "./copilot.js";
+import { ROUTINES, periodKey, explain } from "./knowledge.js";
 
 const SESSION_COOKIE = "wgpk_ota_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
@@ -47,6 +48,7 @@ export default {
         const todo = path.match(/^\/api\/todos\/(\d+)$/);
         if (todo) return updateTodo(request, env, Number(todo[1]));
         if (path === "/api/copilot") return handleCopilot(request, env);
+        if (path === "/api/routines") return tickRoutine(request, env);
         return json({ error: "not found" }, 404);
       }
       if (!(ingestAuthorized(request, env) || (await sessionAuthorized(request, env)))) {
@@ -65,10 +67,27 @@ export default {
 
   // Daily push after the 10:20 collection (+ the 11:30 fallback): only when TELEGRAM_BOT_TOKEN and
   // TELEGRAM_CHAT_ID are set, so nothing is sent anywhere until someone chooses a chat for it.
+  // Also hands every serious alert to its department as a to-do, once per alert while it stays open.
   async scheduled(_event, env, ctx) {
-    ctx.waitUntil(pushDigest(env));
+    ctx.waitUntil(dispatchAlerts(env).then(() => pushDigest(env)));
   },
 };
+
+export async function dispatchAlerts(env) {
+  const state = await loadState(env);
+  // Skip alerts that already have an open to-do, or one closed in the last week (someone decided on it).
+  const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
+  const open = new Set(state.todos.filter((t) => t.status === "open" || t.updated_at >= weekAgo).map((t) => t.source_ref));
+  const now = new Date().toISOString();
+  const fresh = state.monitor.alerts.filter((a) => (a.level === "critical" || a.level === "serious") && !open.has(a.id));
+  if (!fresh.length) return { created: 0 };
+  await env.DB.batch(fresh.map((a) => env.DB.prepare(
+    `insert into todos (created_at, updated_at, title, detail, owner, platform, source, source_ref, status)
+     values (?, ?, ?, ?, ?, ?, 'auto', ?, 'open')`
+  ).bind(now, now, clip(a.title, 200), clip([a.action, ...(a.steps || []).slice(1)].join("；"), 800), a.owner,
+    a.platform || "all", clip(a.id, 120))));
+  return { created: fresh.length };
+}
 
 export async function pushDigest(env, send = fetch) {
   if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return { sent: false, reason: "not configured" };
@@ -195,7 +214,8 @@ async function handleAdvice(request, env) {
 
 async function loadState(env) {
   const since = new Date(Date.now() - HISTORY_DAYS * 864e5).toISOString().slice(0, 10);
-  let [runs, metrics, advice, todos] = await Promise.all([
+  const keys = Object.fromEntries(Object.keys(ROUTINES).map((c) => [c, periodKey(c)]));
+  let [runs, metrics, advice, todos, ticks] = await Promise.all([
     all(env.DB.prepare("select * from runs order by id desc limit 14")),
     all(env.DB.prepare(
       "select day, platform, metric, period, label, value, unit, benchmark, page from metrics where day >= ? order by day"
@@ -204,6 +224,8 @@ async function loadState(env) {
     all(env.DB.prepare(
       "select * from todos where status = 'open' or updated_at >= ? order by status = 'open' desc, id desc limit 100"
     ).bind(new Date(Date.now() - 14 * 864e5).toISOString())),
+    all(env.DB.prepare("select period, item, done_at from routine_ticks where period in (?, ?, ?)")
+      .bind(keys.daily, keys.weekly, keys.monthly)),
   ]);
   const latest = runs[0] || null;
   // Each platform's pages from the last run that read that platform, not only the very last run: a
@@ -224,7 +246,12 @@ async function loadState(env) {
     metrics,
     advice: advice.map(readReport),
     todos,
+    routines: Object.fromEntries(Object.entries(ROUTINES).map(([c, items]) => [c, {
+      period: keys[c],
+      items: items.map((it) => ({ ...it, done_at: ticks.find((t) => t.period === keys[c] && t.item === it.id)?.done_at || null })),
+    }])),
     monitor: monitor({ metrics, pages, runs }),
+    glossary: Object.fromEntries([...new Set(metrics.map((m) => m.metric))].map((k) => [k, explain(k)]).filter(([, v]) => v)),
     platforms: PLATFORMS,
   };
 }
@@ -236,7 +263,7 @@ export function validateTodo(body) {
   if (!body || !String(body.title || "").trim()) errors.push("title is required");
   if (body && body.owner && !OWNERS.includes(body.owner)) errors.push("owner unknown");
   if (body && body.platform && body.platform !== "all" && !PLATFORMS.includes(body.platform)) errors.push("platform unknown");
-  if (body && body.source && !["report", "alert", "copilot", "manual"].includes(body.source)) errors.push("source unknown");
+  if (body && body.source && !["report", "alert", "copilot", "manual", "auto"].includes(body.source)) errors.push("source unknown");
   return errors;
 }
 
@@ -264,6 +291,21 @@ async function updateTodo(request, env, id) {
   if (!body || !TODO_STATUSES.includes(body.status)) return json({ error: "status must be open, done or dropped" }, 400);
   await env.DB.prepare("update todos set status = ?, updated_at = ? where id = ?").bind(body.status, new Date().toISOString(), id).run();
   return json({ ok: true, id, status: body.status });
+}
+
+// Tick or untick a routine item for its current period only (today, this week, this month).
+async function tickRoutine(request, env) {
+  const body = await request.json().catch(() => null);
+  const cadence = Object.keys(ROUTINES).find((c) => ROUTINES[c].some((it) => it.id === body?.item));
+  if (!cadence) return json({ error: "unknown routine item" }, 400);
+  const period = periodKey(cadence);
+  if (body.done) {
+    await env.DB.prepare("insert or replace into routine_ticks (period, item, done_at) values (?, ?, ?)")
+      .bind(period, body.item, new Date().toISOString()).run();
+  } else {
+    await env.DB.prepare("delete from routine_ticks where period = ? and item = ?").bind(period, body.item).run();
+  }
+  return json({ ok: true, period, item: body.item, done: !!body.done });
 }
 
 async function handleCopilot(request, env) {

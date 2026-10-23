@@ -130,6 +130,21 @@ def test_daily_report_cites_stored_numbers_and_keeps_its_day(tmp_path):
     assert body["id"] == "2026-10-22"
     assert len(body["items"]) == 1 and len(body["highlights"]) == 1
     assert "2026-10-22" in sent[0]
+    assert "Visibility Booster" in sent[0] and "旺季前爬坡期" in sent[0]  # playbook and season are in the prompt
+
+
+def test_report_ignores_zero_scores_and_zero_benchmarks(tmp_path):
+    from ota import advise
+    db = _db(tmp_path)
+    store.put_metric(db, day="2026-10-23", cid="agoda", metric="review_score", period="", label="评分", value=0,
+                     unit="/10", benchmark=None, run_id="20261023-102000", source_slug="landing", extracted_by="codex")
+    store.put_metric(db, day="2026-10-23", cid="expedia", metric="lowest_rate_next_28d", period="next_28_days",
+                     label="最低价", value=113, unit="USD", benchmark=0, run_id="20261023-102000", source_slug="data-insights",
+                     extracted_by="codex")
+    data = advise.history(db, days=10_000)
+    assert "agoda" not in data
+    assert data["expedia"]["lowest_rate_next_28d@next_28_days"]["points"] == [["2026-10-23", 113]]
+    assert advise.knowledge().startswith("# 酒店基本盘")
 
 
 def test_fallback_slot_sees_the_days_done_run(tmp_path):
