@@ -356,9 +356,9 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
 
   <section class="sec">
     <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-file"/></svg></span><h2>杨总 KPI 对照：近 30 / 90 天</h2>
-      <span class="hint">曝光、点击、转化、预订、间夜、房价、收入，和平台给的同类值</span></div>
+      <span class="hint">曝光、点击、转化、预订、取消、间夜、房价、收入、未来在手，和平台给的同类值或去年同期</span></div>
     <div class="card" style="padding:0"><div class="tbl" style="border-top:0"><table id="kpi">
-      <thead><tr><th>指标</th><th>平台</th><th>近 30 天</th><th>近 90 天</th><th>较同类</th><th>日期</th></tr></thead>
+      <thead><tr><th>指标</th><th>平台</th><th>近 30 天</th><th>近 90 天</th><th>较同类 / 去年</th><th>日期</th></tr></thead>
       <tbody></tbody></table></div></div>
   </section>
 
@@ -463,7 +463,7 @@ const PERIODS = {last_30_days:"近 30 天", next_30_days:"未来 30 天", last_1
   last_90_days:"近 90 天", last_28_days:"近 28 天", next_28_days:"未来 28 天", next_90_days:"未来 90 天",
   funnel:"排名看板时段", month_to_date:"本月至今", last_month:"上月", latest_month:"最近一个月",
   booked_last_30_days:"近 30 天新增", booked_last_90_days:"近 90 天新增"};
-const LOWER_BETTER = /(^|_)(rank|problem|sort_order|response_hours|pending|had_problem)/;
+const LOWER_BETTER = /(^|_)(rank|problem|sort_order|response_hours|pending|had_problem|cancellation|lost)/;
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -886,18 +886,24 @@ $("addtodo").onsubmit = e => { e.preventDefault(); const t = $("todo-title").val
 
 // ── 杨总 KPI list: where each 30 / 90-day number comes from. [platform, metric@period for 30 days, for 90 days, note] ──
 const KPI = [
-  ["搜索曝光", [["booking", "search_views@funnel", null, "排名看板时段；90 天需在页面切换"], ["tripadvisor", "listing_impressions@last_30_days", null]]],
-  ["房源页浏览", [["booking", "page_visits@funnel", null], ["expedia", "page_views_28d@last_28_days", null, "Expedia 为近 28 天"],
+  ["搜索曝光", [["booking", "search_views@funnel", "search_views@last_90_days", "30 天列为排名看板默认时段"], ["tripadvisor", "listing_impressions@last_30_days", null]]],
+  ["房源页浏览", [["booking", "page_visits@funnel", "page_visits@last_90_days"], ["expedia", "page_views_28d@last_28_days", null, "Expedia 为近 28 天"],
     ["tripadvisor", "unique_visitors@last_30_days", null]]],
-  ["点击率（曝光→浏览）", [["booking", "click_rate@funnel", null]]],
-  ["预订转化率", [["booking", "book_rate@funnel", "conversion_rate_90d@last_90_days"], ["expedia", "conversion_rate_28d@last_28_days", null]]],
-  ["预订数（毛）", [["booking", "bookings@funnel", null], ["tripadvisor", "booking_clicks@last_30_days", null, "TripAdvisor 为预订点击"]]],
-  ["净预订（扣取消）", [["booking", null, null, "取消率在 Booking Visibility Dashboard，下一步接入"]]],
-  ["间夜", [["booking", ["room_nights_30d@last_30_days", "room_nights_mtd@month_to_date"], "room_nights_90d@last_90_days"], ["expedia", "room_nights_28d@last_28_days", null]]],
-  ["平均房价 ADR", [["booking", ["adr_30d@last_30_days", "adr_mtd@month_to_date"], ["adr_90d@last_90_days", "rank_factor_adr_90d@last_90_days"]]]],
-  ["收入", [["booking", ["revenue_30d@last_30_days", "revenue_mtd@month_to_date"], "revenue_90d@last_90_days"], ["expedia", "revenue_28d@last_28_days", null]]],
+  ["点击率（曝光→浏览）", [["booking", "click_rate@funnel", "click_rate@last_90_days"]]],
+  ["预订转化率", [["booking", "book_rate@funnel", ["book_rate@last_90_days", "conversion_rate_90d@last_90_days"]], ["expedia", "conversion_rate_28d@last_28_days", null]]],
+  ["预订数（毛）", [["booking", "bookings@funnel", "bookings@last_90_days"],
+    ["tripadvisor", "booking_clicks@last_30_days", null, "TripAdvisor 为预订点击"]]],
+  ["取消率", [["booking", "cancellation_rate@", null, "客源分析：全部预订；净预订 ≈ 毛预订 ×（1 − 取消率）"]]],
+  ["间夜", [["booking", ["room_nights_30d@last_30_days", "room_nights_mtd@month_to_date"], "room_nights_90d@last_90_days"],
+    ["agoda", ["net_room_nights_30d@booked_last_30_days", "room_nights_mtd@month_to_date"], null], ["expedia", "room_nights_28d@last_28_days", null]]],
+  ["平均房价 ADR", [["booking", ["adr_30d@last_30_days", "adr_mtd@month_to_date"], ["adr_90d@last_90_days", "rank_factor_adr_90d@last_90_days"]],
+    ["agoda", "adr_mtd@month_to_date", null]]],
+  ["收入", [["booking", ["revenue_30d@last_30_days", "revenue_mtd@month_to_date"], "revenue_90d@last_90_days"],
+    ["agoda", "revenue_mtd@month_to_date", null], ["expedia", "revenue_28d@last_28_days", null]]],
+  ["未来在手间夜", [["booking", "otb_room_nights_30d@next_30_days", "otb_room_nights_90d@next_90_days", "对比去年同期"]]],
+  ["未来在手房价", [["booking", "otb_adr_30d@next_30_days", "otb_adr_90d@next_90_days", "对比去年同期"]]],
 ];
-const KPI_MISSING = [["agoda", "数据页在 Performance → Analytics，地址待确认"], ["ctrip", "数据中心地址待确认"]];
+const KPI_MISSING = [["ctrip", "数据中心是点菜单进的，没有固定网址；需要同事打开一次把网址发来"], ["expedia", "数据页的数字块一直加载不出来；旧版报表要单独登录"]];
 function kpis(by){
   // A source may list fallbacks: the first key that has data wins (e.g. 30 days, else month to date).
   const resolve = (plat, k) => [].concat(k || []).find(x => by[`${plat}|${x}`]) || [].concat(k || [])[0] || null;
@@ -908,7 +914,8 @@ function kpis(by){
     return `<b>${esc(fmt(m.value, m.unit))}</b>${alt}`; };
   const versus = (plat, ks) => ks.map(k => k && last(`${plat}|${k}`)).filter(m => m && m.benchmark != null).map(m => {
     const d = m.unit === "%" ? m.value - m.benchmark : (m.value - m.benchmark) / Math.abs(m.benchmark) * 100;
-    return `<span class="${d >= 0 ? "tone-good" : "tone-bad"}">${d >= 0 ? "+" : "−"}${Math.abs(d).toFixed(m.unit === "%" ? 2 : 1)}${m.unit === "%" ? " 点" : "%"}</span> <span class="meta">同类 ${esc(fmt(m.benchmark, m.unit))}</span>`;
+    const good = LOWER_BETTER.test(m.metric) ? d <= 0 : d >= 0;
+    return `<span class="${good ? "tone-good" : "tone-bad"}">${d >= 0 ? "+" : "−"}${Math.abs(d).toFixed(m.unit === "%" ? 2 : 1)}${m.unit === "%" ? " 点" : "%"}</span> <span class="meta">${/^(otb|stayed)_/.test(m.metric) ? "去年" : "同类"} ${esc(fmt(m.benchmark, m.unit))}</span>`;
   }).join("<br>");
   const rows = [];
   for (const [label, sources] of KPI) for (const [plat, s30, s90, note] of sources) {
@@ -924,7 +931,7 @@ function kpis(by){
 
 // ── rate / volume matrix: room nights and ADR as % of the comp set (≈ MPI and ARI), 100 = same as peers ──
 function matrix(by){
-  const pick = ["mtd@month_to_date", "30d@last_30_days", "90d@last_90_days", "last_month@last_month"].map(sfx => {
+  const pick = ["30d@last_30_days", "mtd@month_to_date", "90d@last_90_days", "last_month@last_month"].map(sfx => {
     const a = by[`booking|adr_${sfx}`]?.at(-1), r = by[`booking|room_nights_${sfx}`]?.at(-1);
     return a && r && a.benchmark && r.benchmark ? {sfx, a, r, x: r.value / r.benchmark * 100, y: a.value / a.benchmark * 100} : null;
   }).filter(Boolean);
@@ -935,10 +942,12 @@ function matrix(by){
   const names = {"mtd@month_to_date": "本月至今", "30d@last_30_days": "近 30 天", "90d@last_90_days": "近 90 天", "last_month@last_month": "上月"};
   const q = (x, y, w, h, fill, text, tx, ty) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}"/><text x="${tx}" y="${ty}" font-size="11" fill="var(--muted)">${text}</text>`;
   const cx = sx(100), cy = sy(100);
+  // Label above, below, left, right in turn: the periods often sit on top of each other.
+  const LBL = [[0, -12, "middle"], [0, 22, "middle"], [-12, 4, "end"], [12, 4, "start"]];
   const dots = pick.map((d, i) => `<g data-tip="${esc(`${names[d.sfx]}\n间夜 ${num(d.r.value)}（同类 ${num(d.r.benchmark)}）= ${Math.round(d.x)}%\nADR ${num(d.a.value)}（同类 ${num(d.a.benchmark)}）= ${Math.round(d.y)}%`)}" tabindex="0">
       <circle cx="${sx(d.x)}" cy="${sy(d.y)}" r="12" fill="transparent"/>
       <circle cx="${sx(d.x)}" cy="${sy(d.y)}" r="${i ? 5 : 7}" fill="${i ? "var(--s1-soft)" : "var(--s1)"}" stroke="var(--surface)" stroke-width="2"/>
-      <text x="${sx(d.x)}" y="${sy(d.y) + (i % 2 ? 20 : -12)}" text-anchor="middle" font-size="11" fill="var(--fg)">${names[d.sfx]}</text></g>`).join("");
+      <text x="${sx(d.x) + LBL[i % 4][0]}" y="${sy(d.y) + LBL[i % 4][1]}" text-anchor="${LBL[i % 4][2]}" font-size="11" fill="var(--fg)">${names[d.sfx]}</text></g>`).join("");
   const top = pick[0];
   const verdict = top.x >= 100 && top.y < 100 ? "量高价低：间夜比同类多、房价比同类低，可以收紧折扣、提高需求日期的价格"
     : top.x < 100 && top.y >= 100 ? "价高量低：房价高于同类但间夜少，检查价格是否超出客人接受范围"
