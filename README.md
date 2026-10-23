@@ -67,3 +67,19 @@ A wrong guess only produces a `page_missing` or `error` snapshot.
 4. Daily report: after each run `ota.advise` writes the day's analysis (highlights, 5–10
    recommendations with evidence, analysis, owner and expected effect, things to watch tomorrow)
    from the stored numbers and posts it to the cockpit. Every item must cite a stored number.
+5. Cockpit v2: proactive alerts (`cockpit/src/monitor.js`: below the comp set or brand average, worse than
+   last week, back office signed out, no run for 30 h, Ctrip Q&A waiting) with the team that acts and a first
+   step; to-dos made from alerts, report items or the copilot; a right-hand copilot that answers from the
+   stored numbers and proposes to-dos (`cockpit/src/copilot.js`). The copilot cannot reach any OTA back
+   office. Optional daily Telegram digest at 12:30 Bangkok.
+
+### Cockpit setup after v2
+
+```bash
+cd cockpit
+npx wrangler d1 execute wgpk_ota --remote --file schema.sql   # adds todos and copilot_log (IF NOT EXISTS)
+npx wrangler deploy
+# Copilot model: Workers AI by default (binding AI). For DeepSeek / OpenAI instead:
+#   npx wrangler secret put COPILOT_API_KEY      (+ COPILOT_BASE_URL e.g. https://api.deepseek.com, COPILOT_MODEL e.g. deepseek-chat)
+# Daily push (off until set): npx wrangler secret put TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID
+```
