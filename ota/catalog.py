@@ -66,6 +66,33 @@ CATALOG: dict[tuple[str, str], tuple[Metric, ...]] = {
         m(f"adr_rank_{n}d", f"近{n}天房价同类排名", "名", f"last_{n}_days",
           "'Your rank' under Average daily rate, Total column"),
     ) for n in (30, 90)},
+    # Analytics dashboard "Performance overview", Bookings within the last N days vs Last year: value = ours,
+    # benchmark = the "(Last year)" figure shown in brackets.
+    **{("booking", f"analytics-{n}d"): (
+        m(f"room_nights_yoy_{n}d", f"近{n}天间夜（对比去年）", period=f"last_{n}_days",
+          hint="Performance overview 'Room nights'; benchmark: the 'Room nights (Last year)' figure in brackets"),
+        m(f"revenue_yoy_{n}d", f"近{n}天收入（对比去年）", "THB", f"last_{n}_days",
+          "Performance overview 'Room revenue' (THB); benchmark: the '(Last year)' revenue in brackets"),
+        m(f"adr_yoy_{n}d", f"近{n}天房价（对比去年）", "THB", f"last_{n}_days",
+          "Performance overview 'Average daily rate' (THB); benchmark: the '(Last year)' ADR in brackets"),
+    ) for n in (30, 90)},
+    # Ranking dashboard with period=DAYS90: the same funnel over the last 90 days.
+    ("booking", "search-rank-90d"): (
+        m("search_views", "搜索曝光", period="last_90_days", hint="'Search results views' count"),
+        m("page_visits", "房源页访问", period="last_90_days", hint="'Property page visits' count"),
+        m("bookings", "预订数", period="last_90_days", hint="'Bookings made' count"),
+        m("click_rate", "搜索→点击率", "%", "last_90_days",
+          "'% clicked into your property page'; benchmark: the peer group % in brackets"),
+        m("book_rate", "访问→预订率", "%", "last_90_days",
+          "'% booked your property'; benchmark: the peer group % in brackets"),
+    ),
+    ("booking", "booker-insights"): (
+        # Report type Travel purpose; rows Leisure / Business / Unspecified with the peer group row.
+        m("leisure_share", "休闲客占比", "%", hint="row 'Leisure': its share of reservations (%)"),
+        m("business_share", "商务客占比", "%", hint="row 'Business': its share of reservations (%)"),
+        m("cancellation_rate", "取消率", "%",
+          hint="only if a column header names cancellation: the value for all my reservations, else null"),
+    ),
     ("booking", "pace-90d"): (
         m("pace_room_nights_90d", "近90天新增未来间夜", period="booked_last_90_days",
           hint="'Total' row at the end of 'Breakdown by room and rate': room nights"),
@@ -111,6 +138,29 @@ CATALOG: dict[tuple[str, str], tuple[Metric, ...]] = {
         m("review_score", "评分", "/10", hint="overall score shown with a verdict word (e.g. '8.7 Excellent') "
                                             "just above 'Based on N reviews'; not the category scores"),
         m("review_count", "评论数", hint="number of reviews"),
+    ),
+    ("agoda", "dashboard"): (
+        m("room_nights_mtd", "本月至今间夜", period="month_to_date", hint="Sales 'Booked so far this month': Room nights"),
+        m("adr_mtd", "本月至今平均房价", "THB", "month_to_date", "Sales 'Booked so far this month': Average daily rate (THB)"),
+        m("revenue_mtd", "本月至今收入", "THB", "month_to_date", "Sales 'Booked so far this month': Revenue (THB)"),
+        m("cancelled_today", "今日取消", hint="Reservations 'Today': Cancelled bookings"),
+    ),
+    ("agoda", "lost-bookings"): (
+        m("bookings_lost_30d", "未来30天流失到竞品的预订", period="next_30_days",
+          hint="the N in 'N total bookings lost to other properties' (check-in date, next 30 days)"),
+    ),
+    # Property performance (stay dates, vs competitor set): value and the "% vs previous year".
+    **{("agoda", f"performance-{n}d"): (
+        m(f"net_room_nights_{n}d", f"近{n}天净间夜", period=f"last_{n}_days",
+          hint="'Net room nights' value, only if the page says 'Last {n} days'"),
+        m(f"net_revenue_{n}d", f"近{n}天净收入", "THB", f"last_{n}_days",
+          f"'Net revenue' THB value, only if the page says 'Last {n} days'"),
+        m(f"adr_{n}d", f"近{n}天平均房价", "THB", f"last_{n}_days",
+          f"'Average daily rate' THB value, only if the page says 'Last {n} days'"),
+    ) for n in (30, 90)},
+    ("agoda", "program-performance"): (
+        m("adr_plus_extra_revenue", "ADR+ 额外收入", "THB", "last_365_days", "'Additional revenue with ADR+' THB"),
+        m("adr_plus_net_revenue", "ADR+ 净收入", "THB", "last_365_days", "'Net revenue' THB under Agoda Dynamic Rates+"),
     ),
     ("expedia", "landing"): (
         m("review_score", "评分", "/10", hint="guest rating out of 10 (or out of 5)"),

@@ -45,6 +45,8 @@ BK = "https://admin.booking.com/hotel/hoteladmin/extranet_ng/manage"
      "We are sorry the page or file not found. 404 Page Not Found", "page_missing"),
     (f"{BK}/content_score.html?hotel_id=1", f"{BK}/403.html?hotel_id=1&authz_type=rb",
      "This page is protected", "page_missing"),
+    (f"{BK}/statistics/genius_report.html?hotel_id=1", f"{BK}/statistics/genius_report.html?hotel_id=1",
+     "Sorry, this page isn't working", "page_missing"),
     ("https://ebooking.ctrip.com/datacenter/index", "https://ebooking.ctrip.com/home/oversea", "今日新订 0", "page_missing"),
     ("https://apps.expediapartnercentral.com/supply/data-insights-hub?propertyId=1",
      "https://apps.expediapartnercentral.com/supply/data-insights-hub?propertyId=1",

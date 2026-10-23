@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from urllib.parse import parse_qs, urlparse
 
 AGODA_ID = "64055115"
+AGODA_AC = f"https://portal.agoda.com/mldc/en-us/app/reporting/analyticscenter/{AGODA_ID}"
 EXPEDIA_ID = "111503914"
 TRIPADVISOR_ID = "28147689"
 BOOKING = "https://admin.booking.com/hotel/hoteladmin/extranet_ng/manage"
@@ -62,18 +63,34 @@ PLATFORMS: tuple[Platform, ...] = (
         Page("pace-90d", f"{BOOKING}/statistics/pace_report.html?{BOOKING_Q}"
                          "&period=DAYS90&benchmark=PEER_GROUP"),                                  # UNVERIFIED
         Page("search-rank", f"{BOOKING}/showrank.html?{BOOKING_Q}", verified=True),
-        # Found in the extranet home page's HTML (discovery 2026-10-23 18:44); not opened yet. The Analytics
-        # overview links every report, so its link list is what calibrates cancellations / Genius / booker pages.
-        Page("analytics", f"{BOOKING}/statistics/dashboard.html?{BOOKING_Q}"),                   # UNVERIFIED
-        Page("opportunities", f"{BOOKING}/opportunities.html?{BOOKING_Q}"),                      # UNVERIFIED
-        Page("competitive-set", f"{BOOKING}/statistics/competitiveset.html?{BOOKING_Q}&activeTab=competitive_set"),
+        # Opened read-only on 2026-10-23 18:55-19:00 (Gary approved the discovery). The Analytics dashboard
+        # and the ranking dashboard both take period=DAYS30/DAYS90 in the URL; booker insights shows the
+        # travel-purpose table. cancellation_characteristics / genius_report / promotions.html do not exist
+        # ("Sorry, this page isn't working"); sales_insights ignores reservationType=CANCELLED.
+        Page("analytics-30d", f"{BOOKING}/statistics/dashboard.html?{BOOKING_Q}&period=DAYS30&benchmark=YEAR_OVER_YEAR",
+             verified=True),
+        Page("analytics-90d", f"{BOOKING}/statistics/dashboard.html?{BOOKING_Q}&period=DAYS90&benchmark=YEAR_OVER_YEAR",
+             verified=True),
+        Page("search-rank-90d", f"{BOOKING}/showrank.html?{BOOKING_Q}&period=DAYS90", verified=True),
+        Page("booker-insights", f"{BOOKING}/statistics/booker_insights.html?{BOOKING_Q}", verified=True),
+        Page("genius", f"{BOOKING}/genius/room_select.html?{BOOKING_Q}", verified=True),
+        Page("opportunities", f"{BOOKING}/opportunities.html?{BOOKING_Q}", verified=True),
+        Page("competitive-set", f"{BOOKING}/statistics/competitiveset.html?{BOOKING_Q}&activeTab=competitive_set",
+             verified=True),
         Page("inbox", f"{BOOKING}/messaging/inbox.html?{BOOKING_Q}", verified=True),
     )),
     Platform("agoda", "Agoda YCS", f"https://portal.agoda.com/mldc/en-us/app/setting/review/{AGODA_ID}", (
         Page("inbox", f"https://portal.agoda.com/mldc/en-us/app/hermes/inbox/ycs/{AGODA_ID}", verified=True),
-        # The Partner Portal's own route, found in its page HTML (discovery 2026-10-23); replaces the two
-        # ycs.agoda.com guesses that 404'd. Its link list should lead to Performance / Content Score.
-        Page("dashboard", f"https://portal.agoda.com/mldc/en-us/app/reporting/dashboard/{AGODA_ID}"),  # UNVERIFIED
+        # Partner Portal reporting, opened read-only 2026-10-23. The Analytics centre has one URL per tab
+        # (analyticsTab=...); Property performance takes dateRange (last365Days seen; 30/90-day values UNVERIFIED).
+        Page("dashboard", f"https://portal.agoda.com/mldc/en-us/app/reporting/dashboard/{AGODA_ID}", verified=True),
+        Page("lost-bookings", f"{AGODA_AC}?analyticsTab=LostBookingInsights", verified=True),
+        Page("performance-30d", f"{AGODA_AC}?analyticsTab=PropertyPerformance&dateRange=last30Days&comparison=competitorSet"),
+        Page("performance-90d", f"{AGODA_AC}?analyticsTab=PropertyPerformance&dateRange=last90Days&comparison=competitorSet"),
+        Page("traveler-insights", f"{AGODA_AC}?analyticsTab=TravelerInsights", verified=True),
+        Page("revenue-distribution", f"{AGODA_AC}?analyticsTab=RevenueDistribution", verified=True),
+        Page("content-score", f"{AGODA_AC}?analyticsTab=ContentScore", verified=True),
+        Page("program-performance", f"{AGODA_AC}?analyticsTab=ProgramPerformance", verified=True),
     )),
     Platform("expedia", "Expedia", "https://apps.expediapartnercentral.com/lodging/review/user_reviews.html"
                                    f"?htid={EXPEDIA_ID}", (
@@ -88,9 +105,8 @@ PLATFORMS: tuple[Platform, ...] = (
                                 f"?htid={EXPEDIA_ID}", verified=True, settle_ms=14000),
         Page("booking-insights", "https://apps.expediapartnercentral.com/lodging/booking-insights/index.html"
                                  f"?htid={EXPEDIA_ID}", verified=True, settle_ms=14000),
-        # Linked from the supply/ home ("Go to opportunities", the rate comparison card); same app as home.
-        Page("opportunities", f"https://apps.expediapartnercentral.com/supply/opportunities-hub?htid={EXPEDIA_ID}",
-             settle_ms=14000),                                                                   # UNVERIFIED
+        # rate-insights loads its date grid (Expedia.co.th, THB) but its tiles fail like the hub's; the
+        # opportunities hub only showed "Try a refresh" (2026-10-23), so it is not read.
         Page("rate-insights", f"https://apps.expediapartnercentral.com/supply/rate-insights?propertyId={EXPEDIA_ID}",
              settle_ms=14000),                                                                   # UNVERIFIED
     )),
@@ -140,7 +156,8 @@ def signed_out(url: str, text: str) -> str | None:
 
 # Pages that loaded but are not the dashboard asked for. Seen on run 20261022-174905.
 ERROR_PATH = re.compile(r"/(403|404|error|notfound)(\.html)?(/|$)", re.IGNORECASE)
-MISSING_TEXT = re.compile(r"404 Page Not Found|page or file not found|This page is protected|页面不存在",
+MISSING_TEXT = re.compile(r"404 Page Not Found|page or file not found|This page is protected|页面不存在|"
+                          r"Sorry, this page isn't working",
                           re.IGNORECASE)
 NOT_LOADED_TEXT = re.compile(r"We're having trouble loading it", re.IGNORECASE)
 
