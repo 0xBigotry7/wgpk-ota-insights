@@ -16,10 +16,26 @@ Improve the existing wgpk-ota-insights product using the legacy OPERA analytics 
 4. Integrate report and Copilot context and preserve existing read-only/authentication controls.
 5. Isolated tests, browser acceptance, source research notes, reviewable Git change and verified deployment if permitted by existing release workflow.
 
-## State
-Implemented aggregate PMS import, versioned calendar/weighted metrics, What-if, deterministic evidence cards,
-human investigation/action/review states, Copilot date context and action firewall. Static price heuristics corrected.
-Local validation: 62 Python tests, 35 Node tests, ruff and desktop/mobile browser flows passing.
-Confirmed analytics archive last received July 28; fresh operating-report feed remains an external dependency.
-Next: final regression, Git/CI, deploy additive D1 schema + cockpit, import historical aggregates with stale label,
-verify live aggregate API and release collector code without running its browser or touching guest sync.
+## Release verified
+- PR #22 merged as `d68339e2d1a5fc82beda4e28f4e2bcfef30c0e4c`.
+- 62 Python tests, 35 Node tests, ruff and local desktop/mobile browser flows passed; GitHub CI also passed.
+- GitHub deploy workflow 39986069322 reported success but skipped schema/deploy due to missing repository deployment secrets.
+  Do not treat that job conclusion as deployment proof. Used existing local Wrangler OAuth instead.
+- Additive D1 schema applied; Worker deployed at `ota.wyndhamgardenkamala.com`.
+  Cloudflare version: `8b63a81a-9ca3-458a-90dc-1621d7dfa6ff`.
+- Hotel collector fast-forwarded to d68339e, compiled successfully. No browser collection, review changes,
+  guest sync changes, service restart or OPERA email schedule change was triggered.
+- Production aggregate API verified: `3.0-evidence-operator`, 226 OTA metrics, 245 PMS dates,
+  OPERA source 2026-07-28 explicitly stale, currency unknown, 7 investigation cards, no test decisions.
+- Legacy aggregates remain outside Git; imported once from the collector using its existing private ingest token.
+
+## Remaining dependency / next gate
+The dedicated analytics archive last received July 28. Current History & Forecast operating reports must resume
+with verified export/business date, property scope and currency before live revenue/date decisions are meaningful.
+The optional curated-file sync hook is implemented but intentionally unconfigured without a genuinely updating source.
+True booking pickup, demand forecasting, net channel profitability and causal uplift are not claimed.
+
+## Rollback
+The new schema is additive. Previous Worker deployment metadata is saved outside Git in data/worker-deployments-before.json.
+Rollback the Worker to the previous Cloudflare version if required; do not delete source/audit tables or guest-sync state.
+Collector code can be restored independently; no launchd or browser configuration changed.

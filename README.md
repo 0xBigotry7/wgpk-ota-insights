@@ -111,5 +111,5 @@ It neither downloads guest reports nor changes the in-house/departure pipeline. 
 source before enabling—reusing a fixed July file will not create current data.
 
 Apply additive D1 schema before deploying code (`cockpit/schema.sql`, all new tables are IF NOT EXISTS).
-Python collector releases are still manual; Cloudflare deploys on tested main pushes. Local UI acceptance uses
+Python collector releases are still manual; Cloudflare deploys on tested main pushes **only when repository deployment secrets are present**. A green skipped deploy is not proof of rollout; verify the live API version. Local UI acceptance uses
 Chrome + Playwright and a seeded local Worker; run `.venv/bin/python tools/acceptance.py`, never point it at production.
