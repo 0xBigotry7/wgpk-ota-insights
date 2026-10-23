@@ -106,7 +106,10 @@ CATALOG: dict[tuple[str, str], tuple[Metric, ...]] = {
         m("area_size", "区域酒店数", period="last_90_days", hint="the M in that N/M within Kamala Beach"),
     ),
     ("agoda", "landing"): (
-        m("review_score", "评分", "/10", hint="overall review score out of 10"),
+        # The page shows e.g. "8.7 Excellent / Based on 258 reviews"; a bare "0" near the top is the nav's
+        # unread counter, not a score.
+        m("review_score", "评分", "/10", hint="overall score shown with a verdict word (e.g. '8.7 Excellent') "
+                                            "just above 'Based on N reviews'; not the category scores"),
         m("review_count", "评论数", hint="number of reviews"),
     ),
     ("expedia", "landing"): (
@@ -128,7 +131,8 @@ CATALOG: dict[tuple[str, str], tuple[Metric, ...]] = {
           "Rate comparisons 'Average lowest rate' ($); benchmark: 'Competitive set: $N' only if N > 0"),
     ),
     ("ctrip", "landing"): (
-        m("review_score", "点评分", "/5", hint="点评分 / 综合评分 out of 5"),
+        # eBooking shows the Trip.com score as "9.2 / 10" (酒店评分贴纸), not out of 5.
+        m("review_score", "点评分", "/10", hint="the hotel score shown as 'N.N / 10' next to 酒店评分贴纸"),
         m("review_count", "点评数", hint="点评总数"),
     ),
     ("ctrip", "home"): (
