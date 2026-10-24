@@ -10,6 +10,7 @@ import { monitor, digest } from "./monitor.js";
 import { ask, context, groundAnswer, OWNERS } from "./copilot.js";
 import { ROUTINES, periodKey, explain } from "./knowledge.js";
 import { validatePms, ingestPms, revenueView, scenario } from "./revenue.js";
+import {channelView} from './channels.js';
 import { operatorView, approveDecision, updateDecision } from "./operator.js";
 import { pollPmsArchive } from "./pms-bridge.js";
 
@@ -150,6 +151,9 @@ export function validateIngest(body) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(m.day || ""))) errors.push(`metrics[${i}].day must be YYYY-MM-DD`);
     if (typeof m.value !== "number" || !Number.isFinite(m.value)) errors.push(`metrics[${i}].value must be a number`);
     if (!m.label) errors.push(`metrics[${i}].label is required`);
+    if (m.source_as_of != null && (!/^\d{4}-\d{2}-\d{2}$/.test(m.source_as_of)
+      || !Number.isFinite(Date.parse(m.source_as_of)) || new Date(m.source_as_of).toISOString().slice(0,10)!==m.source_as_of || m.source_as_of>m.day
+      || !['page_data_as_of','selected_window_end'].includes(m.source_date_basis))) errors.push(`metrics[${i}].source date invalid`);
     if (m.benchmark != null && (typeof m.benchmark !== "number" || !Number.isFinite(m.benchmark))) {
       errors.push(`metrics[${i}].benchmark must be a number or null`);
     }
@@ -183,6 +187,9 @@ async function handleIngest(request, env) {
     ).bind(m.day, m.platform, m.metric, String(m.period || "").slice(0, 40), String(m.label).slice(0, 80),
       m.value, String(m.unit || "").slice(0, 20), m.benchmark ?? null, run.id, String(m.page || "").slice(0, 64))),
   ];
+  for(const m of metrics.filter(m=>m.source_as_of)) statements.push(env.DB.prepare(
+    'insert or replace into metric_source_dates(day,platform,metric,period,run_id,source_as_of,source_date_basis) values (?,?,?,?,?,?,?)')
+    .bind(m.day,m.platform,m.metric,String(m.period||'').slice(0,40),run.id,m.source_as_of,m.source_date_basis));
   await env.DB.batch(statements);
   return json({ ok: true, run: run.id, pages: pages.length, metrics: metrics.length });
 }
@@ -248,7 +255,9 @@ async function loadState(env) {
   let [runs, metrics, advice, todos, ticks] = await Promise.all([
     all(env.DB.prepare("select * from runs order by id desc limit 14")),
     all(env.DB.prepare(
-      "select day, platform, metric, period, label, value, unit, benchmark, page from metrics where day >= ? order by day"
+      `select m.day,m.platform,m.metric,m.period,m.label,m.value,m.unit,m.benchmark,m.page,m.run_id,x.source_as_of,x.source_date_basis
+       from metrics m left join metric_source_dates x on x.day=m.day and x.platform=m.platform and x.metric=m.metric
+       and x.period=m.period and x.run_id=m.run_id where m.day >= ? order by m.day`
     ).bind(since)),
     all(env.DB.prepare("select * from advice order by generated_at desc limit 30")),
     all(env.DB.prepare(
@@ -258,13 +267,12 @@ async function loadState(env) {
       .bind(keys.daily, keys.weekly, keys.monthly)),
   ]);
   const latest = runs[0] || null;
-  // Each platform's pages from the last run that read that platform, not only the very last run: a
-  // partial run (e.g. `--platforms booking`) must not make the other platforms look empty.
+  // Latest per page: targeted analytics refreshes must not hide other source pages.
   const recent = new Date(Date.now() - PAGE_STATUS_DAYS * 864e5).toISOString().slice(0, 10).replaceAll("-", "");
   const pages = await all(env.DB.prepare(
     `select p.platform, p.page, p.status, p.detail, p.run_id from page_status p
-       join (select platform, max(run_id) as run_id from page_status where run_id >= ? group by platform) l
-         on l.platform = p.platform and l.run_id = p.run_id`
+       join (select platform, page, max(run_id) as run_id from page_status where run_id >= ? group by platform,page) l
+         on l.platform = p.platform and l.page = p.page and l.run_id = p.run_id`
   ).bind(recent));
   // Page results of the last two weeks, for the reliability grid.
   const history = await all(env.DB.prepare("select run_id, platform, page, status from page_status where run_id >= ?")
@@ -296,6 +304,7 @@ async function loadState(env) {
     platforms: PLATFORMS,
     revenue: revenueView(snapshots, daily),
   };
+  state.channels = channelView(state.metrics, state.pages);
   state.operator = operatorView(state, decisions);
   const feed = await all(env.DB.prepare("select state from pms_feed_state where id = 'opera_archive'"));
   state.revenue.feed = feed[0] ? safeJson(feed[0].state, null) : null;

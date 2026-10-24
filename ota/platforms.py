@@ -64,6 +64,7 @@ PLATFORMS: tuple[Platform, ...] = (
         Page("pace-90d", f"{BOOKING}/statistics/pace_report.html?{BOOKING_Q}"
                          "&period=DAYS90&benchmark=PEER_GROUP"),                                  # UNVERIFIED
         Page("search-rank", f"{BOOKING}/showrank.html?{BOOKING_Q}", verified=True),
+        Page("search-rank-30d", f"{BOOKING}/showrank.html?{BOOKING_Q}&period=DAYS30", verified=True),
         # Opened read-only on 2026-10-23 18:55-19:00 (Gary approved the discovery). The Analytics dashboard
         # and the ranking dashboard both take period=DAYS30/DAYS90 in the URL; booker insights shows the
         # travel-purpose table. cancellation_characteristics / genius_report / promotions.html do not exist
@@ -114,7 +115,11 @@ PLATFORMS: tuple[Platform, ...] = (
     )),
     Platform("ctrip", "Ctrip eBooking", "https://ebooking.ctrip.com/comment/commentList?microJump=true", (
         Page("home", "https://ebooking.ctrip.com/home/oversea?microJump=true", verified=True),
-        Page("data-center", "https://ebooking.ctrip.com/datacenter/index"),        # UNVERIFIED: redirects home
+        # Verified by clicking the actual Data analysis nav, 2026-10-24.
+        Page("data-center", "https://ebooking.ctrip.com/ebkgrowth/datacenter/mix/overview", verified=True),
+        Page("traffic", "https://ebooking.ctrip.com/ebkgrowth/datacenter/mix/traffic", verified=True),
+        Page("performance", "https://ebooking.ctrip.com/ebkgrowth/datacenter/mix/performance", verified=True),
+        Page("lost-bookings", "https://ebooking.ctrip.com/ebkgrowth/datacenter/oversea/booking/insights", verified=True),
     )),
     Platform("google", "Google Business", "https://business.google.com/u/1/reviews", ()),
     Platform("tripadvisor", "TripAdvisor",

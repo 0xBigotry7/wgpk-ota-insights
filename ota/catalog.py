@@ -84,6 +84,14 @@ CATALOG: dict[tuple[str, str], tuple[Metric, ...]] = {
           f"'Average daily rate', second column (next {n} days); benchmark: last year's THB in brackets"),
     ) for n in (30, 90)},
     # Ranking dashboard with period=DAYS90: the same funnel over the last 90 days.
+    ("booking", "search-rank-30d"): (
+        m("search_views", "搜索曝光", period="last_30_days", hint="Search results views in the DAYS30 funnel, not the separate fixed90-day ranking factors"),
+        m("page_visits", "房源页访问", period="last_30_days", hint="Property page visits in the DAYS30 funnel"),
+        m("bookings", "预订数", period="last_30_days", hint="Bookings made in the DAYS30 funnel"),
+        m("click_rate", "搜索→点击率", "%", "last_30_days", "clicked into your property page; peer group percentage in brackets"),
+        m("book_rate", "访问→预订率", "%", "last_30_days", "booked your property; peer group percentage in brackets"),
+        m("availability_for_search", "搜索可售率", "%", "last_30_days", "Availability for search; page data as-of must be retained"),
+    ),
     ("booking", "search-rank-90d"): (
         m("search_views", "搜索曝光", period="last_90_days", hint="'Search results views' count"),
         m("page_visits", "房源页访问", period="last_90_days", hint="'Property page visits' count"),
@@ -154,6 +162,9 @@ CATALOG: dict[tuple[str, str], tuple[Metric, ...]] = {
         m("adr_mtd", "本月至今平均房价", "THB", "month_to_date", "Sales 'Booked so far this month': Average daily rate (THB)"),
         m("revenue_mtd", "本月至今收入", "THB", "month_to_date", "Sales 'Booked so far this month': Revenue (THB)"),
         m("cancelled_today", "今日取消", hint="Reservations 'Today': Cancelled bookings"),
+        m("search_results_rank_30d", "搜索结果竞品排名", "名", "last_30_days", "Your property vs competitor set: Search results rank N/M; value N, benchmark null (M is group size, not average)"),
+        m("unique_visitors_rank_30d", "独立访客竞品排名", "名", "last_30_days", "Your property vs competitor set: Unique visitors rank N/M; value N, not visitor count"),
+        m("bookings_rank_30d", "预订竞品排名", "名", "last_30_days", "Your property vs competitor set: Bookings rank N/M; value N, not booking count"),
     ),
     ("agoda", "lost-bookings"): (
         m("bookings_lost_30d", "未来30天流失到竞品的预订", period="next_30_days",
@@ -197,10 +208,26 @@ CATALOG: dict[tuple[str, str], tuple[Metric, ...]] = {
         m("pending_review_replies", "待回复点评", hint="'待回复点评' count"),
         m("pending_qa_replies", "待回复问答", hint="'待回复问答' count"),
     ),
-    ("ctrip", "data-center"): (
-        m("page_views", "浏览量", period="last_30_days", hint="浏览量 / 曝光"),
-        m("conversion_rate", "转化率", "%", "last_30_days", "转化率"),
-        m("rank_in_area", "商圈排名", "名", hint="商圈排名 / 竞争圈排名"),
+    ("ctrip", "traffic"): (
+        m("search_views", "列表页浏览量", period="native_window", hint="流量趋势中列表页浏览量；日期必须取筛选器"),
+        m("page_visits", "详情页浏览量", period="native_window", hint="流量趋势中详情页浏览量"),
+        m("bookings", "订单量", period="native_window", hint="流量趋势中订单量，不是间夜"),
+        m("click_rate", "列表页→详情页转化", "%", "native_window", "漏斗列表页转化"),
+        m("book_rate", "详情页→下单转化", "%", "native_window", "漏斗下单转化"),
+        m("overall_conversion", "列表页→下单总转化", "%", "native_window", "总转化率"),
+        m("diagnostic_book_rate_30d", "诊断：近30天下单转化率", "%", "last_30_days", "数据诊断下单页转化率，benchmark仅竞争圈均值"),
+    ),
+    ("ctrip", "performance"): (
+        m("otb_room_nights_30d", "未来30天已预订间夜", period="next_30_days", hint="数据诊断明确未来30天的已预订间夜；benchmark竞争圈平均间夜"),
+        m("booked_room_nights", "预订日期口径间夜", period="native_window", hint="销售数据间夜数，筛选订单为预订日期；不把它当未来OTB"),
+        m("booked_revenue", "预订日期口径销售额", "THB", "native_window", "销售数据销售额，不是未来收入"),
+        m("booked_adr", "预订日期口径ADR", "THB", "native_window", "销售数据每日均价"),
+    ),
+    ("ctrip", "lost-bookings"): (
+        m("lost_bookings_14d", "近14天流出订单", period="last_14_days", hint="概览订单量：流出，不是取消订单"),
+        m("won_bookings_14d", "近14天流入订单", period="last_14_days", hint="概览订单量：流入"),
+        m("lost_room_nights_14d", "近14天流出间夜", period="last_14_days", hint="概览间夜数：流出"),
+        m("won_room_nights_14d", "近14天流入间夜", period="last_14_days", hint="概览间夜数：流入"),
     ),
     ("google", "landing"): (
         m("review_score", "评分", "/5", hint="average star rating out of 5 (only if a summary is shown)"),

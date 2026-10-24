@@ -16,10 +16,12 @@ def payload(db: sqlite3.Connection, run_id: str) -> dict:
     pages = [{"platform": c, "page": s, "status": st, "detail": (d or "")[:300]}
              for c, s, st, d in db.execute("SELECT cid, slug, status, detail FROM snapshots WHERE run_id=?", (run_id,))]
     metrics = [{"day": day, "platform": c, "metric": m, "period": per or "", "label": lab, "value": v,
-                "unit": u or "", "benchmark": b, "page": pg}
-               for day, c, m, per, lab, v, u, b, pg in db.execute(
-                   "SELECT day, cid, metric, period, label, value, unit, benchmark, source_slug FROM metric_values "
-                   "WHERE run_id=?", (run_id,))]
+                "unit": u or "", "benchmark": b, "page": pg,
+                **({"source_as_of": as_of, "source_date_basis": basis} if as_of else {})}
+               for day, c, m, per, lab, v, u, b, pg, as_of, basis in db.execute(
+                   "SELECT v.day,v.cid,v.metric,v.period,v.label,v.value,v.unit,v.benchmark,v.source_slug,x.source_as_of,x.source_date_basis "
+                   "FROM metric_values v LEFT JOIN metric_source_dates x ON x.day=v.day AND x.cid=v.cid "
+                   "AND x.metric=v.metric AND x.period=v.period AND x.run_id=v.run_id WHERE v.run_id=?", (run_id,))]
     return {"run": dict(zip(("id", "started_at", "finished_at", "outcome"), run, strict=True)),
             "pages": pages, "metrics": metrics}
 

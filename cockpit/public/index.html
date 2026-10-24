@@ -328,6 +328,20 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
 #revenue-detail[open]>summary{margin-bottom:14px}
 @media(max-width:1399px){.calendar-view{display:none}.calendar-months.double{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:800px){.cal-day{min-height:98px;padding:4px}.cal-day .cal-revpar{display:none}.cal-amount b{display:block;font-size:10px}.cal-day .cal-amount{font-size:9px}.cal-day strong{font-size:12px}}
+
+/* Aligned native-channel lenses; stage surfaces encode sequence, not volume. */
+.channel-columns{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.channel-col,.channel-forward{min-width:0;font-variant-numeric:tabular-nums}
+.channel-col header{min-height:144px}.channel-col h3,.channel-forward h3{font-size:15px;margin:0}.channel-window{margin:8px 0 4px;font-size:12px;color:var(--fg-2)}
+.channel-stage{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:14px 12px;min-height:60px;margin:5px 0;border-radius:7px}.channel-stage span{font-size:12px}.channel-stage strong{font-size:23px;letter-spacing:-.5px}
+.channel-stage.stage-1{background:#e6f0ec;color:#25473c}.channel-stage.stage-2{background:#d2e5dd;color:#244638}.channel-stage.stage-3{background:#396052;color:#fff}.channel-stage.missing{background:var(--surface-2);border:1px dashed var(--line);color:var(--muted)}
+.channel-rates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:16px 0}.channel-rates small,.channel-rates b{display:block}.channel-rates small{font-size:11px;color:var(--muted)}.channel-rates b{margin-top:5px;font-size:21px;font-weight:600}.channel-note{min-height:55px}.channel-proof{border-top:1px solid var(--line);padding-top:10px;margin-top:14px;font-size:12px}.channel-proof summary{cursor:pointer;color:var(--fg-2)}.channel-proof p{overflow-wrap:anywhere}.channel-blocker{color:var(--warn-ink)}
+.channel-signals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0}.channel-signal{background:var(--surface);border-left:3px solid var(--accent);padding:14px}.channel-signal small,.channel-signal strong,.channel-signal span{display:block}.channel-signal strong{font-size:24px;font-variant-numeric:tabular-nums;margin:8px 0}.channel-signal small{color:var(--fg-2);font-size:12px}
+.channel-issue{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center;padding:20px 0;border-bottom:1px solid var(--line)}.channel-issue:first-child{padding-top:0}.channel-issue:last-child{border-bottom:0;padding-bottom:0}.channel-issue h3{font-size:15px;margin:0}.channel-issue p{max-width:75ch}.channel-issue details{font-size:12px}.channel-issue summary{cursor:pointer;color:var(--fg-2)}
+.forward-main{padding:17px 0 8px}.forward-main>small,.forward-main>strong,.forward-main>small+strong+small{display:block}.forward-main>strong{font-size:32px;font-weight:600;letter-spacing:-1px}.channel-cohort{border-top:1px solid var(--line);padding-top:12px;margin-top:14px}.channel-cohort small,.channel-cohort b,.channel-cohort span{display:block}.channel-cohort small{font-size:11px;color:var(--muted)}.channel-cohort b{font-size:18px;margin:6px 0}
+@media(max-width:1100px){.channel-columns{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){section[id]{scroll-margin-top:125px}.channel-columns,.channel-signals{grid-template-columns:minmax(0,1fr)}.channel-col header{min-height:0}.channel-issue{grid-template-columns:minmax(0,1fr)}.channel-note{min-height:0}}
+
 </style>
 </head>
 <body>
@@ -381,7 +395,7 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
     </div>
   </header>
 
-  <nav class="desk-nav" aria-label="工作台分区"><a href="#sec-revenue">经营日历</a><a href="#sec-operator">调查与复查</a><a href="#sec-alerts">渠道预警</a><a href="#sec-health">数据来源</a><a href="#sec-todos">待办</a></nav>
+  <nav class="desk-nav" aria-label="工作台分区"><a href="#sec-channels">渠道漏斗</a><a href="#sec-channel-loss">流失与可售</a><a href="#sec-channel-future">未来渠道订单</a><a href="#sec-revenue">经营日历</a><a href="#sec-operator">调查与复查</a><a href="#sec-alerts">渠道预警</a><a href="#sec-health">数据来源</a><a href="#sec-todos">待办</a></nav>
   <section class="hero">
     <div class="call" id="call">
       <svg class="deco" viewBox="0 0 24 24" fill="none" stroke-width="1.2"><use href="#i-pulse"/></svg>
@@ -391,6 +405,19 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
     <div class="counters" id="counters"></div>
   </section>
 
+
+  <section class="sec" id="sec-channels">
+    <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-funnel"/></svg></span><h2>渠道漏斗 · 并排看经营环节</h2><span class="hint">曝光 → 访问 → 预订</span></div>
+    <p class="meta" id="channel-boundary"></p><div class="channel-columns" id="channel-funnels"><div class="empty">正在读取平台漏斗…</div></div>
+  </section>
+  <section class="sec" id="sec-channel-loss">
+    <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-target"/></svg></span><h2>流失与可售 · 找到值得调查的环节</h2><span class="hint">流失不是取消，可售率不是入住率</span></div>
+    <div class="channel-signals" id="channel-signal-metrics"></div><div class="card" id="channel-issues"></div>
+  </section>
+  <section class="sec" id="sec-channel-future">
+    <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-cal"/></svg></span><h2>未来渠道订单 · 看在手，不冒充预测</h2><label class="tail">入住窗口 <select id="channel-horizon" aria-label="未来渠道入住窗口"><option value="30">未来30天</option><option value="90">未来90天</option></select></label></div>
+    <p class="meta">各渠道保留自己的在手统计口径；不合计为全酒店入住率，不把相邻滚动窗口差值叫 pickup。</p><div class="channel-columns" id="channel-future"></div>
+  </section>
 
   <section class="sec" id="sec-revenue">
     <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-cal"/></svg></span><h2>入住日期 · 经营日历</h2><span class="hint">OTA 信号看渠道，PMS 经营数看酒店整体；两者不混算</span></div>
@@ -432,12 +459,7 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
       <tbody></tbody></table></div></div>
   </section>
 
-  <section class="grid2">
-    <div class="card">
-      <div class="sec-h" style="margin-bottom:12px"><span class="badge-ico"><svg class="ico"><use href="#i-funnel"/></svg></span><h2>Booking 转化漏斗</h2>
-        <span class="hint tail" id="funnel-when"></span></div>
-      <div id="funnel"></div>
-    </div>
+  <section class="sec">
     <div class="card">
       <div class="sec-h" style="margin-bottom:8px"><span class="badge-ico"><svg class="ico"><use href="#i-target"/></svg></span><h2>量价矩阵</h2>
         <span class="hint">Booking 间夜和房价各是同类的多少</span></div>
@@ -522,6 +544,7 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
 <div class="toast" id="toast" role="status"></div>
 
 <script src="/operator-ui.js"></script>
+<script src="/channels-ui.js"></script>
 <script>
 const PLATFORMS = {booking:["Booking.com","--s1"], agoda:["Agoda","--s2"], expedia:["Expedia","--s3"], ctrip:["携程 / 去哪儿","--s4"],
   google:["Google","--s5"], tripadvisor:["TripAdvisor","--s6"], medallia:["Medallia 问卷","--s7"], all:["全部平台","--muted"]};
@@ -684,30 +707,6 @@ function tiles(state, by){
       <div class="tv">${esc(big)}<small>${esc(unitTxt === "%" ? "%" : unitTxt.startsWith("/") ? unitTxt : unitTxt)}</small></div>
       ${bullet}<div class="tf">${delta || `<span class="meta">${esc(m.day)}</span>`}${spark(hit.slice(-30).map(r => r.value))}</div></div>`;
   }).join("");
-}
-
-// ── Booking funnel: stylised steps (widths are decoration, the numbers carry the values) ──
-function funnel(by){
-  const g = k => by[`booking|${k}`]?.at(-1);
-  const views = g("search_views@funnel"), visits = g("page_visits@funnel"), books = g("bookings@funnel");
-  const ctr = g("click_rate@funnel"), br = g("book_rate@funnel"), vsPeer = g("search_views_vs_peer@funnel");
-  if (!views && !visits && !books) { $("funnel").innerHTML = `<div class="empty">Booking 排名看板还没读到。</div>`; return; }
-  $("funnel-when").textContent = (views || visits || books).day;
-  const step = (m, label, ic, w, bg) => `<div class="fstep" style="width:${w}%;background:${bg}"><span class="fl">${icon(ic)}${label}</span>
-    <span class="fv">${m ? esc(compact(m.value)) : "—"}</span></div>`;
-  const gap = (m, label) => {
-    if (!m) return `<div class="fgap"><span class="meta">↓ ${label}：未读到</span></div>`;
-    const behind = m.benchmark != null && m.value < m.benchmark;
-    const peer = m.benchmark == null ? "" : `<span class="fpeer ${behind ? "tone-bad" : "tone-good"}">${icon(behind ? "i-down" : "i-up","sm")} 同类 ${esc(fmt(m.benchmark, m.unit))}</span>`;
-    return `<div class="fgap"><span class="meta">↓</span><span>${label} <b>${esc(fmt(m.value, m.unit))}</b></span>${peer}</div>`;
-  };
-  $("funnel").innerHTML = `<div class="funnel">
-    ${step(views, "搜索结果曝光", "i-eye", 100, "var(--s1)")}
-    ${gap(ctr, "点击率")}
-    ${step(visits, "房源页访问", "i-click", 78, "var(--s1)")}
-    ${gap(br, "预订转化")}
-    ${step(books, "预订", "i-cal", 56, "var(--s1)")}</div>
-    ${vsPeer ? `<p class="meta" style="margin:10px 0 0;text-align:center">搜索曝光比同类 ${vsPeer.value >= 0 ? "多" : "少"} ${esc(num(Math.abs(vsPeer.value)))}%</p>` : ""}`;
 }
 
 // ── reputation dumbbell: hotel vs Wyndham brand, per review site (Medallia) ──
@@ -1069,10 +1068,11 @@ async function load(){
     state.todos ||= []; state.monitor ||= {alerts: [], wins: []};
     STATE = state;
     window.OperatorUI.render(state, load, toast);
+    window.ChannelUI.render(state, load, toast);
     const run = state.latest_run;
     $("last-run").innerHTML = icon("i-db","sm") + esc(run ? `最近采集 ${run.id.slice(4,6)}-${run.id.slice(6,8)} ${run.id.slice(9,11)}:${run.id.slice(11,13)}` : "还没有采集记录");
     const by = series(state);
-    hero(state); alerts(state); tiles(state, by); kpis(by); funnel(by); matrix(by); dumbbell(by); problems(by); routines(state); health(state); status(state, by); report(state); board(state); details(state, by);
+    hero(state); alerts(state); tiles(state, by); kpis(by); matrix(by); dumbbell(by); problems(by); routines(state); health(state); status(state, by); report(state); board(state); details(state, by);
   } catch (e) {
     $("main").insertAdjacentHTML("beforeend", `<div class="empty" style="color:var(--crit-ink)">读取数据失败：${esc(e.message)}。刷新页面再试。</div>`);
   }

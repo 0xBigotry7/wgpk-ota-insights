@@ -23,6 +23,11 @@ CREATE TABLE IF NOT EXISTS metric_values (
   run_id TEXT NOT NULL, source_slug TEXT NOT NULL, extracted_by TEXT NOT NULL,
   PRIMARY KEY (day, cid, metric, period)
 );
+CREATE TABLE IF NOT EXISTS metric_source_dates (
+  day TEXT NOT NULL, cid TEXT NOT NULL, metric TEXT NOT NULL, period TEXT NOT NULL,
+  run_id TEXT NOT NULL, source_as_of TEXT NOT NULL, source_date_basis TEXT NOT NULL,
+  PRIMARY KEY(day,cid,metric,period,run_id)
+);
 """
 
 

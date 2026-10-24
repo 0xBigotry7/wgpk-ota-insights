@@ -14,7 +14,7 @@ const relevant = (a, metrics) => {
   return [primary, ...metrics.filter(m => extra && m.platform === primary.platform && m.metric === extra && m.day === primary.day && m.period === primary.period)];
 };
 const ref = m => ({ id: evidenceId(m), platform: m.platform, metric: m.metric, period: m.period,
-  day: m.day, page: m.page, label: m.label, value: m.value, unit: m.unit, benchmark: m.benchmark ?? null });
+  day: m.day, source_as_of:m.source_as_of||null, page: m.page, label: m.label, value: m.value, unit: m.unit, benchmark: m.benchmark ?? null });
 
 export function followup(decision, metrics, today = bkkDay()) {
   const baseline = typeof decision.baseline === "string" ? parse(decision.baseline, null) : decision.baseline;
@@ -22,7 +22,9 @@ export function followup(decision, metrics, today = bkkDay()) {
   const actionDay = decision.action_day || bkkDay(new Date(decision.action_at || decision.updated_at));
   const latest = metrics.filter(m => m.platform === baseline.platform && m.metric === baseline.metric
     && (m.period || "") === (baseline.period || "") && (m.unit || "") === (baseline.unit || "")
-    && m.day > baseline.day && m.day > actionDay && m.day <= today)
+    && m.day > baseline.day && m.day > actionDay && m.day <= today
+    && (m.source_as_of||m.day) > (baseline.source_as_of||baseline.day)
+    && (m.source_as_of||m.day) > actionDay)
     .sort((a, b) => b.day.localeCompare(a.day))[0];
   if (!latest) return { status: "awaiting_data", message: "执行后尚无同平台、同指标、同周期的新采样；不能宣布有效" };
   return { status: "observed", baseline, latest: ref(latest), delta: latest.value - baseline.value,
@@ -51,7 +53,7 @@ export function operatorView(state, decisions = [], today = bkkDay()) {
     const matches = relevant(a, [...latest.values()]);
     const m = matches[0];
     if (!m || cards.length >= 7 || ["data", "collection"].includes(a.area)) continue;
-    const age = daysAgo(m.day, today);
+    const age = daysAgo(m.source_as_of||m.day, today);
     const stale = age > 1 || age < 0 || !Number.isFinite(age);
     cards.push({ id: a.id, title: a.title, owner: a.owner || "收益/销售", platform: m.platform,
       kind: stale ? "data_gate" : "investigation", baseline: ref(m), evidence_ids: matches.map(evidenceId),
@@ -63,6 +65,7 @@ export function operatorView(state, decisions = [], today = bkkDay()) {
           : `在 ${m.platform} 的 ${m.page || "原始指标页"} 核对偏差与样本，人工确认具体问题及责任人，再决定是否执行整改`,
       verify: stale ? "新采样日期不超过 1 天且口径一致" : `记录人工实际执行时间；7 天后检查同口径 ${m.label}，同时检查样本和渠道变化，不把点击完成当成效果` });
   }
+  cards.unshift(...(state.channels?.investigations||[]));
   return { mode: "read_only_human_approved", evidence, cards,
     decisions: decisions.map(d => ({ ...d, baseline: parse(d.baseline, null), evidence: parse(d.evidence, []), followup: followup(d, metrics, today) })),
     boundaries: ["OTA 只读；所有调查和执行记录均在驾驶舱内", "PMS 实绩 / 未来报表值 / OTA 滚动指标不混算", "效果归因与需求预测尚未建立，不自动宣告收益提升"] };
