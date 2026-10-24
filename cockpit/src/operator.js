@@ -42,7 +42,7 @@ export function operatorView(state, decisions = [], today = bkkDay()) {
   if (state.revenue?.status !== "current") {
     const r = state.revenue;
     cards.push({ id: "gate:pms", title: r?.source ? "经营报表过期，先恢复收益数据" : "补上经营报表来源", owner: "收益/销售", platform: "all",
-      kind: "data_gate", facts: [r?.source ? `OPERA 报表导出 ${r.source.as_of}，距今 ${r.age_days} 天；上传日期不代表报表更新` : "尚无 OPERA 经营日报"],
+      kind: "data_gate", facts: [r?.source ? `OPERA ${r.source.as_of_basis === "actual_projection_business_cutoff" ? "报表业务分界日" : "报表导出"} ${r.source.as_of}，距今 ${r.age_days} 天；上传日期不代表报表更新` : "尚无 OPERA 经营日报"],
       hypothesis: "缺少当前逐入住日的经营信息，不能验证今日入住压力或给出具体涨降价幅度",
       plan: "核对 OPERA History & Forecast 自动报告的接收与归档，导入新版本后复核日期、房量和收入；不改入住/退房同步",
       verify: "来源日期不超过 1 天；确认币种、物业范围、未来值口径与覆盖日期", evidence_ids: r?.source ? [`pms-snapshot:${r.source.id}`] : [], baseline: null });

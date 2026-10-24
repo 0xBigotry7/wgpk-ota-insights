@@ -1,10 +1,6 @@
+import { db } from './helpers/sqlite.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { readFileSync } from 'node:fs';
 import worker from '../src/worker.js';
 import { validatePms, ingestPms, totals, revenueView, scenario, bkkDay } from '../src/revenue.js';
 import { operatorView, followup, approveDecision, updateDecision, evidenceId } from '../src/operator.js';
@@ -14,31 +10,6 @@ const meta = (id='a', as_of='2026-10-20') => ({id:id.repeat(64),source_sha256:id
   scope:'property',source:'opera_history_forecast',precision:'source_report',projection_semantics:'pms_report_projection_not_rms_demand_forecast'});
 const row = (stay_date='2026-11-01', rooms=50) => ({stay_date,kind:'pms_projection',inventory:100,rooms_sold:rooms,room_revenue:rooms*1000,reported_adr:1000,reported_occupancy:rooms});
 const payload = () => ({schema_version:1,snapshot:meta(),rows:[row()]});
-const db = () => {
-  // Real SQLite through Python, available on the hotel host and CI; no Node experimental API/dependency.
-  const dir=mkdtempSync(join(tmpdir(),'ota-sql-')), file=join(dir,'db.sqlite');
-  const execute=input=>{
-    const script=`import json,sys,sqlite3
-p=json.load(sys.stdin)
-c=sqlite3.connect(p['file'])
-c.row_factory=sqlite3.Row
-out=[]
-try:
- if 'schema' in p: c.executescript(p['schema'])
- else:
-  for q in p['queries']:
-   cur=c.execute(q['sql'],q.get('args',[]))
-   rows=[dict(r) for r in cur.fetchall()] if cur.description else []
-   out.append({'results':rows,'meta':{'last_row_id':cur.lastrowid,'changes':cur.rowcount}})
- c.commit()
- print(json.dumps(out))
-finally: c.close()`;
-    const result=spawnSync('python3',['-c',script],{input:JSON.stringify({file,...input}),encoding:'utf8'});
-    if(result.status!==0)throw new Error(result.stderr);return JSON.parse(result.stdout);
-  };
-  execute({schema:readFileSync(new URL('../schema.sql',import.meta.url),'utf8')});
-  return {prepare(sql){const bound=args=>({sql,args,async first(){return execute({queries:[{sql,args}]})[0].results[0]||null;},async all(){return execute({queries:[{sql,args}]})[0];},async run(){return execute({queries:[{sql,args}]})[0];}});return {...bound([]),bind:(...args)=>bound(args)};},async batch(stmts){return execute({queries:stmts.map(s=>({sql:s.sql,args:s.args}))});},close(){rmSync(dir,{recursive:true,force:true});}};
-};
 test('strict PMS schema rejects PII, invalid dates, booleans, duplicate scopes and future actuals',()=>{
   assert.deepEqual(validatePms(payload(),'2026-10-23'),[]);
   for(const change of [p=>p.rows[0].guest_name='bad',p=>p.snapshot.guest_list=[],p=>p.rows[0].stay_date='2026-02-30',p=>p.rows[0].rooms_sold=true,p=>p.rows.push({...p.rows[0]}),p=>p.rows[0].inventory=0,p=>p.snapshot.as_of='2026-12-01',p=>p.rows[0].kind='actual',p=>p.rows[0].room_revenue=Infinity,p=>delete p.rows[0].inventory,p=>p.snapshot.currency='']){const p=payload();change(p);assert.ok(validatePms(p,'2026-10-23').length);}

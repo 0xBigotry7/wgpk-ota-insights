@@ -123,3 +123,30 @@ CREATE TABLE IF NOT EXISTS operator_events (
   event TEXT NOT NULL,
   note TEXT NOT NULL
 );
+
+-- Isolated archive -> aggregate bridge; raw reports stay in their existing private R2 archive.
+CREATE TABLE IF NOT EXISTS pms_snapshot_provenance (
+  snapshot_id TEXT PRIMARY KEY REFERENCES pms_snapshots(id),
+  as_of_basis TEXT NOT NULL,
+  archived_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS pms_bridge_receipts (
+  file_id TEXT NOT NULL,
+  checksum TEXT NOT NULL,
+  bridge_version TEXT NOT NULL,
+  processed_at TEXT NOT NULL,
+  status TEXT NOT NULL,
+  attempts INTEGER NOT NULL,
+  snapshot_id TEXT,
+  reason TEXT NOT NULL,
+  PRIMARY KEY(file_id,checksum,bridge_version)
+);
+CREATE TABLE IF NOT EXISTS pms_feed_state (
+  id TEXT PRIMARY KEY,
+  state TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS pms_bridge_lease (
+  id TEXT PRIMARY KEY,
+  owner TEXT NOT NULL,
+  until_ms INTEGER NOT NULL
+);

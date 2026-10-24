@@ -10,6 +10,7 @@ import { ask, context, groundAnswer, OWNERS } from "./copilot.js";
 import { ROUTINES, periodKey, explain } from "./knowledge.js";
 import { validatePms, ingestPms, revenueView, scenario } from "./revenue.js";
 import { operatorView, approveDecision, updateDecision } from "./operator.js";
+import { pollPmsArchive } from "./pms-bridge.js";
 
 const SESSION_COOKIE = "wgpk_ota_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
@@ -38,8 +39,9 @@ export default {
 
     if (path.startsWith("/api/")) {
       if (request.method === "POST") {
-        if (["/api/ingest", "/api/advice", "/api/pms"].includes(path)) {
+        if (["/api/ingest", "/api/advice", "/api/pms", "/api/pms/poll"].includes(path)) {
           if (!ingestAuthorized(request, env)) return json({ error: "unauthorized" }, 401);
+          if (path === "/api/pms/poll") return json(await pollPmsArchive(env));
           if (path === "/api/pms") {
             let body;
             try { body = await request.json(); } catch { return json({ error: "body must be JSON" }, 400); }
@@ -91,7 +93,11 @@ export default {
   // Daily push after the 10:20 collection (+ the 11:30 fallback): only when TELEGRAM_BOT_TOKEN and
   // TELEGRAM_CHAT_ID are set, so nothing is sent anywhere until someone chooses a chat for it.
   // Also hands every serious alert to its department as a to-do, once per alert while it stays open.
-  async scheduled(_event, env, ctx) {
+  async scheduled(event, env, ctx) {
+    if (event.cron === "7,37 * * * *") {
+      ctx.waitUntil(pollPmsArchive(env));
+      return;
+    }
     ctx.waitUntil(dispatchAlerts(env).then(() => pushDigest(env)));
   },
 };
@@ -265,7 +271,8 @@ async function loadState(env) {
   // Rows stored before the extractor learned to drop them: a 0 score is an unrendered tile, a 0 comparison a misread.
   metrics = metrics.filter((m) => !(m.value === 0 && String(m.unit).startsWith("/")))
     .map((m) => (m.benchmark === 0 ? { ...m, benchmark: null } : m));
-  const snapshots = await all(env.DB.prepare("select * from pms_snapshots order by as_of desc, received_at desc, id desc limit 8"));
+  const snapshots = await all(env.DB.prepare(`select s.*,p.as_of_basis,p.archived_at from pms_snapshots s
+    left join pms_snapshot_provenance p on p.snapshot_id=s.id order by s.as_of desc,s.received_at desc,s.id desc limit 8`));
   const daily = snapshots.length ? await all(env.DB.prepare(`select * from pms_daily where snapshot_id in (${snapshots.map(() => "?").join(",")})`).bind(...snapshots.map(s => s.id))) : [];
   const decisions = await all(env.DB.prepare("select * from operator_decisions order by id desc limit 50"));
   const state = {
@@ -286,6 +293,8 @@ async function loadState(env) {
     revenue: revenueView(snapshots, daily),
   };
   state.operator = operatorView(state, decisions);
+  const feed = await all(env.DB.prepare("select state from pms_feed_state where id = 'opera_archive'"));
+  state.revenue.feed = feed[0] ? safeJson(feed[0].state, null) : null;
   state.operator.events = await all(env.DB.prepare("select decision_id, at, event, note from operator_events order by id desc limit 200"));
   return state;
 }
