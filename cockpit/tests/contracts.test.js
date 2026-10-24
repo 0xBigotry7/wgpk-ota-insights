@@ -5,7 +5,7 @@ import { revenueView } from '../src/revenue.js';
 import { context } from '../src/copilot.js';
 test('fixed occupancy bands distinguish missing/zero/boundaries/over100 and never use month maxima',()=>{
   for (const x of [null,undefined,NaN,Infinity,-1,'50']) assert.equal(occupancyBand(x),null);
-  for (const [x,b] of [[0,0],[30,0],[30.01,1],[40,1],[40.01,2],[50,2],[90,6],[90.01,7],[100,7],[100.01,8]]) assert.equal(occupancyBand(x),b);
+  for (const [x,b] of [[0,0],[3.7,0],[9.8,0],[10,0],[10.01,1],[14.5,1],[20,1],[20.01,2],[30,2],[30.01,3],[40,3],[40.01,4],[50,4],[90,8],[90.01,9],[100,9],[100.01,10]]) assert.equal(occupancyBand(x),b);
   const source={id:'s',source:'opera_history_forecast',as_of:'2026-10-24',currency:null};
   const rows=['2026-10-24','2026-11-01'].map(stay_date=>({snapshot_id:'s',stay_date,kind:'pms_projection',inventory:100,rooms_sold:50,room_revenue:50000}));
   rows.push({...rows[0],stay_date:'2026-10-25',rooms_sold:99});

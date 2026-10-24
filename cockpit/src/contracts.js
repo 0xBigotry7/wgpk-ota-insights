@@ -1,7 +1,7 @@
 // Shared deterministic presentation contracts: no guessed dates, inventory basis or currencies.
 export function occupancyBand(value) {
   if (!Number.isFinite(value) || value < 0) return null;
-  return value <= 30 ? 0 : value > 100 ? 8 : Math.ceil(value / 10) - 3;
+  return value > 100 ? 10 : Math.max(0, Math.ceil(value / 10) - 1);
 }
 export function metricContext(m) {
   return { observed_on: m.day, reporting_window: m.period || null, stay_date: null,
