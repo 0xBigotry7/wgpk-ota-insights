@@ -88,6 +88,24 @@ def test_cockpit_payload_has_numbers_and_health_but_no_text(tmp_path):
     assert isinstance(db, sqlite3.Connection)
 
 
+def test_native_channel_source_date_survives_extraction_and_aggregate_payload_without_model(tmp_path):
+    db = _db(tmp_path)
+    page = tmp_path / 'traffic.txt'
+    page.write_text('列表页浏览量\n1,234\n详情页浏览量\n123\n订单量\n7\nSelected date filters: 2026-09-23 | 2026-10-22')
+    store.add_snapshot(db, run_id='20261022-163347', cid='ctrip', slug='traffic', captured_at='x', status='ok', text_path=str(page))
+
+    def no_model(*args):
+        raise AssertionError('native metrics must not call a model')
+
+    extract.extract_run(db, '20261022-163347', ask=no_model)
+    payload = cockpit.payload(db, '20261022-163347')
+    assert len(payload['metrics']) == 3
+    assert all(m['source_as_of'] == '2026-10-22' for m in payload['metrics'])
+    assert all(m['source_date_basis'] == 'selected_window_end' for m in payload['metrics'])
+    assert all(m['period'] == 'dates_2026-09-23_2026-10-22' for m in payload['metrics'])
+    assert 'Selected date filters' not in str(payload)
+
+
 def test_advice_must_cite_real_numbers():
     from ota import advise
     data = {"booking": {"conversion_rate@last_30_days": {"label": "转化率", "unit": "%", "points": [["2026-10-29", 2.1]]}}}

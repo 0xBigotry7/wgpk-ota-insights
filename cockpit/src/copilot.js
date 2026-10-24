@@ -35,8 +35,9 @@ const SYSTEM = `你是普吉岛卡马拉温德姆花园酒店（Wyndham Garden P
 actions 最多 4 条，只在确实该有人去做事时给；纯问答时给空列表。`;
 
 /** The data block the model answers from: one line per metric, then alerts, report and to-dos. */
-export function context({ metrics = [], advice = [], todos = [], revenue, operator, selected_stay_date }, { alerts = [], wins = [], health = null } = {}) {
+export function context({ metrics = [], advice = [], todos = [], revenue, operator, channels, selected_stay_date }, { alerts = [], wins = [], health = null } = {}) {
   const lines = ["# 当前数据上下文（入住日与OTA统计窗口严格分开）", JSON.stringify(stayContext(revenue, selected_stay_date))];
+  if (channels) lines.push('# OTA主线：漏斗/流失可售/未来在手（不同平台统计窗口与分母不得混算）',JSON.stringify(channels));
   if (revenue) lines.push("# PMS 经营数据边界（优先于旧日报和知识库）", JSON.stringify({ status: revenue.status,
     source_as_of: revenue.source?.as_of, source_date_basis: revenue.source?.as_of_basis || "explicit_export_date", currency: revenue.source?.currency, precision: revenue.source?.precision,
     months: revenue.months, gaps: revenue.gaps, formulas: revenue.formulas }));
@@ -99,7 +100,7 @@ export function groundAnswer(answer, state) {
   const today = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
   const actions = (answer.actions || []).filter(a => a.evidence_ids?.length && a.evidence_ids.every(id => {
     const e = evidence.get(id);
-    return e && e.day <= today && (Date.parse(today) - Date.parse(e.day)) <= 864e5;
+    return e && e.day <= today && (Date.parse(today) - Date.parse(e.source_as_of||e.day)) <= 864e5;
   })).filter(a => !/涨价|降价|提价|调价|促销|折扣|超售|关房|开房/.test(a.title + a.detail));
   return { ...answer, actions, action_guard: { proposed: answer.actions?.length || 0, accepted: actions.length,
     rule: "待办需当前有效证据；价格/库存/促销方案走人工调查卡，不由模型直接生成执行按钮" } };

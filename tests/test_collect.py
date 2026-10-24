@@ -32,6 +32,12 @@ class FakePage:
     async def inner_text(self, _):
         return self._text
 
+    def locator(self, _):
+        return self
+
+    async def all(self):
+        return []
+
     async def evaluate(self, _):
         return [{"text": "Analytics", "href": "https://admin.booking.com/x"}]
 
@@ -82,7 +88,7 @@ def test_booking_pages_use_landing_session_and_survive_errors(tmp_path, monkeypa
     assert {r["slug"]: r["status"] for r in rows} == {
         "landing": "ok", "reviews": "ok", "content-score": "page_missing", "sales-insights": "error",
         "sales-30d": "error", "sales-90d": "error", "pace-report": "ok", "pace-90d": "ok", "search-rank": "ok",
-        "analytics-30d": "ok", "analytics-90d": "ok", "search-rank-90d": "ok", "booker-insights": "ok",
+        "analytics-30d": "ok", "analytics-90d": "ok", "search-rank-30d": "ok", "search-rank-90d": "ok", "booker-insights": "ok",
         "genius": "ok", "opportunities": "ok", "competitive-set": "ok", "inbox": "ok"}
     assert all("hotel_id=9&lang=en&ses=s1" in u for u in ctx.page.visited[1:])
     assert (tmp_path / "booking" / "reviews.txt").read_text() == "Review score 8.6"
@@ -120,7 +126,8 @@ def test_slow_widgets_get_one_more_wait_and_redirects_are_missing(tmp_path, monk
 
     ctx = FakeCtx(lambda u: ("https://ebooking.ctrip.com/home/oversea" if "datacenter" in u else u, 200, "今日新订 0"))
     rows = run(ctx, "ctrip", tmp_path, monkeypatch)
-    assert {r["slug"]: r["status"] for r in rows} == {"landing": "ok", "home": "ok", "data-center": "page_missing"}
+    assert {r["slug"]: r["status"] for r in rows} == {"landing": "ok", "home": "ok", "data-center": "page_missing",
+                                                        "traffic": "page_missing", "performance": "page_missing", "lost-bookings": "page_missing"}
     assert not (tmp_path / "ctrip" / "data-center.txt").exists()
 
 

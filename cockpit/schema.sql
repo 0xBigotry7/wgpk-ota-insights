@@ -32,6 +32,11 @@ CREATE TABLE IF NOT EXISTS metrics (
   PRIMARY KEY (day, platform, metric, period)
 );
 CREATE INDEX IF NOT EXISTS metrics_platform_day ON metrics (platform, day);
+CREATE TABLE IF NOT EXISTS metric_source_dates (
+  day TEXT NOT NULL, platform TEXT NOT NULL, metric TEXT NOT NULL, period TEXT NOT NULL,
+  run_id TEXT NOT NULL, source_as_of TEXT NOT NULL, source_date_basis TEXT NOT NULL,
+  PRIMARY KEY(day,platform,metric,period,run_id)
+);
 
 CREATE TABLE IF NOT EXISTS advice (
   id TEXT PRIMARY KEY,            -- e.g. 2026-W43

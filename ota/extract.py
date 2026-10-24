@@ -14,6 +14,7 @@ from pathlib import Path
 
 from . import llm
 from .catalog import CATALOG, Metric
+from .channel_extract import channel_values, source_date
 from .store import put_metric
 
 MAX_CHARS = 14000
@@ -118,16 +119,23 @@ def extract_run(db: sqlite3.Connection, run_id: str, ask=llm.ask_json) -> dict:
         if slug == "landing":
             text = landing_window(text)
         listing = "\n".join(f"- {m.key}: {m.hint}" for m in metrics.values())
+        deterministic = channel_values(cid, slug, text, day)
         try:
-            res = ask(PROMPT.format(platform=cid, page=slug, metrics=listing, text=text), SCHEMA)
+            res = {"values": deterministic} if deterministic is not None else ask(PROMPT.format(platform=cid, page=slug, metrics=listing, text=text), SCHEMA)
         except Exception as e:  # noqa: BLE001 - one page never stops the rest
             counts[f"{cid}/{slug}"] = -1
             print(f"extract {cid}/{slug}: {type(e).__name__}: {e}", flush=True)
             continue
         kept = check(res.get("values", []), metrics, text)
+        periods = {v['key']: v.get('period_override') for v in (deterministic or [])}
+        date_info = source_date(cid, slug, text)
         for m, val, bench in kept:
-            put_metric(db, day=day, cid=cid, metric=m.key, period=m.period, label=m.label, value=val, unit=m.unit,
-                       benchmark=bench, run_id=run_id, source_slug=slug, extracted_by="codex")
+            period = periods.get(m.key) or m.period
+            put_metric(db, day=day, cid=cid, metric=m.key, period=period, label=m.label, value=val, unit=m.unit,
+                       benchmark=bench, run_id=run_id, source_slug=slug, extracted_by="native_rules_v1" if deterministic is not None else "codex")
+            if date_info and not m.key.startswith('diagnostic_'):
+                db.execute('INSERT OR REPLACE INTO metric_source_dates VALUES (?,?,?,?,?,?,?)',
+                           (day, cid, m.key, period, run_id, *date_info))
         db.commit()
         counts[f"{cid}/{slug}"] = len(kept)
     print(json.dumps({"extract": run_id, "counts": counts}, ensure_ascii=False), flush=True)

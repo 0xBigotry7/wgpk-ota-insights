@@ -111,7 +111,7 @@ with sync_playwright() as p:
     page.locator("#revenue-metric").select_option("revpar")
     page.locator('[data-stay="2026-10-23"]').click()
     assert "也不能变成实绩" in page.locator("#revenue-day").inner_text()
-    page.locator(".op-approve").first.click()
+    page.locator('.op-approve[data-ref="gate:pms"]').click()
     page.wait_for_selector('[data-status="reported"]')
     page.locator("[data-note]").first.fill("验收：人工检查经营报告的来源时间")
     page.locator('[data-status="reported"]').first.click()

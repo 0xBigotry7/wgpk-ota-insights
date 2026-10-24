@@ -4,7 +4,8 @@ export function occupancyBand(value) {
   return value > 100 ? 10 : Math.max(0, Math.ceil(value / 10) - 1);
 }
 export function metricContext(m) {
-  return { observed_on: m.day, reporting_window: m.period || null, stay_date: null,
+  return { observed_on: m.day, source_as_of:m.source_as_of||null, source_date_basis:m.source_date_basis||null,
+    reporting_window: m.period || null, stay_date: null,
     grain: m.period ? 'platform_reporting_window' : 'platform_observation',
     currency: /^[A-Z]{3}$/.test(m.unit || '') ? m.unit : null,
     comparison_basis: m.benchmark == null ? null : 'platform_reported_comparison',

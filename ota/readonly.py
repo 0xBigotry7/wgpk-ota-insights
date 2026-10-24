@@ -7,6 +7,7 @@ every collector module for those calls, so adding one fails CI rather than revie
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 # Fixed, side-effect-free: the visible links on the page, for calibrating UNVERIFIED page URLs.
@@ -32,7 +33,24 @@ class ReadOnlyTab:
         return await self._page.title()
 
     async def text(self) -> str:
-        return await self._page.inner_text("body")
+        text = await self._page.inner_text("body")
+        if "admin.booking.com/" in self._page.url and "showrank.html" in self._page.url:
+            periods = []
+            for control in await self._page.locator('select').all():
+                value = await control.input_value()
+                if value in {'DAYS30', 'DAYS60', 'DAYS90', 'DAYS365'}:
+                    periods.append(value)
+            return text + ('\nSelected analytics period: ' + ' | '.join(periods) if periods else '')
+        if "ebooking.ctrip.com/ebkgrowth/datacenter" not in self._page.url:
+            return text
+        # Date pickers render their selected interval as input values, not body text.
+        # Only ISO/Chinese calendar dates are retained; never arbitrary form contents.
+        dates = []
+        for control in await self._page.locator("input").all():
+            value = (await control.input_value()).strip()
+            if re.fullmatch(r"20\d{2}(?:-\d{1,2}-\d{1,2}|年\d{1,2}月\d{1,2}日)", value):
+                dates.append(value)
+        return text + ("\nSelected date filters: " + " | ".join(dates) if dates else "")
 
     async def links(self) -> list[dict]:
         return await self._page.evaluate(LINKS_JS)
