@@ -2,6 +2,7 @@
 // since last week, which platform stopped giving data, what is waiting for a reply. Pure functions, so the page,
 // the daily push and the copilot all work from the same list.
 
+import { organizeAlerts } from "./contracts.js";
 import { season } from "./knowledge.js";
 
 const LOWER_BETTER = /(^|_)(rank|problem|sort_order|response_hours|pending|had_problem|cancellation|lost)/;
@@ -404,8 +405,8 @@ export function monitor({ metrics = [], pages = [], runs = [], history = [] }, n
       detail: m.day, ...how(plan) });
   }
 
-  // One line per metric family: this month's ADR gap makes last month's redundant.
-  const family = (x) => (x.metric == null ? x.id : `${x.id.split(":")[0]}:${String(x.metric).replace(/_(mtd|last_month|latest_month|\d+[dm])(@.*)?$|@.*$/, "")}`);
+  // Only the same rule/metric window is redundant. Last month and rolling30d are not duplicates.
+  const family = x => JSON.stringify([x.platform, x.id.split(':')[0], x.metric || x.id, x.stay_date || null]);
   const current = (x) => (/last_month/.test(x.metric) ? 1 : 0);
   const dedupe = (list) => {
     const best = {};
@@ -418,7 +419,7 @@ export function monitor({ metrics = [], pages = [], runs = [], history = [] }, n
   // Diagnoses explain several numbers at once, so they lead their level.
   const order = (a, b) => LEVELS[a.level] - LEVELS[b.level] || (b.id.startsWith("diag:") - a.id.startsWith("diag:")) || Math.abs(b.gap || 0) - Math.abs(a.gap || 0);
   const kept = alerts.filter((a) => ![...suppress].some((p) => a.id.startsWith(p)));
-  return { season: season(now.getUTCMonth() + 1), health: hl, alerts: dedupe(kept).sort(order).slice(0, 20), wins: dedupe(wins).sort((a, b) => (b.gap || 0) - (a.gap || 0)).slice(0, 8) };
+  return { season: season(now.getUTCMonth() + 1), health: hl, ...organizeAlerts(dedupe(kept).sort(order)), wins: dedupe(wins).sort((a, b) => (b.gap || 0) - (a.gap || 0)).slice(0, 8) };
 }
 
 /** The daily push: short enough for a phone notification, newest problems first. */

@@ -1,3 +1,4 @@
+import { metricContext } from "./contracts.js";
 // OTA cockpit for Wyndham Garden Phuket Kamala: a password-protected page over D1.
 //
 // Writes come only from the hotel Mac mini's collector (Bearer OTA_INGEST_TOKEN) and carry aggregate
@@ -276,11 +277,11 @@ async function loadState(env) {
   const daily = snapshots.length ? await all(env.DB.prepare(`select * from pms_daily where snapshot_id in (${snapshots.map(() => "?").join(",")})`).bind(...snapshots.map(s => s.id))) : [];
   const decisions = await all(env.DB.prepare("select * from operator_decisions order by id desc limit 50"));
   const state = {
-    harness_version: "3.0-evidence-operator",
+    harness_version: "3.1-operator-foundations",
     latest_run: latest,
     runs,
     pages,
-    metrics,
+    metrics: metrics.map(m => ({...m, data_context: metricContext(m)})),
     advice: advice.map(readReport),
     todos,
     routines: Object.fromEntries(Object.entries(ROUTINES).map(([c, items]) => [c, {
