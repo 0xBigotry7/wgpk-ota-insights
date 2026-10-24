@@ -64,3 +64,7 @@ Gary authorized the proposed implementation: desktop cells show occupancy, ADR a
 
 ### Calendar local acceptance complete
 46 Node / 62 Python tests and Ruff passed. Extended local-only browser acceptance passed: default occupancy/ADR/RevPAR, true adjacent months, second-month selection and Copilot/date context, single/double switch, December-to-January rollover, missing next month disabled/not zero-filled, 360/390/800/1180/1399/1400/1512/1920 responsive widths, preserved what-if and investigation flows. Screenshots in ignored data/acceptance/calendar-{dual,mobile}-metrics.png inspected. Source warning remains July 28, currency unknown. Local config omits remote AI binding; no model calls.
+
+### Calendar publication complete
+PR #27 merged as cb6c205. Both GitHub CI runs passed. Existing Worker deployment uploaded the two changed assets and published version bded2d55-91e3-49b3-a25a-b55cf8f8ed4c to ota.wyndhamgardenkamala.com; existing cron schedules retained. Browser acceptance was local, not an authenticated production UI session. No schema or backend business logic changes.
+Gary's follow-up correction: before any next feature, deeply understand IDeaS end-to-end business use, interaction, metric definitions and data prerequisites, then assess applicability and propose; screenshot/menu coverage is not mastery. Current approved calendar work only.
