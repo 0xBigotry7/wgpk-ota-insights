@@ -3,6 +3,12 @@
 ## 2026-10-24 existing-report-first implementation
 Gary authorizes doing feasible functions from already received OPERA reports now, deferring missing inputs to a later OPERA exploration. Reconciled the private History & Forecast original: 149 actual dates (March 1–July 27), 96 future dates (July 28–October 31), 55 columns. Implement optional numeric operating details (effective inventory/OOO, individual/group deduct vs non-deduct, arrivals/departures/no-show), preserve physical-stock calendar colors while making effective occupancy explicit. Build and backtest an independent actuals-only baseline offline, without IDeaS outputs. Do not turn a July source into a current forecast. Missing lifecycle/pace/room-type inputs are follow-up, not blockers for these functions. No OPERA login/config change or guest-sync changes.
 
+### Existing-report release verified
+- PR #28 merged `888a751`, denominator-label follow-up `205f88c`; both CI passed. 65 Python / 48 Node tests, Ruff, real-report reconciliation and local desktop/mobile interactions passed. Browser evidence under private `data/acceptance/opera-operating-*`.
+- Added numeric-details table; existing Worker published as `eef22a16-7671-4207-92ab-965403e0d523`. Production manual archive poll 2026-10-24 16:19 Bangkok enriched the existing vintage (imported 0, processed 1, blocked 0), preserving original dates. Read-only API confirmed 245 operating dates, all 4 reconciliation checks true, 317 OTA metrics preserved, source 7/28 still stale.
+- Original archive only read; guest routes, collector/review process, OPERA settings and OTA price/inventory untouched. UI verified locally, not through a logged-in production browser.
+- Independent weekday baseline is implemented and daily-origin backtested on A_STAT only; 1/7/14/30-day occupancy MAE 13.22/14.95/16.13/16.74 pp. Poor room/revenue accuracy: NOT enabled in production calendar. Full private output `data/independent-baseline.json`; concrete feasible/delayed field map in `docs/OPERA-EXISTING-REPORT-CAPABILITIES.md`.
+
 ## Authorized objective
 Improve the existing wgpk-ota-insights product using the legacy OPERA analytics cockpit and publicly documented IDeaS workflows. Reuse aggregate PMS exports; preserve the repository's strictly read-only OTA collector and review-operator isolation. No live OTA pricing/inventory writes or authenticated IDeaS changes.
 
