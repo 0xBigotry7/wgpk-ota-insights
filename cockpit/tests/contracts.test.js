@@ -20,6 +20,7 @@ test('date contract keeps observed date, selected stay date and reporting window
   assert.equal(stayContext(revenue,'2026-11-02').stay_date,null);
   const prompt=context({revenue,selected_stay_date:'2026-11-01',metrics:[{...m,platform:'booking',metric:'click_rate',label:'点击率',value:2}]});
   assert.match(prompt,/入住日与OTA统计窗口严格分开/);assert.match(prompt,/last_30_days/);assert.match(prompt,/不属于选中入住日/);
+  assert.match(context({metrics:[{platform:"booking",metric:"adr_30d",day:"2026-10-24",value:1}]}),/未标注（待核实）/);
 });
 test('inbox collapses exact issues, preserves different scopes and prioritizes data quality independently of business score',()=>{
   const a={id:'gap:click',metric:'booking|click@last_30_days',platform:'booking',area:'traffic',level:'critical'};
