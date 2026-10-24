@@ -36,7 +36,7 @@ actions 最多 4 条，只在确实该有人去做事时给；纯问答时给空
 export function context({ metrics = [], advice = [], todos = [], revenue, operator, selected_stay_date }, { alerts = [], wins = [], health = null }) {
   const lines = [];
   if (revenue) lines.push("# PMS 经营数据边界（优先于旧日报和知识库）", JSON.stringify({ status: revenue.status,
-    source_as_of: revenue.source?.as_of, currency: revenue.source?.currency, precision: revenue.source?.precision,
+    source_as_of: revenue.source?.as_of, source_date_basis: revenue.source?.as_of_basis || "explicit_export_date", currency: revenue.source?.currency, precision: revenue.source?.precision,
     months: revenue.months, gaps: revenue.gaps, formulas: revenue.formulas }));
   const selected = revenue?.days?.filter(d => d.stay_date === selected_stay_date);
   if (selected?.length) lines.push("# 用户正在查看的入住日期（不是今天的事实）", JSON.stringify(selected));

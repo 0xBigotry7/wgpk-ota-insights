@@ -75,3 +75,26 @@ For later RSI: production observations propose improvements; fixed synthetic saf
 validate candidates separately. Never let the model edit gates, grade its own task completion, or promote a rule
 from one correlated outcome. Full demand forecasting, channel commission economics, verified per-stay-date OTA
 inventory and causal experiments remain separate work—not fabricated features of this release.
+
+## Continuous archive bridge (2026-10-24)
+
+The cockpit polls the existing dedicated OPERA analytics D1/R2 archive at minute 07 and 37 each hour.
+It reads only `history_forecast*.txt/.tsv`, verifies the archived SHA256 and imports only allowlisted property-day
+numeric aggregates. The source archive is SELECT/GET-only in this code. The OPERA mail Worker, Email Routing,
+in-house/departure feeds, guest services and review browser are unchanged. The independent 12:30 digest schedule
+is preserved; archive polling never calls a model, creates a to-do or sends Telegram messages.
+
+The existing raw OPERA export has no explicit generation-date header. For this schema, the importer accepts a
+source business cutoff only when the last `A_STAT` date is exactly one day before the first `B_FORE` date.
+This is persisted as `actual_projection_business_cutoff` and displayed as **报表业务分界日**, not export time.
+The archive receipt date and current poll time are never used to freshen a report. Missing/ambiguous boundaries
+are quarantined for review rather than guessed. Unknown currency remains null unless explicitly verified.
+
+An immutable receipt makes each source file/checksum/version idempotent; a two-minute D1 lease avoids overlapping
+manual/cron work. Each poll processes at most two new reports. Deterministic parse/checksum/scope errors are blocked;
+transient archive/storage failures retry at most three times. Audit receipts and source provenance contain no guest data.
+Only the collector token can call `POST /api/pms/poll`; viewers cannot force a poll or inject a source date.
+
+**Upstream dependency remains:** the analytics archive still last received the July 28 batch. New reports cannot be
+created by receiver code. A hotel OPERA Report Scheduler session is required to restore periodic History & Forecast
+sending to `opera-analytics@wyndhamgardenkamala.com`. Only then can an actual current report be verified end-to-end.

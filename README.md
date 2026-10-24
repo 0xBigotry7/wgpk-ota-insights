@@ -113,3 +113,15 @@ source before enabling—reusing a fixed July file will not create current data.
 Apply additive D1 schema before deploying code (`cockpit/schema.sql`, all new tables are IF NOT EXISTS).
 Python collector releases are still manual; Cloudflare deploys on tested main pushes **only when repository deployment secrets are present**. A green skipped deploy is not proof of rollout; verify the live API version. Local UI acceptance uses
 Chrome + Playwright and a seeded local Worker; run `.venv/bin/python tools/acceptance.py`, never point it at production.
+
+### Automatic OPERA archive import
+
+The cockpit now polls the dedicated existing OPERA analytics archive every 30 minutes (UTC minute 07/37).
+No hotel-machine file watcher is needed for this path. It requires the `PMS_ARCHIVE_DB` / `PMS_REPORTS` bindings
+in `cockpit/wrangler.toml` and the additive tables in `schema.sql`. Only History & Forecast numeric rows enter
+OTA D1; the guest check-in/out Worker and browser collector are not changed.
+
+The date shown for raw exports is the report's validated actual/future **business cutoff**, not an invented
+export time. Today receiving an old export does not refresh it. `GET /api/state` exposes `revenue.feed` for last
+poll, last archive receipt, source date, quarantine counts and status. An authenticated collector can run
+`POST /api/pms/poll` for immediate verification. This does not restore OPERA's upstream sending schedule.

@@ -19,13 +19,23 @@ binding = "DB"
 database_name = "wgpk_ota"
 database_id = "2429868e-8aeb-441b-ac8f-f2ab654ce12e"
 
+# Existing analytics archive, read-only in bridge code. Never bind the guest check-in database.
+[[d1_databases]]
+binding = "PMS_ARCHIVE_DB"
+database_name = "wgpk-opera-analytics"
+database_id = "f23b96d4-bbc5-4567-940f-3b225f697143"
+
+[[r2_buckets]]
+binding = "PMS_REPORTS"
+bucket_name = "wgpk-opera-analytics"
+
 # Secrets (wrangler secret put): DASHBOARD_PASSWORD, SESSION_SECRET, OTA_INGEST_TOKEN.
 # There are no defaults: without them login and ingest are refused.
 
 # Daily alert push at 12:30 Bangkok, after the 10:20 run and its 11:30 fallback. Sends only when the
 # TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID secrets are set.
 [triggers]
-crons = ["30 5 * * *"]
+crons = ["30 5 * * *", "7,37 * * * *"]
 
 # Copilot model: Workers AI by default; set COPILOT_API_KEY (+ COPILOT_BASE_URL, COPILOT_MODEL) for an
 # OpenAI-compatible API such as DeepSeek or OpenAI instead.
