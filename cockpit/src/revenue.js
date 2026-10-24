@@ -1,4 +1,5 @@
 import { occupancyBand, stayContext } from "./contracts.js";
+import { detailErrors, operatingDetails } from './pms-details.js';
 // Property aggregates only. Source time is deliberately independent of upload time.
 export const bkkDay = (now = new Date()) => new Date(now.getTime() + 7 * 3600e3).toISOString().slice(0, 10);
 const day = (s) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s)
@@ -20,7 +21,8 @@ export function validatePms(body, today = bkkDay()) {
   if (!Array.isArray(rows) || !rows.length || rows.length > 1500) errors.push("1–1500 daily aggregate rows required");
   const seen = new Set();
   for (const [i, r] of (Array.isArray(rows) ? rows.slice(0, 1501) : []).entries()) {
-    if (!keysOnly(r, ROW_KEYS) || ROW_KEYS.some(k => !(k in r))) { errors.push(`row ${i}: only daily numeric aggregate fields allowed`); continue; }
+    if (!keysOnly(r, [...ROW_KEYS, 'details']) || ROW_KEYS.some(k => !(k in r))) { errors.push(`row ${i}: only daily numeric aggregate fields allowed`); continue; }
+    if ('details' in r) errors.push(...detailErrors(r.details).map(e=>`row ${i}: ${e}`));
     if (!day(r.stay_date) || !["actual", "pms_projection"].includes(r.kind)) errors.push(`row ${i}: invalid date/kind`);
     if (r.kind === "actual" && r.stay_date > s?.as_of) errors.push(`row ${i}: future actuals`);
     if (!ROW_KEYS.slice(2).every(k => finite(r[k]))) errors.push(`row ${i}: invalid numeric value`);
@@ -36,17 +38,22 @@ export async function ingestPms(db, body, now = new Date()) {
   const s = body.snapshot;
   // A snapshot is immutable. Re-upload is idempotent, never a new vintage.
   const old = await db.prepare("select id from pms_snapshots where id = ?").bind(s.id).first();
-  if (old) return { ok: true, duplicate: true, snapshot: s.id, rows: body.rows.length };
-  const stmts = [db.prepare(`insert into pms_snapshots
+  const stmts = old ? [] : [db.prepare(`insert into pms_snapshots
     (id, source_sha256, as_of, received_at, currency, precision, scope, source)
     values (?, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(s.id, s.source_sha256, s.as_of, now.toISOString(), s.currency, s.precision, s.scope, s.source)];
-  for (const r of body.rows) stmts.push(db.prepare(`insert into pms_daily
+  for (const r of body.rows) {
+    if (!old) stmts.push(db.prepare(`insert into pms_daily
     (snapshot_id, stay_date, kind, inventory, rooms_sold, room_revenue, reported_adr, reported_occupancy)
     values (?, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(s.id, ...ROW_KEYS.map(k => r[k])));
-  await db.batch(stmts);
-  return { ok: true, duplicate: false, snapshot: s.id, rows: body.rows.length };
+    if (r.details) stmts.push(db.prepare(`insert or ignore into pms_daily_details
+      (snapshot_id,stay_date,kind,details) select ?,?,?,? where exists
+      (select 1 from pms_daily where snapshot_id=? and stay_date=? and kind=?)`)
+      .bind(s.id,r.stay_date,r.kind,JSON.stringify(r.details),s.id,r.stay_date,r.kind));
+  }
+  if (stmts.length) await db.batch(stmts);
+  return { ok: true, duplicate: !!old, snapshot: s.id, rows: body.rows.length };
 }
 
 const ratio = (a, b, scale = 1) => a !== null && b !== null && b > 0 ? a / b * scale : null;
@@ -69,7 +76,7 @@ export function revenueView(snapshots = [], rows = [], today = bkkDay()) {
     const p = previous.get(`${r.stay_date}|${r.kind}`);
     // Future-to-future only. Historic corrections are not booking pickup, nor are PMS projections true OTB.
     const comparable = r.kind === "pms_projection" && r.stay_date > source.as_of && r.stay_date > prior?.as_of;
-    return { ...r, ...totals([r]), room_revenue: r.room_revenue, rooms_sold: r.rooms_sold, inventory: r.inventory,
+    return { ...r, ...totals([r]), operations: operatingDetails(r), room_revenue: r.room_revenue, rooms_sold: r.rooms_sold, inventory: r.inventory,
       occupancy_band: occupancyBand(totals([r]).occupancy),
       evidence_id: `pms:${source.id}:${r.stay_date}:${r.kind}`,
       projection_change: comparable && Number.isFinite(p?.rooms_sold) && Number.isFinite(r.rooms_sold) ? r.rooms_sold - p.rooms_sold : null,

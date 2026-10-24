@@ -18,6 +18,16 @@ from pathlib import Path
 from . import cockpit
 
 KINDS = {"A_STAT": "actual", "B_FORE": "pms_projection", "history": "actual", "forecast": "pms_projection"}
+DETAIL_FIELDS = {
+    "effective_inventory": "CF_CALC_INV_ROOMS", "occupied_rooms": "CF_CALC_OCC_ROOMS",
+    "out_of_order": "CF_OOO_ROOMS", "individual_rooms": "IND_DEDUCT_ROOMS",
+    "individual_non_deduct_rooms": "IND_NON_DEDUCT_ROOMS", "group_rooms": "GRP_DEDUCT_ROOMS",
+    "group_non_deduct_rooms": "GRP_NON_DEDUCT_ROOMS", "individual_revenue": "IND_DEDUCT_REVENUE",
+    "individual_non_deduct_revenue": "IND_NON_DEDUCT_REVENUE", "group_revenue": "GRP_DEDUCT_REVENUE",
+    "group_non_deduct_revenue": "GRP_NON_DEDUCT_REVENUE", "arrivals": "ARRIVAL_ROOMS",
+    "departures": "DEPARTURE_ROOMS", "no_show": "NO_SHOW_ROOMS", "complimentary": "COMPLIMENTARY_ROOMS",
+    "house_use": "HOUSE_USE_ROOMS", "day_use": "DAY_USE_ROOMS", "persons": "NO_PERSONS",
+}
 
 
 def date_value(value: str) -> str:
@@ -59,6 +69,11 @@ def raw_rows(text: str) -> list[dict]:
                      "inventory": number(r["INVENTORY_ROOMS"]), "rooms_sold": number(r["NO_ROOMS"]),
                      "room_revenue": number(r["REVENUE"]), "reported_adr": number(r["CF_AVERAGE_ROOM_RATE"]),
                      "reported_occupancy": number(r["CF_OCCUPANCY"])})
+        details = {key: number(r[column]) for key, column in DETAIL_FIELDS.items() if column in r}
+        if details:
+            if any(v is not None and v < 0 for k, v in details.items() if "revenue" not in k):
+                raise ValueError("negative operating room count")
+            rows[-1]["details"] = details
     return rows
 
 

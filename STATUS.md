@@ -1,5 +1,8 @@
 # OTA Operator Harness upgrade — 2026-10-23
 
+## 2026-10-24 existing-report-first implementation
+Gary authorizes doing feasible functions from already received OPERA reports now, deferring missing inputs to a later OPERA exploration. Reconciled the private History & Forecast original: 149 actual dates (March 1–July 27), 96 future dates (July 28–October 31), 55 columns. Implement optional numeric operating details (effective inventory/OOO, individual/group deduct vs non-deduct, arrivals/departures/no-show), preserve physical-stock calendar colors while making effective occupancy explicit. Build and backtest an independent actuals-only baseline offline, without IDeaS outputs. Do not turn a July source into a current forecast. Missing lifecycle/pace/room-type inputs are follow-up, not blockers for these functions. No OPERA login/config change or guest-sync changes.
+
 ## Authorized objective
 Improve the existing wgpk-ota-insights product using the legacy OPERA analytics cockpit and publicly documented IDeaS workflows. Reuse aggregate PMS exports; preserve the repository's strictly read-only OTA collector and review-operator isolation. No live OTA pricing/inventory writes or authenticated IDeaS changes.
 
