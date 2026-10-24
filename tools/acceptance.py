@@ -27,6 +27,14 @@ with sync_playwright() as p:
     assert "历史档案" in page.locator("#revenue-source").inner_text()
     assert "2026-07-28" in page.locator("#revenue-source").inner_text()
     assert page.locator(".op-card").count() >= 2
+    page.locator('#revenue-month').select_option('2026-10')
+    page.locator('#revenue-metric').select_option('occupancy')
+    low = page.locator('[data-stay="2026-10-01"]').evaluate("e=>getComputedStyle(e).backgroundColor")
+    high = page.locator('[data-stay="2026-10-02"]').evaluate("e=>getComputedStyle(e).backgroundColor")
+    assert low != high, '9.8% and 10.6% must use visibly different fixed bands'
+    assert page.locator('.occupancy-legend i').count() == 12
+    page.locator('#sec-revenue').scroll_into_view_if_needed()
+    page.screenshot(path=str(OUT / 'occupancy-colors.png'))
     page.locator("#revenue-month").select_option("2026-07")
     page.locator('[data-stay="2026-07-27"]').click()
     assert "实绩" in page.locator("#revenue-day").inner_text()

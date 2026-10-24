@@ -39,8 +39,8 @@
       $('revenue-calendar').innerHTML=html;
       $('revenue-calendar').onclick = ev => {const b=ev.target.closest('[data-stay]'); if(b&&!b.disabled){selected=b.dataset.stay;render(state,refresh,notify);}};
     }
-    $('revenue-legend').textContent = metric==='occupancy'
-      ? '固定入住率色阶：≤30% 蓝 · >30–40% · >40–50% · >50–60% · >60–70% · >70–80% · >80–90% · >90–100% 橙 · >100% 红。跨月同值同色；缺数据为灰色。颜色不代表调价建议。'
+    $('revenue-legend').innerHTML = metric==='occupancy'
+      ? '<div>固定入住率色阶 · 每 10% 一档</div><div class="occupancy-legend">'+['0–10%','>10–20%','>20–30%','>30–40%','>40–50%','>50–60%','>60–70%','>70–80%','>80–90%','>90–100%','>100%'].map((label,i)=>`<span><i class="occ-${i}"></i>${label}</span>`).join('')+'<span><i></i>无数据</span></div><div>跨月同值同色；0% 有数据，无数据不补零。颜色不代表调价建议。</div>'
       : 'ADR / RevPAR 只显示金额，不使用未经确认的价格阈值着色。币种、税费和库存口径须核实后再比较。';
     renderDay(inMonth.find(d=>d.stay_date===selected));
     $('revenue-gaps').innerHTML = (r.gaps||[]).map(g=>`<li>${e(g)}</li>`).join('');
