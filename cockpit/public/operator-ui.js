@@ -65,13 +65,13 @@
     if (!d) {$('revenue-day').innerHTML='<div class="empty">选择日期看口径和来源</div>';return;}
     const o = d.operations;
     const check = v => v === true ? '一致' : v === false ? '不一致，待核查' : '缺字段，未对账';
-    const operating = o ? `<section class="opera-operating"><h4>OPERA 库存与经营明细</h4><dl class="rev-facts">
+    const operating = o ? `<section class="opera-operating"><h4>OPERA 库存与经营明细</h4><p class="meta">金额币种：${e(state.revenue.source.currency || '待确认')}；房量单位：间夜。</p><dl class="rev-facts">
       <dt>报表总库存</dt><dd>${n(d.inventory,2)}</dd><dt>停用房 OOO</dt><dd>${n(o.out_of_order,2)}</dd>
       <dt>有效库存（原报表）</dt><dd>${n(o.effective_inventory,2)}</dd><dt>入住计数（原报表）</dt><dd>${n(o.occupied_rooms,2)}</dd>
       <dt>有效库存入住率</dt><dd>${n(o.effective_occupancy,2)}%</dd><dt>有效库存 RevPAR</dt><dd>${money(o.effective_revpar)}</dd>
       <dt>有效库存减入住计数</dt><dd>${n(o.effective_headroom,2)}（非承诺可卖房）</dd>
-      <dt>散客扣库房量／收入／ADR</dt><dd>${n(o.individual_rooms,2)} / ${money(o.individual_revenue)} / ${money(o.individual_adr)}</dd>
-      <dt>团体扣库房量／收入／ADR</dt><dd>${n(o.group_rooms,2)} / ${money(o.group_revenue)} / ${money(o.group_adr)}</dd>
+      <dt>散客扣库房量／收入／ADR</dt><dd>${n(o.individual_rooms,2)} / ${n(o.individual_revenue,2)} / ${n(o.individual_adr,2)}</dd>
+      <dt>团体扣库房量／收入／ADR</dt><dd>${n(o.group_rooms,2)} / ${n(o.group_revenue,2)} / ${n(o.group_adr,2)}</dd>
       <dt>未扣库散客／团体房量</dt><dd>${n(o.individual_non_deduct_rooms,2)} / ${n(o.group_non_deduct_rooms,2)}（单列，不加到已售）</dd>
       <dt>抵店／离店房量</dt><dd>${n(o.arrivals,2)} / ${n(o.departures,2)}</dd><dt>No-show</dt><dd>${n(o.no_show,2)}</dd>
       <dt>免费房／自用房／日用房</dt><dd>${n(o.complimentary,2)} / ${n(o.house_use,2)} / ${n(o.day_use,2)}</dd></dl>
