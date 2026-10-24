@@ -30,7 +30,7 @@
     const visibleMonths = month ? [month, ...(calendarView === 'double' && wideCalendar.matches ? [nextMonth] : [])] : [];
     const visibleDays = r.days.filter(d => visibleMonths.includes(d.stay_date.slice(0,7)));
     if (!visibleDays.some(d => d.stay_date === selected)) selected = visibleDays[0]?.stay_date || '';
-    const summary = m => (r.months || []).filter(x => x.month === m).map(x => `<div class="rev-summary"><div class="meta">${kind(x.kind)} · ${x.days} 个已覆盖日期，非整月保证</div><div class="rev-kpis"><div><small>加权入住率</small><b>${n(x.occupancy,1)}%</b></div><div><small>加权 ADR</small><b>${n(x.adr)}</b></div><div><small>RevPAR</small><b>${n(x.revpar)}</b></div><div><small>客房收入</small><b>${n(x.room_revenue)}</b></div></div></div>`).join('');
+    const summary = m => (r.months || []).filter(x => x.month === m).map(x => `<div class="rev-summary"><div class="meta">${kind(x.kind)} · ${x.days} 个已覆盖日期，非整月保证</div><div class="rev-kpis"><div><small>总库存入住率</small><b>${n(x.occupancy,1)}%</b></div><div><small>加权 ADR</small><b>${n(x.adr)}</b></div><div><small>RevPAR</small><b>${n(x.revpar)}</b></div><div><small>客房收入</small><b>${n(x.room_revenue)}</b></div></div></div>`).join('');
     $('revenue-totals').innerHTML = '';
     $('revenue-calendar').classList.toggle('double', visibleMonths.length === 2);
     $('revenue-calendar').innerHTML = visibleMonths.map(m => {

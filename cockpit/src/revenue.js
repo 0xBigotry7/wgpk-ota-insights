@@ -89,7 +89,7 @@ export function revenueView(snapshots = [], rows = [], today = bkkDay()) {
     snapshots: sorted.map(s => ({ id: s.id, as_of: s.as_of, received_at: s.received_at, precision: s.precision })),
     gaps: ["未接入逐入住日的 OTA 渠道拆分、净佣金收入与可比竞品挂牌价", "PMS 未来值 ≠ 无约束需求预测；变化值 ≠ 已确认 pickup", "BAR、LRV、超售控制未接入，不从 ADR 或入住率推算"],
     data_context: stayContext({source, status: age > 1 ? "stale" : "current"}),
-    formulas: { occupancy: "Σ已售间夜 ÷ Σ可售间夜", adr: "Σ客房收入 ÷ Σ已售间夜", revpar: "Σ客房收入 ÷ Σ可售间夜" } };
+    formulas: { occupancy: "Σ报表房量 ÷ Σ报表总库存", adr: "Σ客房收入 ÷ Σ已售间夜", revpar: "Σ客房收入 ÷ Σ报表总库存" } };
 }
 
 // Arithmetic sensitivity only: no elasticity model, no demand prediction, no executable pricing instruction.
