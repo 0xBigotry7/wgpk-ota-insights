@@ -19,6 +19,54 @@ with sync_playwright() as p:
     page.locator('button[type="submit"]').click()
     page.wait_for_selector(".cal-day")
     initial = page.request.get(BASE + "/api/state").json()
+    # Multi-metric default, adjacent calendar months (not next data-bearing month),
+    # selection survives rerender and both months share the same source and bands.
+    page.locator('#revenue-month').select_option('2026-10')
+    assert page.locator('#revenue-metric').input_value() == 'all'
+    assert page.locator('.calendar-month').count() == 2
+    assert page.locator('.calendar-month h3').all_text_contents() == ['2026-10', '2026-11']
+    cell = page.locator('[data-stay="2026-10-01"]')
+    assert cell.locator('.cal-amount').count() == 2
+    assert 'ADR' in cell.inner_text() and 'RevPAR' in cell.inner_text()
+    assert '待确认' in page.locator('#revenue-calendar-note').inner_text()
+    assert page.locator('[data-stay="2026-11-01"]').is_disabled()
+    page.locator('#revenue-month').select_option('2026-09')
+    page.locator('[data-stay="2026-10-01"]').click()
+    assert '2026-10-01' in page.locator('#revenue-day').inner_text()
+    page.locator('#revenue-metric').select_option('occupancy')
+    assert page.locator('[data-stay="2026-10-01"]').get_attribute('aria-pressed') == 'true'
+    page.locator('#revenue-view').select_option('single')
+    assert page.locator('.calendar-month').count() == 1
+    page.locator('#revenue-view').select_option('double')
+    rollover = json.loads(json.dumps(initial))
+    rollover['revenue']['days'].append({**rollover['revenue']['days'][0], 'stay_date': '2026-12-01'})
+    page.evaluate("s => window.OperatorUI.render(s, () => {}, () => {})", rollover)
+    page.locator('#revenue-month').select_option('2026-12')
+    assert page.locator('.calendar-month h3').all_text_contents() == ['2026-12', '2027-01']
+    assert page.locator('[data-stay="2027-01-01"]').is_disabled()
+    assert '暂无报表数据' in page.locator('.calendar-month').last.inner_text()
+    page.evaluate("s => window.OperatorUI.render(s, () => {}, () => {})", initial)
+    page.reload()
+    page.wait_for_selector('.cal-day')
+    page.locator('#revenue-month').select_option('2026-10')
+    page.locator('#revenue-metric').select_option('all')
+    page.locator('[data-stay="2026-10-01"]').click()
+    page.locator('#sec-revenue').scroll_into_view_if_needed()
+    page.screenshot(path=str(OUT / 'calendar-dual-metrics.png'))
+    # Phone keeps one month, occupancy + ADR, with RevPAR available in details.
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.wait_for_function("document.querySelectorAll('.calendar-month').length === 1")
+    assert page.locator('[data-stay="2026-10-01"] .cal-revpar').is_hidden()
+    assert page.locator('[data-stay="2026-10-01"] .cal-amount').first.is_visible()
+    assert 'RevPAR' in page.locator('#revenue-day').inner_text()
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    page.locator('#sec-revenue').scroll_into_view_if_needed()
+    page.screenshot(path=str(OUT / 'calendar-mobile-metrics.png'))
+    for width in [360, 800, 1180, 1399, 1400, 1920]:
+        page.set_viewport_size({"width": width, "height": 1100})
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), width
+        page.wait_for_function("count => document.querySelectorAll('.calendar-month').length === count", arg=2 if width >= 1400 else 1)
+    page.set_viewport_size({"width": 1512, "height": 1100})
     for d in initial.get("operator", {}).get("decisions", []):
         if d["source_ref"] == "gate:pms" and d["status"] in ("investigating", "reported"):
             page.request.post(BASE + "/api/operator/" + str(d["id"]), data={"status": "dismissed", "note": "结束上轮本地验收记录"}, headers={"Origin": BASE})

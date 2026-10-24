@@ -58,3 +58,9 @@ After the IDeaS report, Gary asked to implement the most valuable, least controv
 
 ### Foundations verification
 PR #24 merged (`b70afce`). All 62 Python / 46 Node tests, Ruff, and local desktop/mobile browser flows pass, including filtered alert-index mapping, occupancy vs amount legends and date contracts. Local tests never target production or call a model. Production read-only API confirms 3.1-operator-foundations, 317 OTA metrics with explicit context, 245 PMS dates, 18 scoped alerts (2 data / 16 business), and original 2026-07-28 source still stale. No migrations, collector changes or production test decisions. Final wording patch keeps absent reporting windows unknown, not point-in-time.
+
+## 2026-10-24 multi-metric calendar and adjacent months
+Gary authorized the proposed implementation: desktop cells show occupancy, ADR and RevPAR; desktop defaults to adjacent-month overview with single-month option; mobile remains single month with occupancy and ADR, RevPAR in drill-down. Keep fixed occupancy colors, missing values, original source dates and unknown currency. No new prediction, real pricing/inventory writes, schema or collector changes. In progress: frontend implementation, local responsive/interaction verification, CI and existing Worker publication.
+
+### Calendar local acceptance complete
+46 Node / 62 Python tests and Ruff passed. Extended local-only browser acceptance passed: default occupancy/ADR/RevPAR, true adjacent months, second-month selection and Copilot/date context, single/double switch, December-to-January rollover, missing next month disabled/not zero-filled, 360/390/800/1180/1399/1400/1512/1920 responsive widths, preserved what-if and investigation flows. Screenshots in ignored data/acceptance/calendar-{dual,mobile}-metrics.png inspected. Source warning remains July 28, currency unknown. Local config omits remote AI binding; no model calls.

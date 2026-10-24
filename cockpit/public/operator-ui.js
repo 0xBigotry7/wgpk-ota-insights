@@ -4,7 +4,9 @@
   const e = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const n = (v, precision = 0) => Number.isFinite(v) ? v.toLocaleString('en-US', {maximumFractionDigits: precision}) : '—';
   const kind = k => k === 'actual' ? '实绩' : 'PMS 未来值';
-  let state, refresh, notify, month = '', metric = 'occupancy', selected = '';
+  let state, refresh, notify, month = '', metric = 'all', selected = '', calendarView = 'double';
+  const wideCalendar = window.matchMedia('(min-width: 1400px)');
+  wideCalendar.addEventListener('change', () => { if (state) render(state, refresh, notify); });
   const api = async (path, body) => {
     const r = await fetch(path, {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
     const j = await r.json(); if (!r.ok) throw new Error(j.error || '保存失败'); return j;
@@ -22,27 +24,39 @@
     $('revenue-month').onchange = ev => { month = ev.target.value; selected = ''; render(state, refresh, notify); };
     $('revenue-metric').value = metric;
     $('revenue-metric').onchange = ev => { metric = ev.target.value; render(state, refresh, notify); };
-    const inMonth = r.days.filter(d => d.stay_date.startsWith(month));
-    if (!inMonth.some(d => d.stay_date === selected)) selected = inMonth[0]?.stay_date || '';
-    $('revenue-totals').innerHTML = (r.months || []).filter(m => m.month === month).map(m => `<div class="rev-summary"><div class="meta">${kind(m.kind)} · ${m.days} 个已覆盖日期，非整月保证</div><div class="rev-kpis"><div><small>加权入住率</small><b>${n(m.occupancy,1)}%</b></div><div><small>加权 ADR</small><b>${n(m.adr)}</b></div><div><small>RevPAR</small><b>${n(m.revpar)}</b></div><div><small>客房收入</small><b>${n(m.room_revenue)}</b></div></div></div>`).join('');
-    if (!month) $('revenue-calendar').innerHTML = '<div class="empty">等待经营日报</div>';
-    else {
-      const offset = new Date(month+'-01T00:00:00Z').getUTCDay();
-      const count = new Date(Date.UTC(Number(month.slice(0,4)), Number(month.slice(5)), 0)).getUTCDate();
-
+    $('revenue-view').value = calendarView;
+    $('revenue-view').onchange = ev => { calendarView = ev.target.value; render(state, refresh, notify); };
+    const nextMonth = month ? new Date(Date.UTC(Number(month.slice(0,4)), Number(month.slice(5)), 1)).toISOString().slice(0,7) : '';
+    const visibleMonths = month ? [month, ...(calendarView === 'double' && wideCalendar.matches ? [nextMonth] : [])] : [];
+    const visibleDays = r.days.filter(d => visibleMonths.includes(d.stay_date.slice(0,7)));
+    if (!visibleDays.some(d => d.stay_date === selected)) selected = visibleDays[0]?.stay_date || '';
+    const summary = m => (r.months || []).filter(x => x.month === m).map(x => `<div class="rev-summary"><div class="meta">${kind(x.kind)} · ${x.days} 个已覆盖日期，非整月保证</div><div class="rev-kpis"><div><small>加权入住率</small><b>${n(x.occupancy,1)}%</b></div><div><small>加权 ADR</small><b>${n(x.adr)}</b></div><div><small>RevPAR</small><b>${n(x.revpar)}</b></div><div><small>客房收入</small><b>${n(x.room_revenue)}</b></div></div></div>`).join('');
+    $('revenue-totals').innerHTML = '';
+    $('revenue-calendar').classList.toggle('double', visibleMonths.length === 2);
+    $('revenue-calendar').innerHTML = visibleMonths.map(m => {
+      const offset = new Date(m+'-01T00:00:00Z').getUTCDay();
+      const count = new Date(Date.UTC(Number(m.slice(0,4)), Number(m.slice(5)), 0)).getUTCDate();
       let html = ['日','一','二','三','四','五','六'].map(s=>`<span class="cal-week">${s}</span>`).join('') + '<span></span>'.repeat(offset);
       for (let d=1;d<=count;d++) {
-        const key = month+'-'+String(d).padStart(2,'0'), row = inMonth.find(x=>x.stay_date===key), value = row?.[metric];
-        const intensity = !Number.isFinite(value) ? 'none' : metric==='occupancy' && Number.isInteger(row?.occupancy_band) ? 'occ-'+row.occupancy_band : 'neutral';
-        html += `<button class="cal-day ${intensity} ${key===selected?'selected':''}" data-stay="${key}" ${row?'':'disabled'} aria-label="${key} ${row?kind(row.kind):'缺数据'} ${n(value,1)}" aria-pressed="${key===selected}"><span>${d}</span><strong>${n(value,metric==='occupancy'?1:0)}${metric==='occupancy'&&value!=null?'%':''}</strong><small>${row?(row.kind==='actual'?'实绩':'未来值'):'无数据'}</small></button>`;
+        const key = m+'-'+String(d).padStart(2,'0'), row = visibleDays.find(x=>x.stay_date===key);
+        const occupancyColors = metric === 'all' || metric === 'occupancy';
+        const value = row?.[metric === 'all' ? 'occupancy' : metric];
+        const intensity = occupancyColors && Number.isFinite(row?.occupancy) && Number.isInteger(row?.occupancy_band) ? 'occ-'+row.occupancy_band : Number.isFinite(value) ? 'neutral' : 'none';
+        const metrics = metric === 'all'
+          ? `<strong class="cal-occ">${n(row?.occupancy,1)}${Number.isFinite(row?.occupancy)?'%':''}</strong><small class="cal-amount">ADR <b>${n(row?.adr)}</b></small><small class="cal-amount cal-revpar">RevPAR <b>${n(row?.revpar)}</b></small>`
+          : `<strong>${n(value,metric==='occupancy'?1:0)}${metric==='occupancy'&&Number.isFinite(value)?'%':''}</strong>`;
+        html += `<button class="cal-day ${intensity} ${key===selected?'selected':''}" data-stay="${key}" ${row?'':'disabled'} aria-label="${key} ${row?kind(row.kind):'缺数据'} 入住率 ${n(row?.occupancy,1)}% ADR ${n(row?.adr)} RevPAR ${n(row?.revpar)}" aria-pressed="${key===selected}"><span>${d}</span>${metrics}<small class="cal-kind">${row?(row.kind==='actual'?'实绩':'未来值'):'无数据'}</small></button>`;
       }
-      $('revenue-calendar').innerHTML=html;
-      $('revenue-calendar').onclick = ev => {const b=ev.target.closest('[data-stay]'); if(b&&!b.disabled){selected=b.dataset.stay;render(state,refresh,notify);}};
-    }
-    $('revenue-legend').innerHTML = metric==='occupancy'
-      ? '<div>固定入住率色阶 · 每 10% 一档</div><div class="occupancy-legend">'+['0–10%','>10–20%','>20–30%','>30–40%','>40–50%','>50–60%','>60–70%','>70–80%','>80–90%','>90–100%','>100%'].map((label,i)=>`<span><i class="occ-${i}"></i>${label}</span>`).join('')+'<span><i></i>无数据</span></div><div>跨月同值同色；0% 有数据，无数据不补零。颜色不代表调价建议。</div>'
+      return `<section class="calendar-month" aria-label="${m} 入住日历"><h3>${m}</h3><div class="calendar">${html}</div>${summary(m) || '<p class="meta">本月暂无报表数据</p>'}</section>`;
+    }).join('') || '<div class="empty">等待经营日报</div>';
+    $('revenue-calendar').onclick = ev => {const b=ev.target.closest('[data-stay]'); if(b&&!b.disabled){selected=b.dataset.stay;render(state,refresh,notify);$('revenue-detail').open=true;}};
+    $('revenue-legend').innerHTML = metric==='all' || metric==='occupancy'
+      ? '<div>底色仅代表入住率 · 每 10% 一档</div><div class="occupancy-legend">'+['0–10%','>10–20%','>20–30%','>30–40%','>40–50%','>50–60%','>60–70%','>70–80%','>80–90%','>90–100%','>100%'].map((label,i)=>`<span><i class="occ-${i}"></i>${label}</span>`).join('')+'<span><i></i>无数据</span></div><div>固定入住率色阶，跨月同值同色；0% 有数据，无数据不补零。颜色不代表调价建议。</div>'
       : 'ADR / RevPAR 只显示金额，不使用未经确认的价格阈值着色。币种、税费和库存口径须核实后再比较。';
-    renderDay(inMonth.find(d=>d.stay_date===selected));
+    $('revenue-calendar-note').textContent = `ADR = 平均房价，非当前售价；RevPAR = 每间可售房收入。金额取整显示，详情保留小数。币种：${r.source?.currency || '待确认'}。相邻月份用于连续总览，不代表同比／环比。`;
+    const day = visibleDays.find(d=>d.stay_date===selected);
+    $('revenue-detail-label').textContent = day ? `${selected} · ${kind(day.kind)} · 查看详情与操作` : '选择日期查看详情';
+    renderDay(day);
     $('revenue-gaps').innerHTML = (r.gaps||[]).map(g=>`<li>${e(g)}</li>`).join('');
     renderOperator();
   }
