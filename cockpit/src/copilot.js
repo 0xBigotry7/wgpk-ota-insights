@@ -59,7 +59,7 @@ export function context({ metrics = [], advice = [], todos = [], revenue, operat
     const contract = metricContext(m);
     const prev = rows.length > 1 ? `；上次 ${fmt(rows.at(-2).value, m.unit)}（${rows.at(-2).day}）` : "";
     lines.push(`- [${evidenceId(m)}] ${NAMES[m.platform]} ${m.label}${m.period ? `[${m.period}]` : ""}: ${fmt(m.value, m.unit)}`
-      + ` · 采样日 ${contract.observed_on} · 统计窗 ${contract.reporting_window || "时点指标"} · 不属于选中入住日`
+      + ` · 采样日 ${contract.observed_on} · 统计窗 ${contract.reporting_window || "未标注（待核实）"} · 不属于选中入住日`
       + `${m.benchmark != null ? `，同类 ${fmt(m.benchmark, m.unit)}` : ""}（${m.day}）${prev}`);
   }
   lines.push("", "# 自动预警", ...alerts.map((a) => `- [${a.level}] ${a.title}：${a.detail}`));
