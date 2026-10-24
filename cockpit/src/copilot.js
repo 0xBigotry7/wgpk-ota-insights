@@ -35,14 +35,28 @@ const SYSTEM = `你是普吉岛卡马拉温德姆花园酒店（Wyndham Garden P
 actions 最多 4 条，只在确实该有人去做事时给；纯问答时给空列表。`;
 
 /** The data block the model answers from: one line per metric, then alerts, report and to-dos. */
+function channelContext(channels) {
+  // UI records carry nested contracts and repeated raw fields; don't let them crowd
+  // selected dates/evidence out of the model budget. Preserve values and provenance.
+  const metric=m=>m?{id:m.evidence_id,metric:m.metric,label:m.label,value:m.value,unit:m.unit,
+    benchmark:m.benchmark,day:m.day,period:m.period,source_as_of:m.source_as_of||null,page:m.page,stale:m.stale}:null;
+  const fields=o=>Object.fromEntries(Object.entries(o).map(([k,m])=>[k,metric(m)]));
+  return {boundaries:channels.boundaries,
+    funnels:channels.funnels.map(f=>({platform:f.platform,window:f.window,complete:f.complete,
+      fields:fields(f.fields),ranks:f.ranks.map(metric),note:f.note})),
+    future:channels.future.map(v=>({horizon:v.horizon,channels:v.channels.map(c=>({platform:c.platform,
+      fields:fields(c.fields),pace:metric(c.pace)}))})),
+    investigations:channels.investigations.map(c=>({id:c.id,title:c.title,kind:c.kind,facts:c.facts,
+      hypothesis:c.hypothesis,plan:c.plan,evidence_ids:c.evidence_ids}))};
+}
 export function context({ metrics = [], advice = [], todos = [], revenue, operator, channels, selected_stay_date }, { alerts = [], wins = [], health = null } = {}) {
   const lines = ["# 当前数据上下文（入住日与OTA统计窗口严格分开）", JSON.stringify(stayContext(revenue, selected_stay_date))];
-  if (channels) lines.push('# OTA主线：漏斗/流失可售/未来在手（不同平台统计窗口与分母不得混算）',JSON.stringify(channels));
   if (revenue) lines.push("# PMS 经营数据边界（优先于旧日报和知识库）", JSON.stringify({ status: revenue.status,
     source_as_of: revenue.source?.as_of, source_date_basis: revenue.source?.as_of_basis || "explicit_export_date", currency: revenue.source?.currency, precision: revenue.source?.precision,
     months: revenue.months, gaps: revenue.gaps, formulas: revenue.formulas }));
   const selected = revenue?.days?.filter(d => d.stay_date === selected_stay_date);
   if (selected?.length) lines.push("# 用户正在查看的入住日期（不是今天的事实）", JSON.stringify(selected));
+  if (channels) lines.push('# OTA主线：漏斗/流失可售/未来在手（不同平台统计窗口与分母不得混算）',JSON.stringify(channelContext(channels)));
   if (operator) lines.push("# Operator 证据与调查卡（不是已执行动作）", JSON.stringify({
     boundaries: operator.boundaries,
     cards: operator.cards.map(c => ({ id: c.id, kind: c.kind, title: c.title, evidence_ids: c.evidence_ids, plan: c.plan })),

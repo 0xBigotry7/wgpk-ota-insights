@@ -5,6 +5,7 @@ import {operatorView,approveDecision} from '../src/operator.js';
 import {db} from './helpers/sqlite.js';
 import worker,{validateIngest} from '../src/worker.js';
 import {followup} from '../src/operator.js';
+import {context} from '../src/copilot.js';
 const day='2026-10-24';
 const m=(platform,metric,value,period,page='traffic',extra={})=>({platform,metric,value,period,page,day,unit:'',label:metric,run_id:'20261024-160000',...extra});
 test('complete native funnels align stages without mixing windows, days, pages or capture runs',()=>{
@@ -54,4 +55,11 @@ test('platform cutoff survives SQL/API, becomes stale and never leaks across a l
  const d={baseline:{...data},status:'reported',updated_at:'2026-10-25T00:00:00Z'};
  assert.equal(followup(d,[{...data,day:'2026-10-27'}],'2026-10-28').status,'awaiting_data');
  DB.close();
+});
+test('channel context strips redundant UI payload while preserving selected-date and source evidence',()=>{
+ const metrics=[m('ctrip','bookings',133,'last_30_days','traffic',{data_context:{redundant:'x'.repeat(30000)}})];
+ const channels=channelView(metrics,[],day);
+ const prompt=context({metrics,channels,selected_stay_date:'2026-07-27',revenue:{status:'stale',source:{as_of:'2026-07-28'},days:[{stay_date:'2026-07-27',kind:'actual'}]}});
+ assert.ok(prompt.includes('用户正在查看的入住日期'));assert.ok(prompt.includes('ota:ctrip:bookings:last_30_days:2026-10-24'));
+ assert.ok(prompt.length<12000);assert.ok(!prompt.includes('xxxxxxxxxxxx'));
 });
