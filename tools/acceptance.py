@@ -86,6 +86,18 @@ with sync_playwright() as p:
     page.locator("#revenue-month").select_option("2026-07")
     page.locator('[data-stay="2026-07-27"]').click()
     assert "实绩" in page.locator("#revenue-day").inner_text()
+    if any(d.get('operations') for d in initial['revenue']['days']):
+        assert page.locator('.opera-operating').count() == 1
+        assert '有效库存入住率' in page.locator('#revenue-day').inner_text()
+        assert '散客扣库房量' in page.locator('#revenue-day').inner_text()
+        assert '未扣库散客／团体房量' in page.locator('#revenue-day').inner_text()
+        assert '不一致' not in page.locator('.opera-operating').inner_text()
+        page.locator('#revenue-detail').evaluate('e=>e.open=true')
+        page.locator('.opera-operating').screenshot(path=str(OUT / 'opera-operating-desktop.png'))
+        page.set_viewport_size({'width': 390, 'height': 844})
+        assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+        page.locator('.opera-operating').screenshot(path=str(OUT / 'opera-operating-mobile.png'))
+        page.set_viewport_size({'width': 1512, 'height': 1100})
     page.locator("#scenario-use").click()
     page.locator("#sc-rate").fill("10")
     page.locator("#sc-change").fill("-5")

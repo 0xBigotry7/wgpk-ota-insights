@@ -1,6 +1,7 @@
 // Independent of the live guest sync. Only SELECTs the analytics archive and exports numeric aggregates.
 import { bkkDay, validatePms, ingestPms } from './revenue.js';
-const VERSION = 'archive-bridge-v1';
+import { DETAIL_FIELDS } from './pms-details.js';
+const VERSION = 'archive-bridge-v2-details';
 const REQUIRED = ['REC_TYPE','CONSIDERED_DATE','CF_OCCUPANCY','CF_AVERAGE_ROOM_RATE','REVENUE','NO_ROOMS','INVENTORY_ROOMS'];
 const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 const sha = async bytes => [...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(b=>b.toString(16).padStart(2,'0')).join('');
@@ -29,9 +30,11 @@ export async function parseReport(bytes, expectedChecksum, today=bkkDay(), curre
     if(!line.trim())continue;
     const values=line.split('\t'),get=k=>values[headers.indexOf(k)]??'';
     const type=get('REC_TYPE').trim();if(!['A_STAT','B_FORE'].includes(type))continue;
+    const details=Object.fromEntries(Object.entries(DETAIL_FIELDS).filter(([,column])=>headers.includes(column)).map(([key,column])=>[key,numeric(get(column))]));
     rows.push({stay_date:reportDate(get('CONSIDERED_DATE')),kind:type==='A_STAT'?'actual':'pms_projection',
       inventory:numeric(get('INVENTORY_ROOMS')),rooms_sold:numeric(get('NO_ROOMS')),room_revenue:numeric(get('REVENUE')),
-      reported_adr:numeric(get('CF_AVERAGE_ROOM_RATE')),reported_occupancy:numeric(get('CF_OCCUPANCY'))});
+      reported_adr:numeric(get('CF_AVERAGE_ROOM_RATE')),reported_occupancy:numeric(get('CF_OCCUPANCY')),
+      ...(Object.keys(details).length?{details}:{})});
   }
   const actual=rows.filter(r=>r.kind==='actual').map(r=>r.stay_date).sort(),future=rows.filter(r=>r.kind==='pms_projection').map(r=>r.stay_date).sort();
   // This is a source business cutoff, NOT a guessed export/receipt date. Preserve the distinction in provenance/UI.

@@ -53,7 +53,7 @@
     $('revenue-legend').innerHTML = metric==='all' || metric==='occupancy'
       ? '<div>底色仅代表入住率 · 每 10% 一档</div><div class="occupancy-legend">'+['0–10%','>10–20%','>20–30%','>30–40%','>40–50%','>50–60%','>60–70%','>70–80%','>80–90%','>90–100%','>100%'].map((label,i)=>`<span><i class="occ-${i}"></i>${label}</span>`).join('')+'<span><i></i>无数据</span></div><div>固定入住率色阶，跨月同值同色；0% 有数据，无数据不补零。颜色不代表调价建议。</div>'
       : 'ADR / RevPAR 只显示金额，不使用未经确认的价格阈值着色。币种、税费和库存口径须核实后再比较。';
-    $('revenue-calendar-note').textContent = `ADR = 平均房价，非当前售价；RevPAR = 每间可售房收入。金额取整显示，详情保留小数。币种：${r.source?.currency || '待确认'}。相邻月份用于连续总览，不代表同比／环比。`;
+    $('revenue-calendar-note').textContent = `日历入住率／RevPAR 使用报表总库存；有效库存口径另见日期详情。ADR = 平均房价，非当前售价；RevPAR = 每间报表总库存房收入。金额取整显示，详情保留小数。币种：${r.source?.currency || '待确认'}。相邻月份用于连续总览，不代表同比／环比。`;
     const day = visibleDays.find(d=>d.stay_date===selected);
     $('revenue-detail-label').textContent = day ? `${selected} · ${kind(day.kind)} · 查看详情与操作` : '选择日期查看详情';
     renderDay(day);
@@ -63,9 +63,23 @@
   function renderDay(d) {
     if ($('cop-context')) $('cop-context').textContent=d ? `入住日 ${d.stay_date} · ${kind(d.kind)} · 来源 ${state.revenue.source.as_of}` : '未选择入住日 · OTA指标按各自统计窗解读';
     if (!d) {$('revenue-day').innerHTML='<div class="empty">选择日期看口径和来源</div>';return;}
+    const o = d.operations;
+    const check = v => v === true ? '一致' : v === false ? '不一致，待核查' : '缺字段，未对账';
+    const operating = o ? `<section class="opera-operating"><h4>OPERA 库存与经营明细</h4><dl class="rev-facts">
+      <dt>报表总库存</dt><dd>${n(d.inventory,2)}</dd><dt>停用房 OOO</dt><dd>${n(o.out_of_order,2)}</dd>
+      <dt>有效库存（原报表）</dt><dd>${n(o.effective_inventory,2)}</dd><dt>入住计数（原报表）</dt><dd>${n(o.occupied_rooms,2)}</dd>
+      <dt>有效库存入住率</dt><dd>${n(o.effective_occupancy,2)}%</dd><dt>有效库存 RevPAR</dt><dd>${money(o.effective_revpar)}</dd>
+      <dt>有效库存减入住计数</dt><dd>${n(o.effective_headroom,2)}（非承诺可卖房）</dd>
+      <dt>散客扣库房量／收入／ADR</dt><dd>${n(o.individual_rooms,2)} / ${money(o.individual_revenue)} / ${money(o.individual_adr)}</dd>
+      <dt>团体扣库房量／收入／ADR</dt><dd>${n(o.group_rooms,2)} / ${money(o.group_revenue)} / ${money(o.group_adr)}</dd>
+      <dt>未扣库散客／团体房量</dt><dd>${n(o.individual_non_deduct_rooms,2)} / ${n(o.group_non_deduct_rooms,2)}（单列，不加到已售）</dd>
+      <dt>抵店／离店房量</dt><dd>${n(o.arrivals,2)} / ${n(o.departures,2)}</dd><dt>No-show</dt><dd>${n(o.no_show,2)}</dd>
+      <dt>免费房／自用房／日用房</dt><dd>${n(o.complimentary,2)} / ${n(o.house_use,2)} / ${n(o.day_use,2)}</dd></dl>
+      <p class="meta">字段对账：总库存 − OOO = 有效库存：${check(o.reconciliation.inventory)}；有效入住率与原报表：${check(o.reconciliation.occupancy)}；散客 + 团体扣库房量：${check(o.reconciliation.deducted_rooms)}；收入：${check(o.reconciliation.deducted_revenue)}。</p>
+      <p class="meta">散客／团体是 OPERA 扣库分类，不是 OTA 渠道；未来抵离店和 no-show 仅按原报表值，空值不补零。未扣库房块不能直接加总。</p></section>` : '<p class="meta">此版本尚无原报表经营明细；缺值不补零。</p>';
     $('revenue-day').innerHTML = `<div class="sec-h"><h3>${e(d.stay_date)}</h3><span class="pill">${kind(d.kind)}</span></div>
-      <dl class="rev-facts"><dt>报表库存（口径待核实）</dt><dd>${n(d.inventory,2)}</dd><dt>已售／报表间夜</dt><dd>${n(d.rooms_sold,2)}</dd><dt>入住率（重算）</dt><dd>${n(d.occupancy,2)}%</dd><dt>客房收入</dt><dd>${money(d.room_revenue)}</dd><dt>ADR（重算）</dt><dd>${money(d.adr)}</dd><dt>RevPAR（重算）</dt><dd>${money(d.revpar)}</dd><dt>未来报表值变化</dt><dd>${d.projection_change===null?'暂无可比版本':`${n(d.projection_change,2)} 间夜 · 对比 ${e(d.change_from)}`}</dd></dl>
-      <p class="meta">库存物理／有效口径、税费口径尚未核实，不重复扣停用房；渠道指标仅为其自身统计窗，不属于这一天。</p><p class="meta">来源：报表 ${e(state.revenue.source.as_of)}。${d.kind==='actual'?'历史实绩。':'这是当时的未来报表值，即使入住日期已过去，也不能变成实绩。'} 缺值为 —，不补零。</p>
+      <dl class="rev-facts"><dt>报表总库存（INVENTORY_ROOMS）</dt><dd>${n(d.inventory,2)}</dd><dt>已售／报表间夜</dt><dd>${n(d.rooms_sold,2)}</dd><dt>总库存入住率（重算）</dt><dd>${n(d.occupancy,2)}%</dd><dt>客房收入</dt><dd>${money(d.room_revenue)}</dd><dt>ADR（重算）</dt><dd>${money(d.adr)}</dd><dt>总库存 RevPAR（重算）</dt><dd>${money(d.revpar)}</dd><dt>未来报表值变化</dt><dd>${d.projection_change===null?'暂无可比版本':`${n(d.projection_change,2)} 间夜 · 对比 ${e(d.change_from)}`}</dd></dl>
+      ${operating}<p class="meta">日历底色维持总库存口径，便于跨日比较；有效库存反映停用房影响，不重复扣除。税费口径待核实；渠道指标仅为其自身统计窗，不属于这一天。</p><p class="meta">来源：报表 ${e(state.revenue.source.as_of)}。${d.kind==='actual'?'历史实绩。':'这是当时的未来报表值，即使入住日期已过去，也不能变成实绩。'} 缺值为 —，不补零。</p>
       <details><summary class="meta">查看字段与证据</summary><p class="meta">原报表 ADR ${n(d.reported_adr,2)} · 入住率 ${n(d.reported_occupancy,2)}%<br><code class="evidence-ref">${e(d.evidence_id)}</code></p></details>
       <button class="btn" id="scenario-use">用这一天做算术情景</button> <button class="btn ghost" data-ask="解释当前选中日期的经营指标，区分历史实绩、报表未来值和当前缺口">让 Copilot 解读这一天</button>`;
     $('scenario-use').onclick = () => {for (const [id,value] of [['sc-inventory',d.inventory],['sc-rooms',d.rooms_sold],['sc-adr',d.adr]]) $(id).value = Number.isFinite(value)?value:''; $('scenario-basis').textContent=`基线 ${d.stay_date} · ${kind(d.kind)} · 来源 ${state.revenue.source.as_of}${state.revenue.status!=='current'?'（历史数据）':''}`; $('scenario-result').textContent='请输入假设后计算；不会写入任何 OTA。'; $('scenario-form').scrollIntoView({behavior:'smooth',block:'center'});};

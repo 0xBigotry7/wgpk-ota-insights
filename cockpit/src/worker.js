@@ -274,7 +274,10 @@ async function loadState(env) {
     .map((m) => (m.benchmark === 0 ? { ...m, benchmark: null } : m));
   const snapshots = await all(env.DB.prepare(`select s.*,p.as_of_basis,p.archived_at from pms_snapshots s
     left join pms_snapshot_provenance p on p.snapshot_id=s.id order by s.as_of desc,s.received_at desc,s.id desc limit 8`));
-  const daily = snapshots.length ? await all(env.DB.prepare(`select * from pms_daily where snapshot_id in (${snapshots.map(() => "?").join(",")})`).bind(...snapshots.map(s => s.id))) : [];
+  const daily = snapshots.length ? (await all(env.DB.prepare(`select d.*,x.details from pms_daily d
+    left join pms_daily_details x on x.snapshot_id=d.snapshot_id and x.stay_date=d.stay_date and x.kind=d.kind
+    where d.snapshot_id in (${snapshots.map(() => "?").join(",")})`).bind(...snapshots.map(s => s.id))))
+    .map(r=>({...r,details:safeJson(r.details,null)})) : [];
   const decisions = await all(env.DB.prepare("select * from operator_decisions order by id desc limit 50"));
   const state = {
     harness_version: "3.1-operator-foundations",

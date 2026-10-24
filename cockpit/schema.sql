@@ -98,6 +98,15 @@ CREATE TABLE IF NOT EXISTS pms_daily (
   PRIMARY KEY(snapshot_id, stay_date, kind)
 );
 
+-- Optional allowlisted numeric operating fields; v1 core rows remain immutable/compatible.
+CREATE TABLE IF NOT EXISTS pms_daily_details (
+  snapshot_id TEXT NOT NULL REFERENCES pms_snapshots(id),
+  stay_date TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  details TEXT NOT NULL,
+  PRIMARY KEY(snapshot_id, stay_date, kind)
+);
+
 -- Human-approved investigation, not an OTA write. Baseline/evidence is frozen at creation.
 CREATE TABLE IF NOT EXISTS operator_decisions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
