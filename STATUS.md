@@ -55,3 +55,6 @@ Gary requested connecting continuous OPERA reports. Confirmed analytics archive 
 
 ## 2026-10-24 Gary authorizes low-dispute foundations
 After the IDeaS report, Gary asked to implement the most valuable, least controversial items while he reviews the long report. Selected A01 (explicit date/source/metric context), A03 (fixed occupancy calendar bands; no invented monetary thresholds), A09 (scoped dedupe and separate data/business/information inbox). No model rebuilding, live price/inventory writes, new feeds, schema migrations or collector changes. Other A01–A23 proposals remain unapproved. Work on feat/operator-foundations; verify locally then publish the existing cockpit through its authorized release route.
+
+### Foundations verification
+PR #24 merged (`b70afce`). All 62 Python / 46 Node tests, Ruff, and local desktop/mobile browser flows pass, including filtered alert-index mapping, occupancy vs amount legends and date contracts. Local tests never target production or call a model. Production read-only API confirms 3.1-operator-foundations, 317 OTA metrics with explicit context, 245 PMS dates, 18 scoped alerts (2 data / 16 business), and original 2026-07-28 source still stale. No migrations, collector changes or production test decisions. Final wording patch keeps absent reporting windows unknown, not point-in-time.
