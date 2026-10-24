@@ -3,6 +3,7 @@
 // touch any OTA back office: the only thing it can change is the cockpit's own to-do list, and only through a button
 // the viewer presses.
 
+import { metricContext, stayContext } from "./contracts.js";
 import { NAMES, fmt, seriesOf } from "./monitor.js";
 import { KNOWLEDGE, season } from "./knowledge.js";
 import { evidenceId } from "./operator.js";
@@ -33,8 +34,8 @@ const SYSTEM = `你是普吉岛卡马拉温德姆花园酒店（Wyndham Garden P
 actions 最多 4 条，只在确实该有人去做事时给；纯问答时给空列表。`;
 
 /** The data block the model answers from: one line per metric, then alerts, report and to-dos. */
-export function context({ metrics = [], advice = [], todos = [], revenue, operator, selected_stay_date }, { alerts = [], wins = [], health = null }) {
-  const lines = [];
+export function context({ metrics = [], advice = [], todos = [], revenue, operator, selected_stay_date }, { alerts = [], wins = [], health = null } = {}) {
+  const lines = ["# 当前数据上下文（入住日与OTA统计窗口严格分开）", JSON.stringify(stayContext(revenue, selected_stay_date))];
   if (revenue) lines.push("# PMS 经营数据边界（优先于旧日报和知识库）", JSON.stringify({ status: revenue.status,
     source_as_of: revenue.source?.as_of, source_date_basis: revenue.source?.as_of_basis || "explicit_export_date", currency: revenue.source?.currency, precision: revenue.source?.precision,
     months: revenue.months, gaps: revenue.gaps, formulas: revenue.formulas }));
@@ -55,8 +56,10 @@ export function context({ metrics = [], advice = [], todos = [], revenue, operat
   lines.push("# 指标（最新值；同类=平台给的对比值）");
   for (const rows of Object.values(seriesOf(metrics))) {
     const m = rows.at(-1);
+    const contract = metricContext(m);
     const prev = rows.length > 1 ? `；上次 ${fmt(rows.at(-2).value, m.unit)}（${rows.at(-2).day}）` : "";
     lines.push(`- [${evidenceId(m)}] ${NAMES[m.platform]} ${m.label}${m.period ? `[${m.period}]` : ""}: ${fmt(m.value, m.unit)}`
+      + ` · 采样日 ${contract.observed_on} · 统计窗 ${contract.reporting_window || "时点指标"} · 不属于选中入住日`
       + `${m.benchmark != null ? `，同类 ${fmt(m.benchmark, m.unit)}` : ""}（${m.day}）${prev}`);
   }
   lines.push("", "# 自动预警", ...alerts.map((a) => `- [${a.level}] ${a.title}：${a.detail}`));

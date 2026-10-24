@@ -52,6 +52,23 @@ with sync_playwright() as p:
     page.locator('[data-status="reviewed"]').first.click()
     page.wait_for_function("document.querySelector('.toast').textContent.includes('仍未恢复')")
     assert "已人工复查" not in page.locator("#operator-decisions").inner_text()
+    # Category filters must preserve the original alert index used to create a todo.
+    assert initial['harness_version'] == '3.1-operator-foundations'
+    assert all('data_context' in m for m in initial['metrics'])
+    for group in initial['monitor']['inbox']['groups']:
+        page.locator('[data-alert-category="' + group['id'] + '"]').click()
+        indices = page.locator('[data-todo-alert]').evaluate_all("els=>els.map(e=>Number(e.dataset.todoAlert))")
+        assert len(indices) == group['count']
+        assert all(initial['monitor']['alerts'][i]['category'] == group['id'] for i in indices)
+    page.locator('[data-alert-category="all"]').click()
+    page.locator('#revenue-metric').select_option('occupancy')
+    assert '固定入住率色阶' in page.locator('#revenue-legend').inner_text()
+    assert page.locator('.cal-day[class*="occ-"]').count() > 0
+    page.locator('#revenue-metric').select_option('adr')
+    assert '不使用未经确认' in page.locator('#revenue-legend').inner_text()
+    assert page.locator('.cal-day[class*="occ-"]').count() == 0
+    assert '口径待核实' in page.locator('#revenue-day').inner_text()
+    assert '入住日' in page.locator('#cop-context').inner_text()
     page.locator("#sec-revenue").scroll_into_view_if_needed()
     page.screenshot(path=str(OUT / "desktop.png"))
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
@@ -64,5 +81,5 @@ with sync_playwright() as p:
     page.locator("#cop-close").click()
     assert not errors, errors
     print(json.dumps({"local_browser": "passed", "desktop": "1512x1100", "mobile": "390x844", "page_errors": errors,
-                      "flows": ["login", "source freshness", "calendar month/metric", "actual vs projection", "what-if", "approve", "report action", "reject unverified closure", "responsive"]}))
+                      "flows": ["login", "source freshness", "calendar month/metric", "actual vs projection", "what-if", "approve", "report action", "reject unverified closure", "responsive", "inbox category / original index", "fixed bands / neutral ADR", "date contracts"]}))
     browser.close()

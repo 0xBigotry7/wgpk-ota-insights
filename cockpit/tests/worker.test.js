@@ -120,7 +120,7 @@ test("monitor flags trailing peers, drops, sign-outs and stale data; and lists w
   assert.equal(alerts.find((a) => a.id === "gap:booking|adr_30d@last_30_days").owner, "收益/销售");
   assert.ok(ids.includes("drop:booking|review_score@"));
   assert.ok(ids.includes("page:agoda:landing") && ids.includes("page:expedia:landing"));
-  assert.ok(!ids.includes("gap:booking|adr_last_month@last_month"), "this month's ADR gap covers last month's");
+  assert.ok(ids.includes("gap:booking|adr_last_month@last_month"), "different reporting windows are not duplicate evidence");
   assert.ok(ids.includes("rank:booking|compset_views_rank@last_90_days"));
   assert.ok(!ids.includes("run:stale"));
   assert.deepEqual(wins.map((w) => w.id), ["win:medallia|nps_12m@last_12_months"]);
@@ -135,7 +135,7 @@ test("copilot answers are parsed defensively and actions are limited to cockpit 
   assert.deepEqual(parseAnswer("plain text"), { reply: "plain text", actions: [] });
   const c = context({ metrics: [mk({ metric: "adr_30d", label: "ADR", value: 1, benchmark: 2, day: "2026-10-23" })], todos: [] },
     { alerts: [], wins: [] });
-  assert.match(c, /Booking ADR: 1，同类 2/);
+  assert.match(c, /Booking ADR: 1 .*同类 2/);
 });
 
 test("to-dos need a title and known owners", () => {

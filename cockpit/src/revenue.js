@@ -1,3 +1,4 @@
+import { occupancyBand, stayContext } from "./contracts.js";
 // Property aggregates only. Source time is deliberately independent of upload time.
 export const bkkDay = (now = new Date()) => new Date(now.getTime() + 7 * 3600e3).toISOString().slice(0, 10);
 const day = (s) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s)
@@ -69,6 +70,7 @@ export function revenueView(snapshots = [], rows = [], today = bkkDay()) {
     // Future-to-future only. Historic corrections are not booking pickup, nor are PMS projections true OTB.
     const comparable = r.kind === "pms_projection" && r.stay_date > source.as_of && r.stay_date > prior?.as_of;
     return { ...r, ...totals([r]), room_revenue: r.room_revenue, rooms_sold: r.rooms_sold, inventory: r.inventory,
+      occupancy_band: occupancyBand(totals([r]).occupancy),
       evidence_id: `pms:${source.id}:${r.stay_date}:${r.kind}`,
       projection_change: comparable && Number.isFinite(p?.rooms_sold) && Number.isFinite(r.rooms_sold) ? r.rooms_sold - p.rooms_sold : null,
       change_from: comparable && p ? prior.as_of : null };
@@ -79,6 +81,7 @@ export function revenueView(snapshots = [], rows = [], today = bkkDay()) {
     months: [...groups].map(([k, rs]) => ({ month: k.split("|")[0], kind: rs[0].kind, ...totals(rs) })),
     snapshots: sorted.map(s => ({ id: s.id, as_of: s.as_of, received_at: s.received_at, precision: s.precision })),
     gaps: ["未接入逐入住日的 OTA 渠道拆分、净佣金收入与可比竞品挂牌价", "PMS 未来值 ≠ 无约束需求预测；变化值 ≠ 已确认 pickup", "BAR、LRV、超售控制未接入，不从 ADR 或入住率推算"],
+    data_context: stayContext({source, status: age > 1 ? "stale" : "current"}),
     formulas: { occupancy: "Σ已售间夜 ÷ Σ可售间夜", adr: "Σ客房收入 ÷ Σ已售间夜", revpar: "Σ客房收入 ÷ Σ可售间夜" } };
 }
 

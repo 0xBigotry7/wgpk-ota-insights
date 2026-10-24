@@ -298,6 +298,18 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
 .sc-inputs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.sc-inputs label{font-size:12px;color:var(--fg-2)}.sc-inputs input{display:block;width:100%;margin-top:4px}.sc-inputs input,.decision-form input{padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--surface-2)}
 @media(max-width:800px){.revenue-desk{grid-template-columns:1fr}.cal-day{padding:5px;min-height:72px}.cal-day strong{font-size:13px}.cal-day small{font-size:9px}.rev-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.sc-inputs{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .source-banner strong{white-space:nowrap}.desk-nav{display:flex;gap:8px;flex-wrap:wrap;position:sticky;top:0;z-index:10;background:var(--bg);padding:8px 0}.desk-nav a{color:var(--fg-2);text-decoration:none;border:1px solid var(--line);border-radius:99px;padding:5px 12px;font-size:12px;background:var(--surface)}.desk-nav a:hover{color:var(--accent);border-color:var(--accent)}section[id]{scroll-margin-top:64px}
+
+.alert-filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.alert-filters [aria-pressed="true"]{border-color:var(--accent);background:var(--surface-2)}
+/* Stable occupancy bands; numeric amounts remain uncoloured. */
+.cal-day.occ-0{background:#e8f0fc;color:#193b3b}.cal-day.occ-0 small{color:#294948}
+.cal-day.occ-1{background:#d5e8fb;color:#193b3b}.cal-day.occ-1 small{color:#294948}
+.cal-day.occ-2{background:#bee7ee;color:#193b3b}.cal-day.occ-2 small{color:#294948}
+.cal-day.occ-3{background:#caeee0;color:#193b3b}.cal-day.occ-3 small{color:#294948}
+.cal-day.occ-4{background:#d8edbc;color:#193b3b}.cal-day.occ-4 small{color:#294948}
+.cal-day.occ-5{background:#e8edb6;color:#193b3b}.cal-day.occ-5 small{color:#294948}
+.cal-day.occ-6{background:#f7e1a0;color:#193b3b}.cal-day.occ-6 small{color:#294948}
+.cal-day.occ-7{background:#f6c18a;color:#193b3b}.cal-day.occ-7 small{color:#294948}
+.cal-day.occ-8{background:#f1ada5;color:#193b3b}.cal-day.occ-8 small{color:#294948}
 </style>
 </head>
 <body>
@@ -366,7 +378,7 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
     <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-cal"/></svg></span><h2>入住日期 · 经营日历</h2><span class="hint">OTA 信号看渠道，PMS 经营数看酒店整体；两者不混算</span></div>
     <div id="revenue-source"></div>
     <div class="revenue-desk">
-      <div class="card"><div class="sec-h"><label>入住月份 <select id="revenue-month" aria-label="入住月份"></select></label><select id="revenue-metric" class="tail" aria-label="日历指标"><option value="occupancy">入住率</option><option value="adr">ADR</option><option value="revpar">RevPAR</option></select></div><div class="calendar" id="revenue-calendar"></div><p class="meta">颜色仅表示当前月所选指标的相对高低，不是价格建议或好坏评分。点击日期查看来源。</p><div id="revenue-totals"></div><p class="meta">加权指标按覆盖日期的收入、已售间夜、可售间夜重算，不平均每日 ADR。缺字段则不计算。</p></div>
+      <div class="card"><div class="sec-h"><label>入住月份 <select id="revenue-month" aria-label="入住月份"></select></label><select id="revenue-metric" class="tail" aria-label="日历指标"><option value="occupancy">入住率</option><option value="adr">ADR</option><option value="revpar">RevPAR</option></select></div><div class="calendar" id="revenue-calendar"></div><p class="meta" id="revenue-legend"></p><div id="revenue-totals"></div><p class="meta">加权指标按覆盖日期的收入、已售间夜、可售间夜重算，不平均每日 ADR。缺字段则不计算。</p></div>
       <div class="card" id="revenue-day"></div>
     </div>
     <details class="card"><summary>数据缺口与口径</summary><ul id="revenue-gaps"></ul><p class="meta">只有同一入住日、同一口径、不同来源日期的版本才可比较；旧数据重新上传不会产生 pickup。PMS 未来值变化目前仅是报表修订差值。</p></details>
@@ -588,10 +600,14 @@ function howTo(a){
     ${(a.steps || []).length ? `<ol>${a.steps.map(x => `<li>${esc(x)}</li>`).join("")}</ol>` : ""}
     <div class="row">${a.kpi ? `<span>${icon("i-target","sm")} 看：${esc(a.kpi)}</span>` : ""}${a.eta ? `<span>${icon("i-cal","sm")} 多久见效：${esc(a.eta)}</span>` : ""}</div></div></details>`;
 }
+let alertCategory = 'all';
 function alerts(state){
   const mon = state.monitor || {alerts: [], wins: []};
-  const SHOW = 5, more = mon.alerts.length - SHOW;
-  $("alerts").innerHTML = mon.alerts.length ? mon.alerts.map((a, i) => {
+  const groups = mon.inbox?.groups || [];
+  const filtered = mon.alerts.map((a,index)=>({a,index})).filter(({a})=>alertCategory==='all'||a.category===alertCategory);
+  const SHOW = 5, more = filtered.length - SHOW;
+  const filters = `<div class="alert-filters" role="group" aria-label="异常分类"><button class="btn" data-alert-category="all" aria-pressed="${alertCategory==='all'}">全部 ${mon.alerts.length}</button>${groups.map(g=>`<button class="btn" data-alert-category="${g.id}" aria-pressed="${alertCategory===g.id}">${esc(g.label)} ${g.count}</button>`).join('')}</div>${mon.inbox?.truncated ? `<p class="meta">当前展示 ${mon.inbox.shown} / ${mon.inbox.total} 项问题，优先列出数据问题；不是未读消息数。</p>` : ''}`;
+  $("alerts").innerHTML = filters + (filtered.length ? filtered.map(({a,index}, i) => {
     const [lab, ic] = LEVEL[a.level] || LEVEL.info;
     return `<div class="alert lv-${a.level}" ${i >= SHOW ? "data-more hidden" : ""}>
       <span class="lv">${icon(ic)}</span>
@@ -599,11 +615,12 @@ function alerts(state){
         <div class="d">${[a.detail ? esc(a.detail) : "", pf(a.platform), `负责：${esc(a.owner)}`].filter(Boolean).join(" · ")}</div>
         <div class="act">${icon("i-wrench","sm")}<span>${esc(a.action)}</span></div>
         ${howTo(a)}</div>
-      <div class="ops"><button class="btn" data-todo-alert="${i}">${icon("i-plus","sm")}加入待办</button>
+      <div class="ops"><button class="btn" data-todo-alert="${index}">${icon("i-plus","sm")}加入待办</button>
         <button class="btn ghost" data-ask="${esc(`这个预警怎么处理？「${a.title}」${a.detail}`)}">${icon("i-spark","sm")}问 Copilot</button></div></div>`;
   }).join("") + (more > 0 ? `<button class="btn" id="more-alerts" style="align-self:flex-start">${icon("i-chev","sm")}再看 ${more} 条</button>` : "")
-    : `<div class="empty">${icon("i-checkc","sm")} 目前没有预警，各项指标都不低于同类和上周。</div>`;
-  if (more > 0) $("more-alerts").onclick = e => { document.querySelectorAll("[data-more]").forEach(el => el.hidden = false); e.currentTarget.remove(); };
+    : `<div class="empty">${icon("i-checkc","sm")} 本类当前没有待处理问题；不代表所有日期、渠道均已验证。</div>`);
+  $("alerts").querySelectorAll("[data-alert-category]").forEach(b=>b.onclick=()=>{alertCategory=b.dataset.alertCategory;alerts(state);});
+  if (more > 0) $("more-alerts").onclick = e => { $("alerts").querySelectorAll("[data-more]").forEach(el => el.hidden = false); e.currentTarget.remove(); };
   $("wins").innerHTML = `<div class="meta" style="display:flex;align-items:center;gap:6px">${icon("i-trophy","sm")}做得好的地方</div>` +
     (mon.wins.length ? mon.wins.slice(0, 5).map(w => `<div class="win">${icon("i-up")}<div><b>${esc(w.title)}</b><div class="d">${esc(w.detail)}</div></div></div>`).join("")
       : `<div class="empty">数据积累几天后，这里会列出明显好于同类的指标。</div>`);
