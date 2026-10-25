@@ -17,6 +17,8 @@ from . import advise, cockpit, collect, config, extract, guard, store
 from .platforms import PLATFORMS
 
 PUSH_RETRY_S = 10
+# Platforms worth a second pass later the same day when the morning run found them signed out.
+RETRY_LATER = {"medallia"}
 
 
 def cdp_alive(port: int) -> bool:
@@ -38,10 +40,17 @@ def plan(only: set[str] | None) -> None:
 
 def once(only: set[str] | None) -> int:
     started = collect.now()
+    second_pass = False
     if not only and (prev := store.done_run_on(store.connect(config.DB), started.strftime("%Y%m%d"))):
-        # launchd has a fallback slot; the first run that finishes covers the day.
-        print(f"skipped: today's collection already done ({prev})", flush=True)
-        return 0
+        # launchd has a fallback slot; the first run that finishes covers the day. The one exception: platforms
+        # that were signed out in the morning (Medallia's Okta challenge clears only at the operator's 11:30
+        # run) get a second, platform-only pass.
+        retry = store.signed_out_today(store.connect(config.DB), started.strftime("%Y%m%d"), RETRY_LATER)
+        if not retry:
+            print(f"skipped: today's collection already done ({prev})", flush=True)
+            return 0
+        print(f"today's collection done ({prev}); second pass for signed-out {sorted(retry)}", flush=True)
+        only, second_pass = retry, True
     near = guard.near_review_window(started, config.AVOID_SLOTS, config.AVOID_MARGIN_MIN)
     if near:
         return skipped(started, f"review window {near} is within {config.AVOID_MARGIN_MIN} min")
@@ -69,7 +78,8 @@ def once(only: set[str] | None) -> int:
     store.finish_run(db, run_id, collect.now().isoformat(timespec="seconds"), outcome, summary)
     print(json.dumps({"run": run_id, "outcome": outcome, "summary": summary}, ensure_ascii=False), flush=True)
     # The browser and the operator's lock are released by now; the rest only reads local files.
-    after(db, run_id, report=not only)       # a partial test run does not rewrite the day's report
+    # A partial test run does not rewrite the day's report; a second pass that fills in a signed-out platform does.
+    after(db, run_id, report=not only or second_pass)
     return 0 if outcome == "done" else 1
 
 

@@ -24,7 +24,7 @@ new 2FA prompts and new risk-control signals on the same accounts the reviews de
 
 | Guard | Where |
 |---|---|
-| Never starts within 60 min of a review window (`WGPK_OTA_AVOID`, default `09:15,14:45`) | `guard.near_review_window` |
+| Never starts within 60 min of a review window (`WGPK_OTA_AVOID`, default `09:15,11:30,13:45,16:00,18:15,21:00`) | `guard.near_review_window` |
 | Skips when the review operator holds `operator.lock`; holds that lock for the whole collection so a review run cannot start on the same Chrome mid-collection | `guard.take_operator_lock` |
 | Skips when the operator's Chrome is not running (never launches it) | `run.cdp_alive` |
 | Opens its own tabs and closes them in `finally`; never touches the operator's tabs | `collect.collect_platform` |

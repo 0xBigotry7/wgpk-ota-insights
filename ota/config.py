@@ -18,7 +18,9 @@ CDP_PORT = int(os.environ.get("WGPK_CDP_PORT", "9333"))
 
 # Review windows (Asia/Bangkok, local Mac time). We refuse to start within AVOID_MARGIN_MIN of any of
 # them, so a collection can never make the review operator skip a scheduled slot.
-AVOID_SLOTS = [s.strip() for s in os.environ.get("WGPK_OTA_AVOID", "09:15,14:45").split(",") if s.strip()]
+# The Review Desk's schedule_times (desk_settings, unchanged since 2026-09-25). The old default "09:15,14:45" missed
+# four slots, and the 11:30 collection on 2026-10-23 held the operator lock through the operator's 11:30 run.
+AVOID_SLOTS = [s.strip() for s in os.environ.get("WGPK_OTA_AVOID", "09:15,11:30,13:45,16:00,18:15,21:00").split(",") if s.strip()]
 AVOID_MARGIN_MIN = int(os.environ.get("WGPK_OTA_AVOID_MARGIN_MIN", "60"))
 
 # Hard ceiling for one whole collection (all platforms), and per page.
