@@ -18,15 +18,17 @@
   <dict>
     <key>WGPK_OTA_HOME</key><string>/Users/wyndham/wgpk-ota-insights</string>
     <key>WGPK_OPERATOR_LOCK</key><string>/Users/wyndham/wgpk-review-operator/operator.lock</string>
-    <key>WGPK_OTA_AVOID</key><string>09:15,14:45</string>
+    <key>WGPK_OTA_AVOID</key><string>09:15,11:30,13:45,16:00,18:15,21:00</string>
   </dict>
   <key>StartCalendarInterval</key>
-  <!-- 10:20: just after the review operator's 09:15 run has refreshed the OTA logins (Booking's session
-       had expired by 11:30 on 2026-10-23). 11:30: fallback when 10:20 was skipped (operator still holding
-       its lock); it exits at once if today's collection is already done. -->
+  <!-- The review operator runs at 09:15, 11:30, 13:45, 16:00, 18:15 and 21:00 (Review Desk schedule_times);
+       with the 60-min guard only 10:15-10:30 and 22:00-08:15 are free.
+       10:20: just after the 09:15 run has refreshed the OTA logins (Booking is signed in then).
+       22:15: fallback when 10:20 did not finish, and a Medallia-only pass when 10:20 found Medallia signed
+       out (its Okta challenge is only cleared by the operator's 11:30 run). Otherwise it exits at once. -->
   <array>
     <dict><key>Hour</key><integer>10</integer><key>Minute</key><integer>20</integer></dict>
-    <dict><key>Hour</key><integer>11</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Hour</key><integer>22</integer><key>Minute</key><integer>15</integer></dict>
   </array>
   <key>RunAtLoad</key><false/>
   <key>StandardOutPath</key><string>/Users/wyndham/wgpk-ota-insights/logs/ota.out.log</string>

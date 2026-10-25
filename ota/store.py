@@ -56,6 +56,17 @@ def done_run_on(db: sqlite3.Connection, yyyymmdd: str) -> str | None:
     return row[0] if row else None
 
 
+def signed_out_today(db: sqlite3.Connection, yyyymmdd: str, cids: set[str]) -> set[str]:
+    """Of `cids`, those whose latest landing snapshot today was signed_out (none read since)."""
+    out = set()
+    for cid in cids:
+        row = db.execute("SELECT status FROM snapshots WHERE run_id LIKE ? AND cid=? AND slug='landing' "
+                         "ORDER BY run_id DESC LIMIT 1", (yyyymmdd + "-%", cid)).fetchone()
+        if row and row[0] == "signed_out":
+            out.add(cid)
+    return out
+
+
 def add_snapshot(db: sqlite3.Connection, **row: object) -> None:
     cols = ", ".join(row)
     db.execute(f"INSERT OR REPLACE INTO snapshots ({cols}) VALUES ({', '.join('?' * len(row))})",
