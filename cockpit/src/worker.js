@@ -106,18 +106,48 @@ export default {
 
 export async function dispatchAlerts(env) {
   const state = await loadState(env);
-  // Skip alerts that already have an open to-do, or one closed in the last week (someone decided on it).
-  const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
-  const open = new Set(state.todos.filter((t) => t.status === "open" || t.updated_at >= weekAgo).map((t) => t.source_ref));
+  const { create, refresh, clear } = planDispatch(state.todos, state.monitor.alerts, state.monitor.health);
   const now = new Date().toISOString();
-  const fresh = state.monitor.alerts.filter((a) => (a.level === "critical" || a.level === "serious") && !open.has(a.id));
-  if (!fresh.length) return { created: 0 };
-  await env.DB.batch(fresh.map((a) => env.DB.prepare(
-    `insert into todos (created_at, updated_at, title, detail, owner, platform, source, source_ref, status)
-     values (?, ?, ?, ?, ?, ?, 'auto', ?, 'open')`
-  ).bind(now, now, clip(a.title, 200), clip([a.action, ...(a.steps || []).slice(1)].join("；"), 800), a.owner,
-    a.platform || "all", clip(a.id, 120))));
-  return { created: fresh.length };
+  const stmts = [
+    ...create.map((a) => env.DB.prepare(
+      `insert into todos (created_at, updated_at, title, detail, owner, platform, source, source_ref, status)
+       values (?, ?, ?, ?, ?, ?, 'auto', ?, 'open')`
+    ).bind(now, now, ...todoText(a), a.owner, a.platform || "all", clip(a.id, 120))),
+    ...refresh.map(({ id, alert }) => env.DB.prepare("update todos set title = ?, detail = ?, updated_at = ? where id = ?")
+      .bind(...todoText(alert), now, id)),
+    ...clear.map((id) => env.DB.prepare("update todos set status = 'cleared', updated_at = ? where id = ? and status = 'open'")
+      .bind(now, id)),
+  ];
+  if (stmts.length) await env.DB.batch(stmts);
+  return { created: create.length, refreshed: refresh.length, cleared: clear.length };
+}
+
+const todoText = (a) => [clip(a.title, 200), clip([a.action, ...(a.steps || []).slice(1)].join("；"), 800)];
+
+/**
+ * What the daily dispatch does with auto to-dos. New serious alerts become to-dos, unless one is open or a person
+ * closed one in the last week (they decided on it). An open auto to-do whose alert is still up gets today's numbers.
+ * One whose alert is gone is cleared, but only when today's run read its platform: no data is not good news.
+ */
+export function planDispatch(todos = [], alerts = [], hl = null) {
+  const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
+  const taken = new Set(todos.filter((t) => t.status === "open" || (["done", "dropped"].includes(t.status) && t.updated_at >= weekAgo))
+    .map((t) => t.source_ref));
+  const create = alerts.filter((a) => (a.level === "critical" || a.level === "serious") && !taken.has(a.id));
+  const byId = new Map(alerts.map((a) => [a.id, a]));
+  const readToday = new Set((hl?.platforms || []).filter((p) => ["ok", "partial"].includes(p.cells.at(-1)?.state)).map((p) => p.platform));
+  const refresh = [], clear = [];
+  for (const t of todos) {
+    if (t.status !== "open" || t.source !== "auto") continue;
+    const a = byId.get(t.source_ref);
+    if (a) {
+      const [title, detail] = todoText(a);
+      if (title !== t.title || detail !== t.detail) refresh.push({ id: t.id, alert: a });
+    } else if (t.platform === "all" ? readToday.size > 0 : readToday.has(t.platform)) {
+      clear.push(t.id);
+    }
+  }
+  return { create, refresh, clear };
 }
 
 export async function pushDigest(env, send = fetch) {

@@ -768,7 +768,7 @@ function problems(by){
 // ── platform connection status ──
 function why(p){
   const page = p.page === "landing" ? "首页" : p.page;
-  if (p.status === "signed_out") return p.page === "landing" ? "未登录：点评系统 09:15 / 14:45 自动登录后恢复" : `${page}：要单独人工登录一次`;
+  if (p.status === "signed_out") return p.page === "landing" ? "未登录：点评系统下一轮自动登录后恢复" : `${page}：要单独人工登录一次`;
   if (p.status === "page_missing") return `${page}：数据页地址待确认`;
   if (p.status === "error") return `${page}：没加载出来，下次再读`;
   return "";
@@ -848,9 +848,9 @@ function board(state){
   if (!todos.length) { $("board").innerHTML = `<div class="empty">还没有待办。点预警或建议上的“加入待办”，或让 Copilot 安排。</div>`; return; }
   const lanes = OWNERS.map(o => [o, todos.filter(t => t.owner === o)]).filter(([, l]) => l.length);
   $("board").innerHTML = lanes.map(([o, list]) => `<div class="card lane"><h3>${esc(o)} <span class="cnt">${list.filter(t => t.status === "open").length} 项未完成</span></h3>
-    ${list.map(t => `<div class="todo ${t.status === "done" ? "done" : ""}">
-      <button class="chk" data-toggle="${t.id}" aria-label="${t.status === "done" ? "标为未完成" : "标为完成"}">${icon("i-check","sm")}</button>
-      <div><div class="t">${esc(t.title)}</div><div class="meta">${pf(t.platform)} · ${{alert:"来自预警",auto:"自动派单",report:"来自报告",copilot:"来自 Copilot",manual:"手动"}[t.source] || ""} · ${esc(String(t.created_at).slice(5,10))}</div>
+    ${list.map(t => `<div class="todo ${t.status !== "open" ? "done" : ""}">
+      <button class="chk" data-toggle="${t.id}" aria-label="${t.status !== "open" ? "标为未完成" : "标为完成"}">${icon("i-check","sm")}</button>
+      <div><div class="t">${esc(t.title)}</div><div class="meta">${pf(t.platform)} · ${{alert:"来自预警",auto:"自动派单",report:"来自报告",copilot:"来自 Copilot",manual:"手动"}[t.source] || ""} · ${esc(String(t.created_at).slice(5,10))}${t.status === "cleared" ? " · 问题已消失，自动关闭" : ""}</div>
         ${t.detail ? `<div class="meta" style="margin-top:2px">${esc(t.detail)}</div>` : ""}</div>
       <button class="btn ghost" data-drop="${t.id}" aria-label="删除" data-tip="不做了">${icon("i-x","sm")}</button></div>`).join("")}</div>`).join("");
 }
@@ -948,7 +948,7 @@ document.addEventListener("click", e => {
     return addTodo({title: a.title, detail: a.action, owner: a.owner, platform: a.platform, source: "alert", source_ref: a.id}); }
   if (d.todoReport) { const [day, i] = d.todoReport.split("#"); const r = STATE.advice.find(x => x.id === day); const it = r.items[+i];
     return addTodo({title: it.title, detail: it.action, owner: OWNERS.includes(it.owner) ? it.owner : "总经理", platform: it.platform || "all", source: "report", source_ref: d.todoReport}); }
-  if (d.toggle) { const t = STATE.todos.find(x => x.id === +d.toggle); return setTodo(+d.toggle, t.status === "done" ? "open" : "done"); }
+  if (d.toggle) { const t = STATE.todos.find(x => x.id === +d.toggle); return setTodo(+d.toggle, t.status === "open" ? "done" : "open"); }
   if (d.drop) return setTodo(+d.drop, "dropped");
   if (d.routine) return tickRoutine(d.routine);
   if (d.act) { const [i, j] = d.act.split(":").map(Number); const a = chat[i].actions[j];

@@ -278,3 +278,23 @@ test("pace vs last year, cancellations and lost bookings", () => {
   const adr = [...alerts, ...wins].find((x) => x.id.endsWith("otb_adr_30d@next_30_days"));
   assert.match(adr.title, /去年同期/);
 });
+
+test("dispatch refreshes open auto to-dos and clears them only when today's run read the platform", async () => {
+  const { planDispatch } = await import("../src/worker.js");
+  const cells = (state) => ({ cells: [{ day: "2026-10-25", state: "ok" }, { day: "2026-10-26", state }] });
+  const hl = { platforms: [{ platform: "agoda", ...cells("ok") }, { platform: "medallia", ...cells("ok") }, { platform: "expedia", ...cells("failed") }] };
+  const lost = { id: "agoda:lost", level: "serious", title: "Agoda 63 单流失", action: "看流失日期", owner: "收益/销售", platform: "agoda" };
+  const todos = [
+    { id: 1, status: "open", source: "auto", source_ref: "agoda:lost", platform: "agoda", title: "Agoda 55 单流失", detail: "看流失日期" },
+    { id: 2, status: "open", source: "auto", source_ref: "signed_out:medallia", platform: "medallia", title: "Medallia 未登录", detail: "" },
+    { id: 3, status: "open", source: "auto", source_ref: "stale:expedia-old", platform: "expedia", title: "x", detail: "" },
+    { id: 4, status: "open", source: "manual", source_ref: "", platform: "agoda", title: "手动", detail: "" },
+    { id: 5, status: "cleared", source: "auto", source_ref: "booking:ctr", platform: "booking", title: "y", detail: "", updated_at: new Date().toISOString() },
+  ];
+  const ctr = { id: "booking:ctr", level: "serious", title: "点击率低", action: "换主图", owner: "市场/内容", platform: "booking" };
+  const plan = planDispatch(todos, [lost, ctr], hl);
+  assert.deepEqual(plan.refresh.map((r) => r.id), [1]);
+  assert.deepEqual(plan.clear, [2]);                          // expedia was not read today, manual to-dos are never touched
+  assert.deepEqual(plan.create.map((a) => a.id), ["booking:ctr"]);   // an auto-cleared alert that comes back is dispatched again
+  assert.deepEqual(planDispatch(todos.slice(0, 1), [{ ...lost, title: "Agoda 55 单流失" }], hl).refresh, []);
+});
