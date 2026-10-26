@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS todos (
   platform TEXT NOT NULL DEFAULT 'all',
   source TEXT NOT NULL,           -- alert | report | copilot | manual
   source_ref TEXT NOT NULL DEFAULT '', -- alert id or report day#index, so the same suggestion is one to-do
-  status TEXT NOT NULL DEFAULT 'open'  -- open | done | dropped
+  status TEXT NOT NULL DEFAULT 'open'  -- open | done | dropped | cleared (alert gone, closed by the dispatch)
 );
 CREATE INDEX IF NOT EXISTS todos_status ON todos (status, updated_at);
 
