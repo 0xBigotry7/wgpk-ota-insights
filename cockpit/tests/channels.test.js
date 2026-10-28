@@ -41,7 +41,9 @@ test('channel investigations use frozen source evidence and existing idempotent 
  assert.equal(JSON.parse(record.baseline).value,62);assert.equal(record.status,'investigating');
  assert.equal((await DB.prepare('select count(*) n from operator_events').first()).n,1);DB.close();
 });
-test('platform cutoff survives SQL/API, becomes stale and never leaks across a later capture; per-page status persists',async()=>{
+test('platform cutoff survives SQL/API, becomes stale and never leaks across a later capture; per-page status persists',async t=>{
+ // /api/state reads the clock; pin it to the fixture day so the test does not expire.
+ t.mock.timers.enable({apis:['Date'],now:Date.parse(day+'T16:30:00Z')});
  const DB=db(),env={DB,OTA_INGEST_TOKEN:'test'};
  const data=m('booking','availability_for_search',95.65,'last_30_days','search-rank-30d',{unit:'%',source_as_of:'2026-10-20',source_date_basis:'page_data_as_of'});
  const body={run:{id:'20261024-160000',started_at:day},pages:[{platform:'booking',page:'search-rank-30d',status:'ok'}],metrics:[data]};

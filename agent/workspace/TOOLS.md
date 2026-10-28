@@ -15,4 +15,4 @@
 - `POST /api/agent/notes` `{topic, note}`：记下以后用得上的经验和决定
 - `GET /api/agent/chat/next`、`POST /api/agent/chat/:id {reply, actions, model}`：驾驶舱对话
 
-酒店知识库：`~/agents/shared`（只读），房型、政策、SOP、竞品等。
+酒店资料：工作区 `kb/hotel/`（只读，每天 06:30 由 `agent/kb-sync` 从酒店知识库同步），房型、设施、政策、渠道合作、市场细分等；目录见 `kb/README.md`。
