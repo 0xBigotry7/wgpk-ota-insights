@@ -38,6 +38,22 @@ its files), and never changes prices, availability or promotions. Writes are lim
 | `/api/agent/notes/:id` | `{status: active\|archived}` | retire a note |
 | `/api/agent/heartbeat` | `{info?}` | liveness; `chat/next` also counts |
 
+## Data sources the agent adds (cockpit/src/sources.js, skill agent/skills/ota-sources)
+
+Agent (AGENT_TOKEN):
+- `GET /api/agent/sources`: mode, limits, all sources (proposed | approved | probed | active | rejected | retired; `builtin` = a fixed collector page shared for its text).
+- `POST /api/agent/sources {platform, url, why}`: allowed hosts only; action/guest-message/review pages refused; 3 a day. Mode auto → `approved`, approve → `proposed`.
+- `GET /api/agent/sources/:id/sample`: sanitized page text from the probe.
+- `POST /api/agent/sources/:id/catalog {metrics:[{key, label, unit, period, hint, peer}]}`: needs a probed page; ≤10 active; sets `active`.
+- `POST /api/agent/sources/:id/status {status:"retired", reason}`; `POST /api/agent/sources/mode {mode:"approve"}` (tighten only).
+
+Collector (OTA_INGEST_TOKEN):
+- `GET /api/ingest/sources`: approved (to probe) and active (to read daily, with catalog); URLs re-validated.
+- `POST /api/ingest/sources/:id/probe {ok, final_url, title, sample_text ≤20 KB sanitized, reason}` → probed | rejected (an active source stays active).
+- `POST /api/ingest/sources/builtin {pages:[{slug:"booking/genius", url, title, sample_text}]}`: text of fixed analysis pages.
+- `POST /api/ingest/sources/:id/approve`, `POST /api/ingest/sources/mode {mode: auto|approve}`: Gary's side.
+- Extracted numbers come in through the normal `/api/ingest` with the catalog keys.
+
 ## Dashboard chat (the copilot panel talks to the agent)
 
 1. When the agent has been seen in the last 180 s, a question typed in the dashboard is queued instead of

@@ -191,3 +191,27 @@ CREATE TABLE IF NOT EXISTS agent_heartbeat (
   last_seen TEXT NOT NULL,
   info TEXT NOT NULL DEFAULT ''
 );
+-- Data sources the agent adds itself (sources.js): pages for the Mac mini collector to probe and read daily.
+CREATE TABLE IF NOT EXISTS agent_sources (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  platform TEXT NOT NULL,
+  url TEXT NOT NULL,
+  why TEXT NOT NULL,
+  status TEXT NOT NULL,                    -- proposed | approved | probed | active | rejected | retired
+  reason TEXT,
+  catalog TEXT NOT NULL DEFAULT '[]',      -- [{key, label, unit, period, hint, peer}]
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  probed_at TEXT,
+  final_url TEXT,
+  title TEXT,
+  sample_text TEXT,                        -- sanitized page text from the collector, no guest data
+  builtin INTEGER NOT NULL DEFAULT 0,      -- 1 = a fixed collector page exposed for its text only
+  slug TEXT                                -- builtin pages: the collector's page slug, e.g. booking/genius
+);
+CREATE INDEX IF NOT EXISTS agent_sources_status ON agent_sources (status);
+CREATE TABLE IF NOT EXISTS agent_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
