@@ -1,0 +1,12 @@
+#!/bin/sh
+# Run a command for the ota agent inside the Seatbelt profile next to this file (ota.sb):
+# reads only system paths + the agent workspace, writes only <workspace>/work, no network.
+#   ota-run python3 work/analyse.py
+set -eu
+WORKSPACE="${OTA_WORKSPACE:-$HOME/agents/ota}"
+WORKDIR="$WORKSPACE/work"
+mkdir -p "$WORKDIR"
+cd "$WORKDIR"
+[ "$#" -gt 0 ] || { echo "usage: ota-run <command> [args...]" >&2; exit 2; }
+exec /usr/bin/env -i PATH=/Library/Developer/CommandLineTools/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin HOME="$WORKDIR" TMPDIR="$WORKDIR" LANG=en_US.UTF-8 \
+  /usr/bin/sandbox-exec -f "$(dirname "$0")/ota.sb" -D WORKSPACE="$WORKSPACE" -D WORKDIR="$WORKDIR" "$@"

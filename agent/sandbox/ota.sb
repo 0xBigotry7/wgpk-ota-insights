@@ -1,0 +1,34 @@
+;; Seatbelt profile for code the ota agent writes and runs (agent/sandbox/ota-run).
+;; Reads: the system outside /Users and /Volumes, plus the agent's own workspace. Nothing else under /Users
+;; (other users, ~/.openclaw, ~/agents/shared and other agents, ~/wgpk-review-operator, Chrome profiles,
+;; ~/.config tokens) and nothing in /tmp or /var/folders (OpenClaw's logs live in /tmp/openclaw).
+;; Writes: only <workspace>/work. Network: none (data comes from ota-api, saved into work/). No launchd, GUI,
+;; AppleScript, keychain, clipboard or scheduling tools, and only the mach services a CLI python needs, so code
+;; cannot hand work to a process outside this sandbox.
+(version 1)
+(deny default)
+(allow process-fork signal sysctl-read)
+(allow process-exec)
+(deny process-exec
+  (literal "/bin/launchctl") (literal "/usr/bin/open") (literal "/usr/bin/osascript")
+  (literal "/usr/bin/security") (literal "/usr/bin/crontab") (literal "/usr/bin/at") (literal "/usr/bin/batch")
+  (literal "/usr/bin/pbpaste") (literal "/usr/bin/pbcopy") (literal "/usr/bin/sudo") (literal "/usr/bin/su")
+  (literal "/usr/bin/ssh") (literal "/usr/bin/scp") (literal "/usr/bin/sandbox-exec") (literal "/usr/sbin/screencapture")
+  (literal "/usr/bin/automator") (literal "/usr/bin/shortcuts"))
+;; Nothing copied or written into the workspace may be executed (a copy of launchctl/osascript/security would
+;; dodge the literal denies above); interpreters still run scripts from work/ because the script is an argument.
+(deny process-exec (subpath (param "WORKSPACE")))
+(allow mach-lookup
+  (global-name "com.apple.system.opendirectoryd.libinfo")
+  (global-name "com.apple.system.logger")
+  (global-name "com.apple.logd")
+  (global-name "com.apple.system.notification_center"))
+(allow file-read*)
+(deny file-read* (subpath "/Users") (subpath "/Volumes"))
+(deny file-read* (subpath "/private/tmp") (subpath "/private/var/folders") (subpath "/private/var/tmp"))
+(allow file-read* (subpath (param "WORKSPACE")))
+(allow file-read-metadata (literal "/Users") (literal "/Users/wyndham") (literal "/Users/wyndham/agents"))
+(allow file-write*
+  (subpath (param "WORKDIR"))
+  (literal "/dev/null") (literal "/dev/stdout") (literal "/dev/stderr") (literal "/dev/tty") (literal "/dev/dtracehelper"))
+(deny network*)
