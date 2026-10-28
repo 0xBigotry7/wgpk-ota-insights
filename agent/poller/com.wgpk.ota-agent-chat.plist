@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Answers dashboard copilot questions with the OpenClaw "ota" agent (agent/poller/ota_chat_poller.py).
+     Talks only to the cockpit's /api/agent/* and the local OpenClaw gateway; never to the review operator.
+     Uninstall: launchctl bootout gui/$(id -u)/com.wgpk.ota-agent-chat -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.wgpk.ota-agent-chat</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>/Users/wyndham/wgpk-ota-insights/app/agent/poller/ota_chat_poller.py</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>30</integer>
+  <key>StandardOutPath</key><string>/Users/wyndham/wgpk-ota-insights/logs/agent-chat.log</string>
+  <key>StandardErrorPath</key><string>/Users/wyndham/wgpk-ota-insights/logs/agent-chat.log</string>
+</dict>
+</plist>

@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""The ota agent's only exec tool: GET/POST the cockpit's /api/agent/* endpoints.
+
+  ota-api GET /api/agent/brief
+  ota-api GET '/api/agent/metrics?platform=booking&metric_prefix=pickup_90d'
+  ota-api POST /api/agent/notes '{"topic": "...", "note": "..."}'
+
+Anything else is refused: other methods, other hosts, paths outside /api/agent/, "..", "//", bodies on GET,
+non-JSON or >8 KB bodies. The token is read from ~/.config/wgpk-ota-agent/env and never printed.
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+BASE = "https://ota.wyndhamgardenkamala.com"
+ENV = Path(os.environ.get("WGPK_OTA_AGENT_ENV", Path.home() / ".config" / "wgpk-ota-agent" / "env"))
+PATH_RE = re.compile(r"^/api/agent/[a-z0-9_/-]+(\?[A-Za-z0-9_=&%.,:+-]*)?$")
+MAX_BODY = 8192
+
+
+def validate(argv: list[str]) -> tuple[str, str, bytes | None]:
+    if len(argv) not in (2, 3):
+        raise ValueError("usage: ota-api GET|POST /api/agent/<path> ['<json body>']")
+    method, path = argv[0].upper(), argv[1]
+    if method not in ("GET", "POST"):
+        raise ValueError("only GET and POST")
+    if ".." in path or "//" in path or not PATH_RE.match(path):
+        raise ValueError("path must be /api/agent/<name>[?query]")
+    body = None
+    if len(argv) == 3:
+        if method != "POST":
+            raise ValueError("a body is only allowed on POST")
+        raw = argv[2].encode()
+        if len(raw) > MAX_BODY:
+            raise ValueError("body over 8 KB")
+        if not isinstance(json.loads(raw), dict):
+            raise ValueError("body must be a JSON object")
+        body = raw
+    elif method == "POST":
+        body = b"{}"
+    return method, path, body
+
+
+def token() -> str:
+    for line in ENV.read_text().splitlines():
+        k, _, v = line.partition("=")
+        if k.strip() == "AGENT_TOKEN" and v.strip():
+            return v.strip()
+    raise RuntimeError(f"AGENT_TOKEN missing in {ENV}")
+
+
+def call(method: str, path: str, body: bytes | None, timeout: int = 30) -> tuple[int, str]:
+    req = urllib.request.Request(BASE + path, data=body, method=method, headers={
+        "Authorization": f"Bearer {token()}", "Content-Type": "application/json",
+        "User-Agent": "wgpk-ota-agent/0.1"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.status, r.read().decode()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode()[:2000]
+
+
+def main(argv: list[str]) -> int:
+    try:
+        method, path, body = validate(argv)
+    except (ValueError, json.JSONDecodeError) as e:
+        print(f"refused: {e}", file=sys.stderr)
+        return 2
+    status, text = call(method, path, body)
+    print(text)
+    return 0 if status < 400 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
