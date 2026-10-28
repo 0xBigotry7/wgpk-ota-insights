@@ -164,3 +164,30 @@ CREATE TABLE IF NOT EXISTS pms_bridge_lease (
   owner TEXT NOT NULL,
   until_ms INTEGER NOT NULL
 );
+
+-- OTA operator agent (OpenClaw on the hotel Mac mini): dashboard questions it answers, its durable notes, liveness.
+CREATE TABLE IF NOT EXISTS agent_chat (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at TEXT NOT NULL,
+  messages TEXT NOT NULL,           -- JSON [{role, content}] from the dashboard copilot
+  stay_date TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',  -- pending | claimed | answered | expired
+  claimed_at TEXT,
+  answered_at TEXT,
+  reply TEXT,
+  actions TEXT,
+  model TEXT
+);
+CREATE INDEX IF NOT EXISTS agent_chat_status ON agent_chat (status, created_at);
+CREATE TABLE IF NOT EXISTS agent_notes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at TEXT NOT NULL,
+  topic TEXT NOT NULL,
+  note TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active'    -- active | archived
+);
+CREATE TABLE IF NOT EXISTS agent_heartbeat (
+  id TEXT PRIMARY KEY,
+  last_seen TEXT NOT NULL,
+  info TEXT NOT NULL DEFAULT ''
+);
