@@ -104,7 +104,8 @@ async function notes(db, all = false) {
 async function metrics(db, q) {
   const where = [], args = [];
   for (const k of ["platform", "metric", "period"]) if (q.get(k)) { where.push(`${k} = ?`); args.push(q.get(k)); }
-  if (q.get("metric_prefix")) { where.push("metric like ?"); args.push(`${q.get("metric_prefix").replace(/[%_]/g, "")}%`); }
+  // LIKE treats _ and % as wildcards; escape them so "pickup_90d_" matches literally.
+  if (q.get("metric_prefix")) { where.push("metric like ? escape '\\'"); args.push(`${q.get("metric_prefix").replace(/[\\%_]/g, (c) => `\\${c}`)}%`); }
   if (q.get("since")) { where.push("day >= ?"); args.push(q.get("since")); }
   if (q.get("until")) { where.push("day <= ?"); args.push(q.get("until")); }
   const limit = Math.max(1, Math.min(500, Number(q.get("limit")) || 200));
