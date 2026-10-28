@@ -1,0 +1,19 @@
+;; Seatbelt profile for code the ota agent writes and runs (agent/sandbox/ota-run).
+;; Reads: everything outside /Users/wyndham (system runtime), nothing in the home folder except the agent's
+;; own workspace. Writes: only <workspace>/work. Network: none (the agent fetches data with ota-api, which runs
+;; outside this sandbox, and saves it into work/).
+;; So it cannot read ~/.openclaw, ~/agents/shared or other agents, ~/wgpk-review-operator, Chrome profiles or
+;; ~/.config tokens or /tmp, and cannot reach 127.0.0.1:9333 (review operator's Chrome) or :18789 (OpenClaw gateway).
+(version 1)
+(deny default)
+(allow process-exec process-fork signal sysctl-read mach-lookup ipc-posix-shm iokit-open)
+(allow file-read*)
+(deny file-read* (subpath "/Users/wyndham"))
+;; Temp areas hold other processes' files (e.g. OpenClaw's own logs in /tmp/openclaw); TMPDIR is set to work/.
+(deny file-read* (subpath "/private/tmp") (subpath "/private/var/folders") (subpath "/private/var/tmp"))
+(allow file-read* (subpath (param "WORKSPACE")))
+(allow file-read-metadata (literal "/Users") (literal "/Users/wyndham"))
+(allow file-write*
+  (subpath (param "WORKDIR"))
+  (literal "/dev/null") (literal "/dev/stdout") (literal "/dev/stderr") (literal "/dev/tty") (literal "/dev/dtracehelper"))
+(deny network*)
