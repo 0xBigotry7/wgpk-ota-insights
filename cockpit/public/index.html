@@ -339,6 +339,7 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
 .channel-signals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0}.channel-signal{background:var(--surface);border-left:3px solid var(--accent);padding:14px}.channel-signal small,.channel-signal strong,.channel-signal span{display:block}.channel-signal strong{font-size:24px;font-variant-numeric:tabular-nums;margin:8px 0}.channel-signal small{color:var(--fg-2);font-size:12px}
 .channel-issue{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center;padding:20px 0;border-bottom:1px solid var(--line)}.channel-issue:first-child{padding-top:0}.channel-issue:last-child{border-bottom:0;padding-bottom:0}.channel-issue h3{font-size:15px;margin:0}.channel-issue p{max-width:75ch}.channel-issue details{font-size:12px}.channel-issue summary{cursor:pointer;color:var(--fg-2)}
 .forward-main{padding:17px 0 8px}.forward-main>small,.forward-main>strong,.forward-main>small+strong+small{display:block}.forward-main>strong{font-size:32px;font-weight:600;letter-spacing:-1px}.channel-cohort{border-top:1px solid var(--line);padding-top:12px;margin-top:14px}.channel-cohort small,.channel-cohort b,.channel-cohort span{display:block}.channel-cohort small{font-size:11px;color:var(--muted)}.channel-cohort b{font-size:18px;margin:6px 0}
+.agent-on{color:var(--good)}.agent-off{color:var(--muted)}
 .pace-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr));gap:14px}
 .pace-card{min-width:0;font-variant-numeric:tabular-nums}.pace-card h3{font-size:15px;margin:0}
 .pace-legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin:6px 0 8px}.pace-legend .sw{display:inline-block;width:12px;height:8px;border-radius:2px;margin-right:5px;vertical-align:middle}
@@ -552,7 +553,7 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
   <div class="cop-h">
     <div class="row">
       <span class="av"><svg class="ico"><use href="#i-spark"/></svg></span>
-      <div><b>运营 Copilot</b><div class="meta">OTA + PMS 证据 · 区分事实与假设</div><div class="meta" id="cop-context"></div></div>
+      <div><b>运营 Copilot</b><div class="meta">OTA + PMS 证据 · 区分事实与假设</div><div class="meta" id="cop-context"></div><div class="meta" id="cop-agent"></div></div>
       <button class="btn ghost close" id="cop-close" aria-label="关闭 Copilot"><svg class="ico"><use href="#i-x"/></svg></button>
     </div>
     <div class="caps">
@@ -883,7 +884,7 @@ function board(state){
   $("board").innerHTML = lanes.map(([o, list]) => `<div class="card lane"><h3>${esc(o)} <span class="cnt">${list.filter(t => t.status === "open").length} 项未完成</span></h3>
     ${list.map(t => `<div class="todo ${t.status !== "open" ? "done" : ""}">
       <button class="chk" data-toggle="${t.id}" aria-label="${t.status !== "open" ? "标为未完成" : "标为完成"}">${icon("i-check","sm")}</button>
-      <div><div class="t">${esc(t.title)}</div><div class="meta">${pf(t.platform)} · ${{alert:"来自预警",auto:"自动派单",report:"来自报告",copilot:"来自 Copilot",manual:"手动"}[t.source] || ""} · ${esc(String(t.created_at).slice(5,10))}${t.status === "cleared" ? " · 问题已消失，自动关闭" : ""}</div>
+      <div><div class="t">${esc(t.title)}</div><div class="meta">${pf(t.platform)} · ${{alert:"来自预警",auto:"自动派单",report:"来自报告",copilot:"来自 Copilot",manual:"手动",agent:"agent 派单"}[t.source] || ""} · ${esc(String(t.created_at).slice(5,10))}${t.status === "cleared" ? " · 问题已消失，自动关闭" : ""}</div>
         ${t.detail ? `<div class="meta" style="margin-top:2px">${esc(t.detail)}</div>` : ""}</div>
       <button class="btn ghost" data-drop="${t.id}" aria-label="删除" data-tip="不做了">${icon("i-x","sm")}</button></div>`).join("")}</div>`).join("");
 }
@@ -941,7 +942,7 @@ function rich(text){
     return `<p>${lines.join("<br>")}</p>`;
   }).join("").replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
 }
-function renderChat(pending = false){
+function renderChat(pending = false, pendingText = "正在看数据…"){
   const el = $("msgs");
   const intro = `<div class="msg bot"><p>你好，我是 OTA 运营 Copilot。我能看到 7 个平台每天采集的数据、自动预警和每日报告。</p>
     <p>可以问我“为什么”，让我排今天的优先级、写汇报和房源文案；需要有人去做的事，我会给出待办，你点一下就加入。</p></div>`;
@@ -950,7 +951,7 @@ function renderChat(pending = false){
       `<div class="actc">${icon("i-list","sm")}<div class="x"><b>${esc(a.title)}</b><span class="meta">${esc(a.owner)} · ${PLATFORMS[a.platform] ? esc(PLATFORMS[a.platform][0]) : ""}</span>
         ${a.detail ? `<div class="meta">${esc(a.detail)}</div>` : ""}</div>
         <button class="btn" data-act="${i}:${j}" ${a.added ? "disabled" : ""}>${a.added ? icon("i-check","sm") + "已加入" : icon("i-plus","sm") + "加入待办"}</button></div>`).join("")}</div>` : ""}</div>`).join("")
-    + (pending ? `<div class="msg bot"><span class="typing"><i></i><i></i><i></i></span> 正在看数据…</div>` : "");
+    + (pending ? `<div class="msg bot"><span class="typing"><i></i><i></i><i></i></span> ${esc(pendingText)}</div>` : "");
   el.scrollTop = el.scrollHeight;
   $("chips").innerHTML = chat.length > 2 ? "" : CHIPS.map(c => `<button class="chip" data-ask="${esc(c)}">${esc(c)}</button>`).join("");
 }
@@ -960,10 +961,28 @@ async function askCopilot(text){
   openCop(); busy = true;
   chat.push({role: "user", content: text}); renderChat(true);
   try {
-    const res = await post("/api/copilot", {messages: chat.filter(m => !m.error).map(m => ({role: m.role, content: m.content})), stay_date: window.OperatorUI.selectedDate()});
-    chat.push({role: "assistant", content: res.reply, actions: res.actions || []});
+    let res = await post("/api/copilot", {messages: chat.filter(m => !m.error).map(m => ({role: m.role, content: m.content})), stay_date: window.OperatorUI.selectedDate()});
+    if (res.queued) res = await waitForAgent(res.queued);
+    chat.push({role: "assistant", content: res.reply, actions: res.actions || [], by: res.agent ? "agent" : res.fallback ? "fallback" : "model"});
   } catch (e) { chat.push({role: "assistant", content: `没答上来：${e.message}`, error: true}); }
   busy = false; saveChat(); renderChat();
+}
+// The hotel agent answers from the Mac mini: poll until it does (the server falls back to the API model after ~75 s).
+async function waitForAgent(id){
+  for (let i = 0; i < 60; i++) {
+    await new Promise(r => setTimeout(r, i < 5 ? 1500 : 3000));
+    const r = await fetch(`/api/copilot/${id}`, {credentials: "same-origin"});
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 202) { renderChat(true, "酒店 agent 正在查数据、想办法…"); continue; }
+    if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+    return j;
+  }
+  throw new Error("等太久了，请再问一次");
+}
+function agentBadge(state){
+  const a = state.agent || {};
+  $("cop-agent").innerHTML = a.online ? `<span class="agent-on">●</span> 酒店 agent 在线（Mac mini）${a.notes?.length ? ` · 记住了 ${a.notes.length} 条经验` : ""}`
+    : `<span class="agent-off">●</span> 酒店 agent 离线，由备用模型回答`;
 }
 function openCop(){ $("cop").classList.add("open"); }
 $("fab").onclick = () => { openCop(); $("q").focus(); };
@@ -1103,6 +1122,7 @@ async function load(){
     window.OperatorUI.render(state, load, toast);
     window.ChannelUI.render(state, load, toast);
     window.PaceUI.render(state);
+    agentBadge(state);
     const run = state.latest_run;
     $("last-run").innerHTML = icon("i-db","sm") + esc(run ? `最近采集 ${run.id.slice(4,6)}-${run.id.slice(6,8)} ${run.id.slice(9,11)}:${run.id.slice(11,13)}` : "还没有采集记录");
     const by = series(state);

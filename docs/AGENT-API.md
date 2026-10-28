@@ -1,0 +1,58 @@
+# OTA operator agent: cockpit API
+
+The agent (OpenClaw agent `ota` on the hotel Mac mini, model openai/gpt-6.1-sol, thinking medium) is the product.
+The cockpit Worker is its tool backend and the dashboard shows the same data. Base URL
+`https://ota.wyndhamgardenkamala.com`. Every call needs `Authorization: Bearer $AGENT_TOKEN`
+(Worker secret `AGENT_TOKEN`, separate from the ingest token and the dashboard password).
+
+The agent never writes to an OTA back office, never touches the review operator (Chrome/CDP, `operator.lock`,
+its files), and never changes prices, availability or promotions. Writes are limited to the rows below.
+
+## Read tools (GET)
+
+| Path | Returns |
+|---|---|
+| `/api/agent/brief` | `{text}`: the full data block (agent notes, data reliability, stay-month pace, holidays, every metric with its window and benchmark, alerts, report, to-dos). Start every task here. `?format=json` for the structured version |
+| `/api/agent/alerts` | serious/warning alerts with `why`, `steps`, `kpi`, `owner` |
+| `/api/agent/wins` | what is going well |
+| `/api/agent/pace` | per stay month: booked within 30/90 days and ADR vs peers; on-the-books vs last year and pickup when available |
+| `/api/agent/events` | source-market holidays with `live_by` / `setup_by` campaign dates |
+| `/api/agent/channels` | per-platform funnels, losses, future on-the-books |
+| `/api/agent/revenue` | OPERA calendar status and months (source date in `source.as_of`) |
+| `/api/agent/health` | per platform and day: whether the collector read it |
+| `/api/agent/report` | latest daily analysis report |
+| `/api/agent/todos`, `/api/agent/decisions` | to-dos and investigations (baseline, review date, follow-up) |
+| `/api/agent/runs` | latest collection runs and page status |
+| `/api/agent/glossary` | metric definitions |
+| `/api/agent/knowledge` | the OTA playbook (ranking factors, programme thresholds, symptom → cause → action) and the daily/weekly/monthly routines |
+| `/api/agent/metrics?platform=&metric=&metric_prefix=&period=&since=&until=&limit=` | raw daily metric rows, newest first, max 500 |
+| `/api/agent/notes` | the agent's own active notes (`?all=1` includes archived) |
+
+## Writes (POST, JSON)
+
+| Path | Body | Effect |
+|---|---|---|
+| `/api/agent/todos` | `{title, detail?, owner, platform, source: "agent", source_ref?}` | new to-do on the dashboard board. `owner` is one of 收益/销售, 前台, 客房, 工程, 餐饮, 市场/内容, 总经理 |
+| `/api/agent/todos/:id` | `{status: open\|done\|dropped}` | update a to-do |
+| `/api/agent/notes` | `{topic, note}` | durable memory: what worked, hotel facts, decisions. Shown on the dashboard |
+| `/api/agent/notes/:id` | `{status: active\|archived}` | retire a note |
+| `/api/agent/heartbeat` | `{info?}` | liveness; `chat/next` also counts |
+
+## Dashboard chat (the copilot panel talks to the agent)
+
+1. When the agent has been seen in the last 180 s, a question typed in the dashboard is queued instead of
+   going to the API model.
+2. The agent polls `GET /api/agent/chat/next` (every 5–10 s). It returns `{request: null}` or
+   `{request: {id, messages: [{role, content}], stay_date, answer_within_s: 75, reply_to}}`. A request is handed out once.
+   A claim with no answer for 5 min goes back to the queue.
+3. The agent answers with `POST /api/agent/chat/:id {reply, actions?, model?}`. `reply` is Chinese text, with `-` lists
+   and `**bold**` allowed. `actions`, at most 4, are `{type: "todo", title, owner, platform, detail, evidence_ids}`. They
+   become "加入待办" buttons only when every evidence id is current; price, promotion and inventory actions never do
+   (same guard as before).
+4. When there is no answer within 75 s, the dashboard's own API model answers and a late agent reply gets 409.
+
+## Setup
+
+- `npx wrangler d1 execute wgpk_ota --remote --file cockpit/schema.sql` adds `agent_chat`, `agent_notes`
+  and `agent_heartbeat` (IF NOT EXISTS).
+- `npx wrangler secret put AGENT_TOKEN`. Store the same value only in the agent's environment on the Mac mini.

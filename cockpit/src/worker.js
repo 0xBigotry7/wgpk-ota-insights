@@ -15,6 +15,7 @@ import { paceView } from "./pace.js";
 import { eventPlan } from "./events.js";
 import { operatorView, approveDecision, updateDecision } from "./operator.js";
 import { pollPmsArchive } from "./pms-bridge.js";
+import { handleAgent, agentStatus, enqueue, poll, settle } from "./agent.js";
 
 const SESSION_COOKIE = "wgpk_ota_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
@@ -39,6 +40,17 @@ export default {
     if (path === "/login" && request.method === "POST") return handleLogin(request, env);
     if (path === "/logout") {
       return redirect("/login", { "Set-Cookie": `${SESSION_COOKIE}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax` });
+    }
+
+    // The OTA operator agent (OpenClaw on the hotel Mac mini): its own token, read tools + to-dos, notes and chat replies.
+    if (path.startsWith("/api/agent/")) {
+      if (!agentAuthorized(request, env)) return json({ error: "unauthorized" }, 401);
+      if (request.method === "POST" && path === "/api/agent/todos") return createTodo(request, env);
+      const t = path.match(/^\/api\/agent\/todos\/(\d+)$/);
+      if (request.method === "POST" && t) return updateTodo(request, env, Number(t[1]));
+      const out = await handleAgent(request, env, path, loadState);
+      if (!out) return json({ error: "not found" }, 404);
+      return json(out, out.error ? out.status || 400 : 200);
     }
 
     if (path.startsWith("/api/")) {
@@ -84,6 +96,8 @@ export default {
         return json({ error: "unauthorized" }, 401);
       }
       if (request.method === "GET" && path === "/api/state") return json(await loadState(env));
+      const queued = path.match(/^\/api\/copilot\/(\d+)$/);
+      if (request.method === "GET" && queued) return pollCopilot(env, Number(queued[1]));
       return json({ error: "not found" }, 404);
     }
 
@@ -339,6 +353,8 @@ async function loadState(env) {
   state.channels = channelView(state.metrics, state.pages);
   state.pace = paceView(state.metrics);
   state.events = eventPlan(state.metrics, state.pace);
+  state.agent = await agentStatus(env.DB).catch(() => ({ online: false }));
+  state.agent.notes = await all(env.DB.prepare("select id, created_at, topic, note from agent_notes where status = 'active' order by id desc limit 30")).catch(() => []);
   state.operator = operatorView(state, decisions);
   const feed = await all(env.DB.prepare("select state from pms_feed_state where id = 'opera_archive'"));
   state.revenue.feed = feed[0] ? safeJson(feed[0].state, null) : null;
@@ -353,7 +369,7 @@ export function validateTodo(body) {
   if (!body || !String(body.title || "").trim()) errors.push("title is required");
   if (body && body.owner && !OWNERS.includes(body.owner)) errors.push("owner unknown");
   if (body && body.platform && body.platform !== "all" && !PLATFORMS.includes(body.platform)) errors.push("platform unknown");
-  if (body && body.source && !["report", "alert", "copilot", "manual", "auto"].includes(body.source)) errors.push("source unknown");
+  if (body && body.source && !["report", "alert", "copilot", "manual", "auto", "agent"].includes(body.source)) errors.push("source unknown");
   return errors;
 }
 
@@ -405,10 +421,34 @@ async function handleCopilot(request, env) {
   const hourAgo = new Date(Date.now() - 3600e3).toISOString();
   const used = await env.DB.prepare("select count(*) as n from copilot_log where at >= ?").bind(hourAgo).first();
   if (used && used.n >= COPILOT_PER_HOUR) return json({ error: "Copilot 这一小时问得太多了，稍后再试" }, 429);
+  // When the hotel agent is online it answers; the page polls GET /api/copilot/:id and falls back after a wait.
+  if (env.AGENT_TOKEN && (await agentStatus(env.DB)).online) {
+    const id = await enqueue(env.DB, history, body.stay_date);
+    await env.DB.prepare("insert into copilot_log (at, question, reply, model) values (?, ?, ?, ?)")
+      .bind(new Date().toISOString(), clip(history.at(-1).content, 2000), `(queued for the hotel agent #${id})`, "agent").run();
+    return json({ queued: id, agent: true });
+  }
+  return answerWithModel(env, history, body.stay_date);
+}
+
+async function pollCopilot(env, id) {
+  const r = await poll(env.DB, id);
+  if (r.status === "answered") return json({ reply: r.reply, actions: r.actions, model: r.model, agent: true });
+  if (r.status === "fallback") {
+    const res = await answerWithModel(env, r.messages, r.stay_date);
+    const j = await res.json();
+    if (res.ok) await settle(env.DB, id, j);
+    return json({ ...j, fallback: "hotel agent did not answer in time" }, res.status);
+  }
+  if (r.status === "expired") return json({ error: "酒店 agent 没按时回答，备用模型也没答上，请再问一次" }, 504);
+  return json({ status: r.status }, r.status === "missing" ? 404 : 202);
+}
+
+async function answerWithModel(env, history, stayDate) {
   const state = await loadState(env);
   let answer;
   try {
-    state.selected_stay_date = state.revenue.days.some(d => d.stay_date === body.stay_date) ? body.stay_date : null;
+    state.selected_stay_date = state.revenue.days.some(d => d.stay_date === stayDate) ? stayDate : null;
     answer = groundAnswer(await ask(env, history, context(state, state.monitor)), state);
   } catch (e) {
     return json({ error: `模型暂时不可用（${String(e.message).slice(0, 80)}），稍后再试` }, 502);
@@ -419,6 +459,11 @@ async function handleCopilot(request, env) {
 }
 
 // ─────────────────────── auth ───────────────────────
+
+function agentAuthorized(request, env) {
+  if (!env.AGENT_TOKEN) return false;
+  return timingSafeEqual(request.headers.get("Authorization") || "", `Bearer ${env.AGENT_TOKEN}`);
+}
 
 function ingestAuthorized(request, env) {
   if (!env.OTA_INGEST_TOKEN) return false;
