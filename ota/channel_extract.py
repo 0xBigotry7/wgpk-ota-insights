@@ -52,6 +52,74 @@ def selected_period(text: str, day: str) -> str:
         return "native_window"
 
 
+MONTHS = {"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6, "Jul": 7, "Aug": 8, "Sep": 9, "Sept": 9,
+          "Oct": 10, "Nov": 11, "Dec": 12}
+# Booking pace report: URL period -> (metric prefix, total-column keys already in the catalog, their period).
+PACE_PAGES = {
+    "pace-report": ("pickup_30d", "_30d", "booked_last_30_days"),
+    "pace-90d": ("pickup_90d", "_90d", "booked_last_90_days"),
+    "pace-365": ("pace", None, None),
+}
+
+
+def pace_table(text: str) -> tuple[list[str], dict[str, list[float | None]]]:
+    """Booking's pace table: stay-month columns ("\tNov\n2026" ... "\tTotal") and tab-separated rows.
+
+    Returns (["2026-11", ..., "total"], {row label: values}); empty when the page shows no such table.
+    Cells that are not numbers ("—", blank) are None, never 0.
+    """
+    head = re.search(r"((?:\t[A-Z][a-z]{2,3}\n20\d{2}\n)+)\tTotal\n", text)
+    if not head:
+        return [], {}
+    cols = [f"{y}-{MONTHS[mo]:02d}" for mo, y in re.findall(r"\t([A-Z][a-z]{2,3})\n(20\d{2})", head[1]) if mo in MONTHS]
+    cols.append("total")
+    rows: dict[str, list[float | None]] = {}
+    for line in text[head.end():].splitlines():
+        if line.startswith(("Show total sum", "Breakdown by room")):
+            break
+        parts = line.split("\t")
+        if len(parts) != len(cols) + 1 or not parts[0].strip():
+            continue
+        cells = []
+        for p in parts[1:]:
+            p = p.strip().replace(",", "").rstrip("%")
+            try:
+                cells.append(float(p))
+            except ValueError:
+                cells.append(None)
+        rows.setdefault(parts[0].strip(), cells)       # the first "Your rank" etc. wins; ranks are not read
+    return cols, rows
+
+
+def pace_values(slug: str, text: str) -> list[dict]:
+    prefix, total_suffix, total_period = PACE_PAGES[slug]
+    cols, rows = pace_table(text)
+    if not cols:
+        return []
+    values = []
+    series = (("room_nights", "Room nights"), ("revenue", "Revenue (THB)"), ("adr", "Average daily rate THB"))
+    for key, label in series:
+        ours, last_year = rows.get(label), rows.get(f"{label} (Last year)")
+        peer = rows.get(f"{label} (Peer group)")
+        if not ours:
+            continue
+        for i, col in enumerate(cols):
+            if col != "total" and peer and peer[i] is not None:
+                values.append({"key": f"{prefix}_{key}_comp", "value": peer[i], "benchmark": None,
+                               "quote": f"{label} (Peer group) {col}", "period_override": f"stay_{col}"})
+            if ours[i] is None:
+                continue
+            bench = last_year[i] if last_year else None        # same-time-last-year only; never a peer value
+            if col == "total":
+                if total_suffix:
+                    values.append({"key": f"pace_{key}{total_suffix}", "value": ours[i], "benchmark": None,
+                                   "quote": f"{label} Total", "period_override": total_period})
+                continue
+            values.append({"key": f"{prefix}_{key}", "value": ours[i], "benchmark": bench,
+                           "quote": f"{label} {col}", "period_override": f"stay_{col}"})
+    return values
+
+
 def channel_values(cid: str, slug: str, text: str, day: str) -> list[dict] | None:
     values = []
 
@@ -63,6 +131,8 @@ def channel_values(cid: str, slug: str, text: str, day: str) -> list[dict] | Non
             values.append({"key": key, "value": val, "benchmark": benchmark,
                            "quote": match[0][:120], "period_override": period})
 
+    if cid == 'booking' and slug in PACE_PAGES:
+        return pace_values(slug, text)
     if cid == 'booking' and slug == 'search-rank-30d':
         if 'Selected analytics period: DAYS30' not in text:
             return []

@@ -126,11 +126,14 @@ def extract_run(db: sqlite3.Connection, run_id: str, ask=llm.ask_json) -> dict:
             counts[f"{cid}/{slug}"] = -1
             print(f"extract {cid}/{slug}: {type(e).__name__}: {e}", flush=True)
             continue
-        kept = check(res.get("values", []), metrics, text)
-        periods = {v['key']: v.get('period_override') for v in (deterministic or [])}
+        if deterministic is not None:
+            # One metric key can carry several periods (e.g. pace per stay month): check value by value.
+            kept = [(*k[0], v.get("period_override")) for v in deterministic if (k := check([v], metrics, text))]
+        else:
+            kept = [(*k, None) for k in check(res.get("values", []), metrics, text)]
         date_info = source_date(cid, slug, text)
-        for m, val, bench in kept:
-            period = periods.get(m.key) or m.period
+        for m, val, bench, period_override in kept:
+            period = period_override or m.period
             put_metric(db, day=day, cid=cid, metric=m.key, period=period, label=m.label, value=val, unit=m.unit,
                        benchmark=bench, run_id=run_id, source_slug=slug, extracted_by="native_rules_v1" if deterministic is not None else "codex")
             if date_info and not m.key.startswith('diagnostic_'):

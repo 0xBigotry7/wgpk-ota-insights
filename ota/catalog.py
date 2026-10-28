@@ -111,7 +111,20 @@ CATALOG: dict[tuple[str, str], tuple[Metric, ...]] = {
         m("avg_los", "平均入住晚数", "晚", hint="row 'All reservations': Average length of stay; benchmark: 'Peer group'"),
         m("booker_adr", "平均房价（预订人分析）", "THB", hint="row 'All reservations': Average daily rate; benchmark: 'Peer group'"),
     ),
+    # All future stays on the books per stay month (bookings within 365 days), vs same time last year.
+    ("booking", "pace-365"): (
+        m("pace_room_nights", "在手间夜（按入住月）", hint="pace table 'Room nights' per stay month"),
+        m("pace_revenue", "在手收入（按入住月）", "THB", hint="pace table 'Revenue (THB)' per stay month"),
+        m("pace_adr", "在手房价（按入住月）", "THB", hint="pace table 'Average daily rate THB' per stay month"),
+    ),
     ("booking", "pace-90d"): (
+        # Per stay month (period stay_YYYY-MM, set by channel_extract.pace_values): future stays booked within
+        # the last 90 days. benchmark = the page's "(Last year)" row when shown; the peer ADR is a separate _comp key.
+        m("pickup_90d_room_nights", "近90天新增间夜（按入住月）", hint="pace table 'Room nights' per stay month"),
+        m("pickup_90d_revenue", "近90天新增收入（按入住月）", "THB", hint="pace table 'Revenue (THB)' per stay month"),
+        m("pickup_90d_adr", "近90天新增房价（按入住月）", "THB", hint="pace table 'Average daily rate THB' per stay month"),
+        m("pickup_90d_adr_comp", "近90天新增房价·同类（按入住月）", "THB",
+          hint="pace table 'Average daily rate THB (Peer group)' per stay month"),
         m("pace_room_nights_90d", "近90天新增未来间夜", period="booked_last_90_days",
           hint="'Total' row at the end of 'Breakdown by room and rate': room nights"),
         m("pace_revenue_90d", "近90天新增未来收入", "THB", "booked_last_90_days", "'Total' row of the breakdown: revenue (THB)"),
@@ -119,6 +132,13 @@ CATALOG: dict[tuple[str, str], tuple[Metric, ...]] = {
           "'Total' row of the breakdown: average daily rate (THB)"),
     ),
     ("booking", "pace-report"): (
+        # Per stay month (period stay_YYYY-MM, set by channel_extract.pace_values): future stays booked within
+        # the last 30 days. benchmark = the page's "(Last year)" row when shown; the peer ADR is a separate _comp key.
+        m("pickup_30d_room_nights", "近30天新增间夜（按入住月）", hint="pace table 'Room nights' per stay month"),
+        m("pickup_30d_revenue", "近30天新增收入（按入住月）", "THB", hint="pace table 'Revenue (THB)' per stay month"),
+        m("pickup_30d_adr", "近30天新增房价（按入住月）", "THB", hint="pace table 'Average daily rate THB' per stay month"),
+        m("pickup_30d_adr_comp", "近30天新增房价·同类（按入住月）", "THB",
+          hint="pace table 'Average daily rate THB (Peer group)' per stay month"),
         # Future stays booked within the last 30 days (URL period=DAYS30); the "Total" row of the breakdown.
         m("pace_room_nights_30d", "近30天新增未来间夜", period="booked_last_30_days",
           hint="'Total' row at the end of 'Breakdown by room and rate': room nights"),
