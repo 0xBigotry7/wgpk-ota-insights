@@ -112,10 +112,16 @@ CATALOG: dict[tuple[str, str], tuple[Metric, ...]] = {
         m("booker_adr", "平均房价（预订人分析）", "THB", hint="row 'All reservations': Average daily rate; benchmark: 'Peer group'"),
     ),
     # All future stays on the books per stay month (bookings within 365 days), vs same time last year.
+    # On the books (bookings within 365 days) vs same time last year; period stay_YYYY-MM or stay_YYYY-MM-DD.
     ("booking", "pace-365"): (
-        m("pace_room_nights", "在手间夜（按入住月）", hint="pace table 'Room nights' per stay month"),
-        m("pace_revenue", "在手收入（按入住月）", "THB", hint="pace table 'Revenue (THB)' per stay month"),
-        m("pace_adr", "在手房价（按入住月）", "THB", hint="pace table 'Average daily rate THB' per stay month"),
+        m("pace_room_nights", "在手间夜（按入住月）", period="stay_month", hint="pace table 'Room nights' per stay month"),
+        m("pace_revenue", "在手收入（按入住月）", "THB", "stay_month", "pace table 'Revenue (THB)' per stay month"),
+        m("pace_adr", "在手房价（按入住月）", "THB", "stay_month", "pace table 'Average daily rate THB' per stay month"),
+    ),
+    ("booking", "pace-7d"): (
+        m("pace_room_nights", "在手间夜（按入住日）", period="stay_day", hint="pace table 'Room nights' per stay date"),
+        m("pace_revenue", "在手收入（按入住日）", "THB", "stay_day", "pace table 'Revenue (THB)' per stay date"),
+        m("pace_adr", "在手房价（按入住日）", "THB", "stay_day", "pace table 'Average daily rate THB' per stay date"),
     ),
     ("booking", "pace-90d"): (
         # Per stay month (period stay_YYYY-MM, set by channel_extract.pace_values): future stays booked within
