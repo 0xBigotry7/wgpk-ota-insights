@@ -75,3 +75,18 @@ test("event plan: campaign live date uses the longer of our and the peers' booki
   assert.ok(a.some((x) => x.id === "event:xmas-ny-2026" && x.level === "serious"));
   assert.ok(!a.some((x) => x.id === "event:cny-2027"));                // live by 12-10: not yet
 });
+
+test("daily pace: next stay dates from the latest sample, kept out of the generic alerts", () => {
+  const daily = [
+    row("2026-10-27", "stay_2026-10-29", "pace_room_nights", 50, 40),
+    row("2026-10-28", "stay_2026-10-29", "pace_room_nights", 60, 80),
+    row("2026-10-28", "stay_2026-10-30", "pace_room_nights", 30, 20),
+    row("2026-10-28", "stay_2026-10-27", "pace_room_nights", 9, 9),        // already past
+  ];
+  const v = paceView([...metrics, ...daily], "2026-10-28");
+  assert.deepEqual(v.next_days.map((d) => [d.stay_date, d.room_nights, d.room_nights_ly]), [["2026-10-29", 60, 80], ["2026-10-30", 30, 20]]);
+  assert.equal(Math.round(v.next_days[0].gap), -25);
+  assert.ok(!v.platforms[0].months.some((m) => m.month.length > 7));
+  const m = monitor({ metrics: [...metrics, ...daily], runs: [{ id: "20261028-102000", outcome: "done" }] }, new Date("2026-10-28T05:00:00Z"));
+  assert.ok(!m.alerts.some((x) => /stay_2026-10-/.test(x.id)));
+});
