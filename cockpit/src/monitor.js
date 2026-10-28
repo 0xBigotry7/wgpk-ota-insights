@@ -4,6 +4,8 @@
 
 import { organizeAlerts } from "./contracts.js";
 import { season } from "./knowledge.js";
+import { isStayMonth, paceAlerts, paceView } from "./pace.js";
+import { eventAlerts, eventPlan } from "./events.js";
 
 const LOWER_BETTER = /(^|_)(rank|problem|sort_order|response_hours|pending|had_problem|cancellation|lost)/;
 export const lowerIsBetter = (metric) => LOWER_BETTER.test(metric);
@@ -216,7 +218,7 @@ export function monitor({ metrics = [], pages = [], runs = [], history = [] }, n
     add({ id: `run:${blocked.outcome}`, level: "serious", platform: "all", area: "data", owner: "收益/销售",
       title: blocked.outcome === "skipped" ? "最近一次采集被跳过" : `最近一次采集没跑完（${blocked.outcome}）`,
       detail: `${blocked.id}${last ? ` · 上一次完整采集 ${last.id}` : ""}`,
-      action: blocked.outcome === "skipped" ? "多半是点评系统的 Chrome 没开或正在回复点评；11:30 会自动补跑" : "下一次定时采集会重试；连续两次失败请检查 Mac mini" });
+      action: blocked.outcome === "skipped" ? "多半是点评系统的 Chrome 没开或正在回复点评；22:15 会自动补跑" : "下一次定时采集会重试；连续两次失败请检查 Mac mini" });
   }
   if (!last) {
     add({ id: "run:none", level: "critical", platform: "all", area: "data", owner: "收益/销售", title: "还没有任何采集记录",
@@ -224,16 +226,16 @@ export function monitor({ metrics = [], pages = [], runs = [], history = [] }, n
   } else if (now - runDate(last.id) > 30 * 3600e3) {
     const hours = Math.round((now - runDate(last.id)) / 3600e3);
     add({ id: "run:stale", level: "critical", platform: "all", area: "data", owner: "收益/销售", title: `已经 ${hours} 小时没有新数据`,
-      detail: `最近一次采集是 ${last.id}`, action: "确认酒店 Mac mini 开机联网；采集每天 10:20 运行，11:30 补跑一次" });
+      detail: `最近一次采集是 ${last.id}`, action: "确认酒店 Mac mini 开机联网；采集每天 10:20 运行，22:15 补跑一次" });
   }
 
   for (const p of pages) {
     if (p.status === "signed_out" && p.page === "landing") {
       add({ id: `page:${p.platform}:landing`, level: "serious", platform: p.platform, area: "data", owner: "收益/销售",
         title: `${NAMES[p.platform]} 后台未登录，今天没读到数据`, detail: p.detail || "",
-        action: "点评系统 09:15 / 14:45 会自动登录；如果连续两天未登录，请人工在 Mac mini 的 Chrome 里登录一次",
+        action: "点评系统一天 6 次会自动登录；如果连续两天未登录，请人工在 Mac mini 的 Chrome 里登录一次",
         why: "没登录就读不到这个平台当天的数字，预警和报告会缺这一块",
-        steps: ["等点评系统下一次自动登录（09:15 / 14:45）", "连续两天未登录：在酒店 Mac mini 的 Chrome 里人工登录一次",
+        steps: ["等点评系统下一次自动登录（一天 6 次，最早 09:15）", "连续两天未登录：在酒店 Mac mini 的 Chrome 里人工登录一次",
           "需要短信或邮箱验证码的平台，找持有手机的同事配合"], kpi: "平台连接状态变绿", eta: "当天" });
     }
   }
@@ -259,6 +261,7 @@ export function monitor({ metrics = [], pages = [], runs = [], history = [] }, n
   const by = seriesOf(metrics);
   for (const [key, rows] of Object.entries(by)) {
     const m = { ...rows.at(-1) };
+    if (isStayMonth(m)) continue;   // per-stay-month pace has its own alerts below (pace.js)
     m.label = m.label.replace(/^问题：(.+)$/, "$1问题占比");
     const plan = playbook(m.metric);
     const period = PERIOD_WORDS[m.period] ? `（${PERIOD_WORDS[m.period]}）` : "";
@@ -301,6 +304,12 @@ export function monitor({ metrics = [], pages = [], runs = [], history = [] }, n
         title: `${NAMES[m.platform]} 有 ${m.value} 条${m.label.replace("待回复", "")}待回复`, detail: `${m.day} 读取`, ...how(plan) });
     }
   }
+
+  // Stay-month pace vs the same time last year, and week-over-week pickup (pace.js).
+  const pv = paceView(metrics, bkkDay(now));
+  for (const a of paceAlerts(pv)) (a.win ? wins.push(a) : add(a));
+  // Source-market holidays whose OTA campaign should be in preparation, from how far ahead guests book (events.js).
+  for (const a of eventAlerts(eventPlan(metrics, pv, bkkDay(now)))) add(a);
 
   // 4. Ranks in the bottom half of their group.
   const RANKS = [["booking", "compset_views_rank@last_90_days", "compset_size@last_90_days", "竞品组曝光排名"],
