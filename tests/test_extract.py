@@ -188,3 +188,20 @@ def test_implausible_values_are_dropped():
                           {"key": "share", "value": 120.5, "benchmark": None, "quote": ""},
                           {"key": "views_vs_peer", "value": 136.9, "benchmark": None, "quote": ""}], metrics, text)
     assert [(mt.key, v) for mt, v, _ in kept] == [("views_vs_peer", 136.9)]
+
+
+def test_one_metric_key_stores_every_stay_month(tmp_path):
+    from tests.test_channel_extract import PACE
+    db = _db(tmp_path)
+    page = tmp_path / 'pace.txt'
+    page.write_text(PACE)
+    store.add_snapshot(db, run_id='20261028-102001', cid='booking', slug='pace-90d', captured_at='x', status='ok',
+                       text_path=str(page))
+
+    def no_model(*args):
+        raise AssertionError('pace pages are parsed, not sent to a model')
+
+    extract.extract_run(db, '20261028-102001', ask=no_model)
+    rows = db.execute("SELECT period, value, benchmark FROM metric_values WHERE metric='pickup_90d_room_nights' "
+                      "ORDER BY period").fetchall()
+    assert rows == [('stay_2026-11', 120.0, 100.0), ('stay_2026-12', 1250.0, 900.0)]

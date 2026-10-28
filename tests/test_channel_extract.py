@@ -89,3 +89,38 @@ def test_only_date_input_values_are_added_to_private_snapshot():
     text = asyncio.run(ReadOnlyTab(Page()).text())
     assert 'Selected date filters' in text
     assert 'private' not in text and '123456789' not in text
+
+
+PACE = ("Room nights and average daily rate\n"
+        "\tNov\n2026\n\tDec\n2026\n\tJan\n2027\n\tTotal\n"
+        "Room nights\t120\t1,250\t—\t1,370\n"
+        "Room nights (Last year)\t100\t900\t40\t1,040\n"
+        "Your rank\t8 out of 26\t6 out of 26\t4 out of 26\t10\n"
+        "\n"
+        "Revenue (THB)\t600,000.50\t9,000,000.00\t—\t9,600,000.50\n"
+        "Average daily rate THB\t5,000.00\t7,200.00\t—\t7,007.30\n"
+        "Average daily rate THB (Peer group)\t6,100.00\t9,800.00\t10,400.00\t8,000.00\n"
+        "\n"
+        "Show total sum\n"
+        "Breakdown by room and rate\nRoom/Rate plan\tRoom nights\tRevenue (THB)\tAverage daily rate (THB)\n"
+        "Total\t1,370\t9,600,000.50\t7,007.30\n")
+
+
+def test_pace_table_by_stay_month_with_last_year_and_peer_kept_apart():
+    v = channel_values('booking', 'pace-90d', PACE, '2026-10-28')
+    by = {(x['key'], x['period_override']): x for x in v}
+    assert by[('pickup_90d_room_nights', 'stay_2026-11')]['value'] == 120
+    assert by[('pickup_90d_room_nights', 'stay_2026-12')]['benchmark'] == 900        # last year, same block
+    assert ('pickup_90d_room_nights', 'stay_2027-01') not in by                      # "—" is missing, not 0
+    assert by[('pickup_90d_adr', 'stay_2026-12')]['benchmark'] is None               # peer never in benchmark
+    assert by[('pickup_90d_adr_comp', 'stay_2027-01')]['value'] == 10400
+    assert by[('pace_room_nights_90d', 'booked_last_90_days')]['value'] == 1370        # existing total series kept
+    assert not any('rank' in k for k, _ in by)
+
+
+def test_pace_365_is_on_the_books_and_unknown_tables_give_nothing():
+    v = channel_values('booking', 'pace-365', PACE.replace('Room nights (Last year)', 'Room nights (Last year)'), 'd')
+    keys = {(x['key'], x['period_override']) for x in v}
+    assert ('pace_room_nights', 'stay_2026-11') in keys and ('pace_revenue', 'stay_2026-12') in keys
+    assert not any(k.endswith(('_30d', '_90d')) for k, _ in keys)
+    assert channel_values('booking', 'pace-90d', 'Room nights 120', 'd') == []
