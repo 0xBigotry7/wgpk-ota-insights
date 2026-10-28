@@ -58,3 +58,13 @@ def test_poller_parses_agent_json_reply():
     got = poller.parse_reply(out)
     assert got["reply"] == "Booking 点击率 2.57%" and len(got["actions"]) == 1
     assert poller.parse_reply("not json") is None
+
+
+def test_poller_reads_openclaw_payloads():
+    spec2 = importlib.util.spec_from_file_location("poller2", ROOT / "poller" / "ota_chat_poller.py")
+    poller = importlib.util.module_from_spec(spec2)
+    spec2.loader.exec_module(poller)
+    out = ('{"runId": "r", "status": "ok", "result": {"payloads": [{"text": "{\\"reply\\": \\"携程未来30天在手138间夜\\", '
+           '\\"actions\\": []}", "mediaUrl": null}], "meta": {"durationMs": 13218}}}')
+    got = poller.parse_reply(out)
+    assert got == {"reply": "携程未来30天在手138间夜", "actions": []}

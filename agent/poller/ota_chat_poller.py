@@ -75,8 +75,11 @@ def parse_reply(stdout: str) -> dict | None:
     except json.JSONDecodeError:
         return None
     text = out.get("reply") or out.get("text") or out.get("message") or ""
-    if isinstance(out.get("result"), dict):
-        text = out["result"].get("text") or text
+    result = out.get("result")
+    if isinstance(result, dict):
+        # openclaw agent --json: {"result": {"payloads": [{"text": ...}], "meta": {...}}}
+        payloads = [p.get("text") or "" for p in result.get("payloads") or [] if isinstance(p, dict)]
+        text = "\n".join(t for t in payloads if t) or result.get("text") or text
     start, end = text.find("{"), text.rfind("}")
     if start < 0 or end <= start:
         return {"reply": text.strip()[:3000], "actions": []} if text.strip() else None
