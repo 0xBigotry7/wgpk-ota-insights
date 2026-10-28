@@ -87,7 +87,7 @@ def test_booking_pages_use_landing_session_and_survive_errors(tmp_path, monkeypa
     rows = run(ctx, "booking", tmp_path, monkeypatch)
     assert {r["slug"]: r["status"] for r in rows} == {
         "landing": "ok", "reviews": "ok", "content-score": "page_missing", "sales-insights": "error",
-        "sales-30d": "error", "sales-90d": "error", "pace-report": "ok", "pace-90d": "ok", "search-rank": "ok",
+        "sales-30d": "error", "sales-90d": "error", "pace-report": "ok", "pace-90d": "ok", "pace-365": "ok", "pace-7d": "ok", "search-rank": "ok",
         "analytics-30d": "ok", "analytics-90d": "ok", "search-rank-30d": "ok", "search-rank-90d": "ok", "booker-insights": "ok",
         "genius": "ok", "opportunities": "ok", "competitive-set": "ok", "inbox": "ok"}
     assert all("hotel_id=9&lang=en&ses=s1" in u for u in ctx.page.visited[1:])

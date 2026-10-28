@@ -124,3 +124,24 @@ def test_pace_365_is_on_the_books_and_unknown_tables_give_nothing():
     assert ('pace_room_nights', 'stay_2026-11') in keys and ('pace_revenue', 'stay_2026-12') in keys
     assert not any(k.endswith(('_30d', '_90d')) for k, _ in keys)
     assert channel_values('booking', 'pace-90d', 'Room nights 120', 'd') == []
+
+
+def test_pace_365_monthly_on_the_books_vs_last_year():
+    text = ("Room nights and average daily rate\n\tNov\n2026\n\tDec\n2026\n\tTotal\n"
+            "Room nights\t344\t544\t888\nRoom nights (Last year)\t564\t554\t1,118\n"
+            "% difference\t-39.01%\t-1.81%\t-20.57%\n"
+            "Revenue (THB)\t1,614,454.43\t4,200,847.93\t5,815,302.36\nShow total sum\n")
+    by = {(x['key'], x['period_override']): x for x in channel_values('booking', 'pace-365', text, '2026-10-28')}
+    assert by[('pace_room_nights', 'stay_2026-11')]['value'] == 344
+    assert by[('pace_room_nights', 'stay_2026-11')]['benchmark'] == 564
+    assert ('pace_revenue', 'stay_2026-12') in by
+    assert not any(p == 'total' or k.endswith('_d') for k, p in by)          # no total series for pace-365
+
+
+def test_pace_daily_columns_get_years_across_new_year():
+    text = ("Room nights and average daily rate\n\t30 Dec\n\t31 Dec\n\t1 Jan\n\tTotal\n"
+            "Room nights\t40\t52\t38\t1,688\nRoom nights (Last year)\t30\t44\t41\t1,326\nShow total sum\n")
+    by = {x['period_override']: x for x in channel_values('booking', 'pace-7d', text, '2026-12-30')
+          if x['key'] == 'pace_room_nights'}
+    assert set(by) == {'stay_2026-12-30', 'stay_2026-12-31', 'stay_2027-01-01'}
+    assert by['stay_2027-01-01']['value'] == 38 and by['stay_2027-01-01']['benchmark'] == 41

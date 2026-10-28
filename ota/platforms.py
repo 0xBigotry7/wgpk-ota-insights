@@ -62,7 +62,13 @@ PLATFORMS: tuple[Platform, ...] = (
                             "&period=DAYS30&benchmark=PEER_GROUP", verified=True),
         # The selector offers "Last 90 days"; DAYS90 follows the DAYS30 pattern but is not seen in a link yet.
         Page("pace-90d", f"{BOOKING}/statistics/pace_report.html?{BOOKING_Q}"
-                         "&period=DAYS90&benchmark=PEER_GROUP"),                                  # UNVERIFIED
+                         "&period=DAYS90&benchmark=PEER_GROUP", verified=True),     # read daily since 10-23
+        # On the books per stay month vs same time last year (bookings within 365 days), and per stay date for
+        # the next 7 days (DAILY view shows 7 dates without paging). Verified read-only 2026-10-28 14:46.
+        Page("pace-365", f"{BOOKING}/statistics/pace_report.html?{BOOKING_Q}&period=DAYS365&benchmark=YEAR_OVER_YEAR"
+                         "&granularity=MONTHLY&showTotals=true", verified=True),
+        Page("pace-7d", f"{BOOKING}/statistics/pace_report.html?{BOOKING_Q}&period=DAYS365&benchmark=YEAR_OVER_YEAR"
+                        "&granularity=DAILY&showTotals=true", verified=True),
         Page("search-rank", f"{BOOKING}/showrank.html?{BOOKING_Q}", verified=True),
         Page("search-rank-30d", f"{BOOKING}/showrank.html?{BOOKING_Q}&period=DAYS30", verified=True),
         # Opened read-only on 2026-10-23 18:55-19:00 (Gary approved the discovery). The Analytics dashboard

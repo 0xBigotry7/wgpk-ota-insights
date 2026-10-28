@@ -59,19 +59,31 @@ PACE_PAGES = {
     "pace-report": ("pickup_30d", "_30d", "booked_last_30_days"),
     "pace-90d": ("pickup_90d", "_90d", "booked_last_90_days"),
     "pace-365": ("pace", None, None),
+    "pace-7d": ("pace", None, None),           # DAILY granularity: the next 7 stay dates, no paging
 }
 
 
-def pace_table(text: str) -> tuple[list[str], dict[str, list[float | None]]]:
+def pace_table(text: str, day: str = "") -> tuple[list[str], dict[str, list[float | None]]]:
     """Booking's pace table: stay-month columns ("\tNov\n2026" ... "\tTotal") and tab-separated rows.
 
     Returns (["2026-11", ..., "total"], {row label: values}); empty when the page shows no such table.
     Cells that are not numbers ("—", blank) are None, never 0.
     """
     head = re.search(r"((?:\t[A-Z][a-z]{2,3}\n20\d{2}\n)+)\tTotal\n", text)
-    if not head:
-        return [], {}
-    cols = [f"{y}-{MONTHS[mo]:02d}" for mo, y in re.findall(r"\t([A-Z][a-z]{2,3})\n(20\d{2})", head[1]) if mo in MONTHS]
+    if head:
+        cols = [f"{y}-{MONTHS[mo]:02d}" for mo, y in re.findall(r"\t([A-Z][a-z]{2,3})\n(20\d{2})", head[1])
+                if mo in MONTHS]
+    else:
+        # Daily view: "\t28 Oct\n\t29 Oct\n ... \tTotal" with no year; the year follows the sample day.
+        head = re.search(r"((?:\t\d{1,2} [A-Z][a-z]{2,3}\n)+)\tTotal\n", text)
+        if not head or not day:
+            return [], {}
+        cols, start = [], dt.date.fromisoformat(day)
+        for d, mo in re.findall(r"\t(\d{1,2}) ([A-Z][a-z]{2,3})", head[1]):
+            if mo not in MONTHS:
+                return [], {}
+            year = start.year + (1 if MONTHS[mo] < start.month else 0)
+            cols.append(dt.date(year, MONTHS[mo], int(d)).isoformat())
     cols.append("total")
     rows: dict[str, list[float | None]] = {}
     for line in text[head.end():].splitlines():
@@ -91,9 +103,9 @@ def pace_table(text: str) -> tuple[list[str], dict[str, list[float | None]]]:
     return cols, rows
 
 
-def pace_values(slug: str, text: str) -> list[dict]:
+def pace_values(slug: str, text: str, day: str = "") -> list[dict]:
     prefix, total_suffix, total_period = PACE_PAGES[slug]
-    cols, rows = pace_table(text)
+    cols, rows = pace_table(text, day)
     if not cols:
         return []
     values = []
@@ -132,7 +144,7 @@ def channel_values(cid: str, slug: str, text: str, day: str) -> list[dict] | Non
                            "quote": match[0][:120], "period_override": period})
 
     if cid == 'booking' and slug in PACE_PAGES:
-        return pace_values(slug, text)
+        return pace_values(slug, text, day)
     if cid == 'booking' and slug == 'search-rank-30d':
         if 'Selected analytics period: DAYS30' not in text:
             return []
