@@ -37,6 +37,14 @@
       <thead><tr><th>入住月 \\ 采样日</th>${p.sample_days.map(d=>`<th>${e(d.slice(5))}</th>`).join('')}</tr></thead>
       <tbody>${rows.map(r=>`<tr><th>${e(r.name)} ${e(r.m.label)}</th>${r.m.daily.map(cell).join('')}</tr>`).join('')}</tbody></table></div>`;
   }
+  function next(rows){
+    if(!rows||!rows.length)return '';
+    const max=Math.max(1,...rows.flatMap(r=>[r.room_nights,r.room_nights_ly]).filter(Number.isFinite));
+    return `<h3 class="pace-h3">未来 7 天每天在手 vs 去年同期</h3><p class="meta">${e(rows[0].name)} 每日 pace · 采样 ${e(rows[0].day)}</p>
+      <div class="card pace-card">${rows.map(r=>`<div class="pace-row nopu"><div class="pace-m"><b>${e(r.stay_date.slice(5))}</b><small>${'日一二三四五六'[new Date(r.stay_date+'T00:00:00Z').getUTCDay()]}</small></div>
+        <div class="pace-bar" role="img" aria-label="${e(r.stay_date)} 在手 ${n(r.room_nights)} 间夜，去年同期 ${n(r.room_nights_ly)}"><span class="now ${tone(r.gap)}" style="width:${Math.max(2,r.room_nights/max*100)}%"></span>${Number.isFinite(r.room_nights_ly)?`<span class="ly" style="left:${r.room_nights_ly/max*100}%"></span>`:''}</div>
+        <div class="pace-num"><b>${n(r.room_nights)}</b><small>去年 ${n(r.room_nights_ly)}</small><span class="pace-gap ${tone(r.gap)}">${gapTxt(r.gap)}</span></div><div></div></div>`).join('')}</div>`;
+  }
   const STATUS={late:['已晚','bad'],urgent:['今天开始准备','bad'],soon:['两周内准备','warn'],later:['还早',''],now:['进行中','good']};
   function events(plan){
     if(!plan||!plan.events.length)return '';
@@ -70,7 +78,7 @@
     }).join('');
     $('pace-body').innerHTML=`<p class="meta">${e(p.note)}</p>
       <div class="pace-cards">${cards}</div>
-      ${ev}<h3 class="pace-h3">每日新增（同一入住月，相邻两次采样之差）</h3>${heat(p)}`;
+      ${next(p.next_days)}${ev}<h3 class="pace-h3">每日新增（同一入住月，相邻两次采样之差）</h3>${heat(p)}`;
   }
   window.PaceUI={render};
 })();

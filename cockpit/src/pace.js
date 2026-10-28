@@ -13,7 +13,9 @@ const pct = (a, b) => (Number.isFinite(a) && Number.isFinite(b) && b > 0 ? ((a -
 const monthWord = (m) => `${+m.slice(5)}月`;
 const addDays = (d, n) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
 const monthsAhead = (from, m) => (+m.slice(0, 4) - +from.slice(0, 4)) * 12 + (+m.slice(5) - +from.slice(5, 7));
-export const isStayMonth = (m) => STAY.test(m.period || "");
+const STAY_DAY = /^stay_(\d{4}-\d{2}-\d{2})$/;
+// Any per-stay pace row (month or date): these have their own views and alerts, not the generic trend loop.
+export const isStayMonth = (m) => STAY.test(m.period || "") || STAY_DAY.test(m.period || "");
 
 /** Change of one series from the latest snapshot back to the last snapshot on or before `back` days earlier. */
 function pickup(rows, back) {
@@ -62,8 +64,24 @@ export function paceView(metrics = [], today = bkkDay(), days = 14) {
         daily: rn.length ? daily : null };
     }).filter((m) => m.room_nights != null || m.booked_30d || m.booked_90d) };
   }).filter((p) => p.months.length);
-  return { platforms, sample_days: sampleDays,
+  return { platforms, sample_days: sampleDays, next_days: nextDays(metrics, today),
     note: "数字来自平台 pace 报表：在手和去年同期、新订房价和同类都取同一张表；每日新增是我们相邻两次采样之间同一入住月在手的变化" };
+}
+
+/** On the books per stay date for the next days (Booking's daily pace view), latest sample only. */
+function nextDays(metrics, today) {
+  const latest = {};
+  for (const m of metrics) {
+    const d = STAY_DAY.exec(m.period || "");
+    if (!d || m.metric !== "pace_room_nights" || d[1] < today) continue;
+    const k = `${m.platform}|${d[1]}`;
+    if (!latest[k] || latest[k].day < m.day) latest[k] = { ...m, stay: d[1] };
+  }
+  const rows = Object.values(latest);
+  const sample = rows.reduce((a, r) => (r.day > a ? r.day : a), "");
+  return rows.filter((r) => r.day === sample).sort((a, b) => a.stay.localeCompare(b.stay) || a.platform.localeCompare(b.platform))
+    .map((r) => ({ platform: r.platform, name: NAMES[r.platform] || r.platform, stay_date: r.stay, day: r.day,
+      room_nights: r.value, room_nights_ly: r.benchmark ?? null, gap: pct(r.value, r.benchmark) }));
 }
 
 const fmtPct = (v) => `${v > 0 ? "+" : ""}${v.toFixed(0)}%`;
