@@ -49,7 +49,7 @@ function channelContext(channels) {
     investigations:channels.investigations.map(c=>({id:c.id,title:c.title,kind:c.kind,facts:c.facts,
       hypothesis:c.hypothesis,plan:c.plan,evidence_ids:c.evidence_ids}))};
 }
-export function context({ metrics = [], advice = [], todos = [], revenue, operator, channels, selected_stay_date }, { alerts = [], wins = [], health = null } = {}) {
+export function context({ metrics = [], advice = [], todos = [], revenue, operator, channels, pace, events, selected_stay_date }, { alerts = [], wins = [], health = null } = {}) {
   const lines = ["# 当前数据上下文（入住日与OTA统计窗口严格分开）", JSON.stringify(stayContext(revenue, selected_stay_date))];
   if (revenue) lines.push("# PMS 经营数据边界（优先于旧日报和知识库）", JSON.stringify({ status: revenue.status,
     source_as_of: revenue.source?.as_of, source_date_basis: revenue.source?.as_of_basis || "explicit_export_date", currency: revenue.source?.currency, precision: revenue.source?.precision,
@@ -69,9 +69,27 @@ export function context({ metrics = [], advice = [], todos = [], revenue, operat
     }
     lines.push("超过 1 天的数字要说明日期，别当成今天的；缺的平台直接说缺。", "");
   }
+  if (pace?.platforms?.length) {
+    lines.push("# 入住月节奏（pace：各入住月在手 vs 去年同期；近 30/90 天新订按入住月拆开，房价 vs 同类；新增=我们两次采样之间同一入住月在手的变化）");
+    for (const p of pace.platforms) for (const m of p.months) {
+      const pu = (x, w) => (x ? `，${w}新增 ${x.value >= 0 ? "+" : ""}${Math.round(x.value)}（${x.from}→${x.to}）` : "");
+      const otb = m.room_nights != null ? `在手 ${Math.round(m.room_nights)} 间夜，去年同期 ${m.room_nights_ly ?? "—"}`
+        + `${m.gap != null ? `（${m.gap >= 0 ? "+" : ""}${m.gap.toFixed(0)}%）` : ""}${m.adr != null ? `，在手 ADR ${Math.round(m.adr)}${m.adr_ly != null ? ` vs 去年 ${Math.round(m.adr_ly)}` : ""}` : ""}` : "";
+      const bk = (b, w) => (b ? `${w}新订 ${b.room_nights ?? "—"} 间夜，ADR ${b.adr != null ? Math.round(b.adr) : "—"}${b.adr_comp != null ? ` vs 同类 ${Math.round(b.adr_comp)}` : ""}` : "");
+      lines.push(`- ${p.name} ${m.month}: ${[otb, bk(m.booked_90d, "近 90 天"), bk(m.booked_30d, "近 30 天")].filter(Boolean).join("；")}`
+        + `${pu(m.pickup_1d, "1 天")}${pu(m.pickup_7d, "7 天")} · 采样 ${m.day}`);
+    }
+    lines.push("");
+  }
+  if (events?.events?.length) {
+    lines.push(`# 客源市场假期（${events.note}）`);
+    for (const e of events.events) lines.push(`- ${e.name}（${e.markets.join("、")}）${e.start}–${e.end}${e.approx ? "，日期以官方为准" : ""}：活动最晚 ${e.live_by} 上线，${e.setup_by} 开始准备`);
+    lines.push("");
+  }
   lines.push("# 指标（最新值；同类=平台给的对比值）");
   for (const rows of Object.values(seriesOf(metrics))) {
     const m = rows.at(-1);
+    if (/^stay_/.test(m.period || "")) continue;
     const contract = metricContext(m);
     const prev = rows.length > 1 ? `；上次 ${fmt(rows.at(-2).value, m.unit)}（${rows.at(-2).day}）` : "";
     lines.push(`- [${evidenceId(m)}] ${NAMES[m.platform]} ${m.label}${m.period ? `[${m.period}]` : ""}: ${fmt(m.value, m.unit)}`

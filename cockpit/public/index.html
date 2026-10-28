@@ -339,6 +339,33 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
 .channel-signals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0}.channel-signal{background:var(--surface);border-left:3px solid var(--accent);padding:14px}.channel-signal small,.channel-signal strong,.channel-signal span{display:block}.channel-signal strong{font-size:24px;font-variant-numeric:tabular-nums;margin:8px 0}.channel-signal small{color:var(--fg-2);font-size:12px}
 .channel-issue{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center;padding:20px 0;border-bottom:1px solid var(--line)}.channel-issue:first-child{padding-top:0}.channel-issue:last-child{border-bottom:0;padding-bottom:0}.channel-issue h3{font-size:15px;margin:0}.channel-issue p{max-width:75ch}.channel-issue details{font-size:12px}.channel-issue summary{cursor:pointer;color:var(--fg-2)}
 .forward-main{padding:17px 0 8px}.forward-main>small,.forward-main>strong,.forward-main>small+strong+small{display:block}.forward-main>strong{font-size:32px;font-weight:600;letter-spacing:-1px}.channel-cohort{border-top:1px solid var(--line);padding-top:12px;margin-top:14px}.channel-cohort small,.channel-cohort b,.channel-cohort span{display:block}.channel-cohort small{font-size:11px;color:var(--muted)}.channel-cohort b{font-size:18px;margin:6px 0}
+.pace-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr));gap:14px}
+.pace-card{min-width:0;font-variant-numeric:tabular-nums}.pace-card h3{font-size:15px;margin:0}
+.pace-legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin:6px 0 8px}.pace-legend .sw{display:inline-block;width:12px;height:8px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.pace-legend .sw.now{background:var(--s1)}.pace-legend .sw.ly{width:3px;height:12px;background:var(--fg)}
+.pace-row{display:grid;grid-template-columns:52px minmax(80px,1fr) 104px 104px 118px;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.pace-m b{display:block;font-size:14px}.pace-m small,.pace-num small,.pace-adr small{display:block;font-size:11px;color:var(--muted)}
+.pace-bar{position:relative;height:14px;background:var(--surface-2);border-radius:4px}
+.pace-bar .now{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:var(--s1)}
+.pace-bar .now.soft{background:var(--s1-soft)}.pace-legend .sw.now.soft{background:var(--s1-soft)}.pace-gap.warn{color:var(--crit-ink)}.pace-row.nopu{grid-template-columns:52px minmax(80px,1fr) 104px 150px}
+.pace-bar .now.bad{background:var(--crit)}.pace-bar .now.good{background:var(--good)}
+.pace-bar .ly{position:absolute;top:-3px;bottom:-3px;width:3px;margin-left:-1px;background:var(--fg);border-radius:2px}
+.pace-num b,.pace-adr b{font-size:14px}.pace-gap{font-size:12px;font-weight:600}.pace-gap.bad{color:var(--crit-ink)}.pace-gap.good{color:var(--good-ink)}
+.pace-pu{display:flex;gap:6px;flex-wrap:wrap}.pace-chip{font-size:12px;padding:2px 7px;border-radius:999px;background:var(--surface-2);color:var(--fg-2);white-space:nowrap}
+.pace-chip.good{background:var(--good-soft);color:var(--good-ink)}.pace-chip.bad{background:var(--crit-soft);color:var(--crit-ink)}.pace-chip.muted{color:var(--muted)}
+.pace-h3{font-size:14px;margin:18px 0 8px}.pace-heat-wrap{overflow-x:auto}
+.pace-heat{border-collapse:separate;border-spacing:2px;font-size:11px;font-variant-numeric:tabular-nums;width:100%;min-width:680px;table-layout:fixed}
+.pace-heat col.h{width:120px}.pace-heat th{font-weight:500;color:var(--muted);text-align:left;white-space:nowrap;padding:2px 4px}
+.pace-heat td{height:26px;text-align:center;border-radius:3px;color:var(--fg);min-width:34px}.pace-heat td.none{background:var(--surface-2)}
+@media(max-width:600px){.pace-row,.pace-row.nopu{grid-template-columns:44px minmax(0,1fr) 84px;row-gap:6px}.pace-adr{grid-column:2}.pace-pu{grid-column:3;justify-content:flex-end}}
+.ev-card{padding:12px 16px}.ev-row,.ev-axis{display:grid;grid-template-columns:150px minmax(0,1fr) 110px;gap:12px;align-items:center}
+.ev-row{padding:9px 0;border-top:1px solid var(--line)}.ev-name b{display:block;font-size:14px}.ev-name small{font-size:11px;color:var(--muted)}
+.ev-track{position:relative;height:22px}.ev-axis .ev-track{height:18px}.ev-axis i{position:absolute;top:0;font-style:normal;font-size:11px;color:var(--muted);border-left:1px solid var(--line);padding-left:3px;height:18px}
+.ev-today{position:absolute;top:0;font-size:11px;color:var(--accent);font-weight:600;border-left:2px solid var(--accent);padding-left:3px}
+.ev-track span{position:absolute;top:5px;height:12px;border-radius:3px}.ev-prep,.sw.ev-prep{background:var(--warn)}.ev-sell,.sw.ev-sell{background:var(--s1-soft)}.ev-stay,.sw.ev-stay{background:var(--s1)}
+.ev-track em{position:absolute;top:-12px;font-style:normal;font-size:10px;color:var(--fg-2);white-space:nowrap;transform:translateX(-50%)}
+.ev-st{text-align:right}.pace-chip.warn{background:var(--warn-soft);color:var(--fg)}.ev-legend{margin-top:10px}
+@media(max-width:600px){.ev-row,.ev-axis{grid-template-columns:minmax(0,1fr) 80px;row-gap:4px}.ev-row .ev-track,.ev-axis .ev-track{grid-column:1/-1;grid-row:2}.ev-axis>span{display:none}}
 @media(max-width:1100px){.channel-columns{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){section[id]{scroll-margin-top:125px}.channel-columns,.channel-signals{grid-template-columns:minmax(0,1fr)}.channel-col header{min-height:0}.channel-issue{grid-template-columns:minmax(0,1fr)}.channel-note{min-height:0}}
 
@@ -395,7 +422,7 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
     </div>
   </header>
 
-  <nav class="desk-nav" aria-label="工作台分区"><a href="#sec-channels">渠道漏斗</a><a href="#sec-channel-loss">流失与可售</a><a href="#sec-channel-future">未来渠道订单</a><a href="#sec-revenue">经营日历</a><a href="#sec-operator">调查与复查</a><a href="#sec-alerts">渠道预警</a><a href="#sec-health">数据来源</a><a href="#sec-todos">待办</a></nav>
+  <nav class="desk-nav" aria-label="工作台分区"><a href="#sec-channels">渠道漏斗</a><a href="#sec-channel-loss">流失与可售</a><a href="#sec-channel-future">未来渠道订单</a><a href="#sec-pace">入住月节奏</a><a href="#sec-revenue">经营日历</a><a href="#sec-operator">调查与复查</a><a href="#sec-alerts">渠道预警</a><a href="#sec-health">数据来源</a><a href="#sec-todos">待办</a></nav>
   <section class="hero">
     <div class="call" id="call">
       <svg class="deco" viewBox="0 0 24 24" fill="none" stroke-width="1.2"><use href="#i-pulse"/></svg>
@@ -417,6 +444,11 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
   <section class="sec" id="sec-channel-future">
     <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-cal"/></svg></span><h2>未来渠道订单 · 看在手，不冒充预测</h2><label class="tail">入住窗口 <select id="channel-horizon" aria-label="未来渠道入住窗口"><option value="30">未来30天</option><option value="90">未来90天</option></select></label></div>
     <p class="meta">各渠道保留自己的在手统计口径；不合计为全酒店入住率，不把相邻滚动窗口差值叫 pickup。</p><div class="channel-columns" id="channel-future"></div>
+  </section>
+
+  <section class="sec" id="sec-pace">
+    <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-pulse"/></svg></span><h2>入住月节奏 · 对比去年同期</h2><span class="hint">哪个月订得慢，就只对那个月动手</span></div>
+    <div id="pace-body"><div class="empty">正在读取…</div></div>
   </section>
 
   <section class="sec" id="sec-revenue">
@@ -545,6 +577,7 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
 
 <script src="/operator-ui.js"></script>
 <script src="/channels-ui.js"></script>
+<script src="/pace-ui.js"></script>
 <script>
 const PLATFORMS = {booking:["Booking.com","--s1"], agoda:["Agoda","--s2"], expedia:["Expedia","--s3"], ctrip:["携程 / 去哪儿","--s4"],
   google:["Google","--s5"], tripadvisor:["TripAdvisor","--s6"], medallia:["Medallia 问卷","--s7"], all:["全部平台","--muted"]};
@@ -1069,6 +1102,7 @@ async function load(){
     STATE = state;
     window.OperatorUI.render(state, load, toast);
     window.ChannelUI.render(state, load, toast);
+    window.PaceUI.render(state);
     const run = state.latest_run;
     $("last-run").innerHTML = icon("i-db","sm") + esc(run ? `最近采集 ${run.id.slice(4,6)}-${run.id.slice(6,8)} ${run.id.slice(9,11)}:${run.id.slice(11,13)}` : "还没有采集记录");
     const by = series(state);

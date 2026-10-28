@@ -11,6 +11,8 @@ import { ask, context, groundAnswer, OWNERS } from "./copilot.js";
 import { ROUTINES, periodKey, explain } from "./knowledge.js";
 import { validatePms, ingestPms, revenueView, scenario } from "./revenue.js";
 import {channelView} from './channels.js';
+import { paceView } from "./pace.js";
+import { eventPlan } from "./events.js";
 import { operatorView, approveDecision, updateDecision } from "./operator.js";
 import { pollPmsArchive } from "./pms-bridge.js";
 
@@ -92,7 +94,7 @@ export default {
     return new Response(response.body, { status: response.status, headers });
   },
 
-  // Daily push after the 10:20 collection (+ the 11:30 fallback): only when TELEGRAM_BOT_TOKEN and
+  // Daily push after the 10:20 collection (+ the 22:15 fallback): only when TELEGRAM_BOT_TOKEN and
   // TELEGRAM_CHAT_ID are set, so nothing is sent anywhere until someone chooses a chat for it.
   // Also hands every serious alert to its department as a to-do, once per alert while it stays open.
   async scheduled(event, env, ctx) {
@@ -335,6 +337,8 @@ async function loadState(env) {
     revenue: revenueView(snapshots, daily),
   };
   state.channels = channelView(state.metrics, state.pages);
+  state.pace = paceView(state.metrics);
+  state.events = eventPlan(state.metrics, state.pace);
   state.operator = operatorView(state, decisions);
   const feed = await all(env.DB.prepare("select state from pms_feed_state where id = 'opera_archive'"));
   state.revenue.feed = feed[0] ? safeJson(feed[0].state, null) : null;
