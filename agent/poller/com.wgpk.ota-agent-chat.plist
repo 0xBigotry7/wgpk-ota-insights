@@ -11,6 +11,11 @@
     <string>/usr/bin/python3</string>
     <string>/Users/wyndham/wgpk-ota-insights/app/agent/poller/ota_chat_poller.py</string>
   </array>
+  <!-- openclaw is a node script: launchd's default PATH has no node, so give it the user-local Node. -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>/Users/wyndham/.local/node/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>ThrottleInterval</key><integer>30</integer>
