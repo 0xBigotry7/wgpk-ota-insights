@@ -48,6 +48,17 @@ export const KNOWLEDGE = String.raw`
   拒单、满房后才关房、到店无房扣分最重。
 - 挂牌（金牌、特牌等）和推广（如“携程推广”）换曝光；中国暑期家庭市场要提前 2–3 个月备好亲子房型、接送和中文服务卖点。
 
+# TripAdvisor
+- 不卖房，是点评和比价（元搜索）平台：客人在这里看口碑，再点去 Booking、Agoda、官网等下单。它影响的是别家渠道的点击和转化，看效果要看点评和排名，不是看间夜。
+- 人气排名（Popularity Ranking，官方）：看点评的质量（气泡分）、新鲜度、数量，以及长期是否稳定。和同一地区（Kamala / 普吉）的酒店比，是相对排名：我们没变差，别家变好了，名次也会掉。
+  权重不公开；第三方估计新鲜度占比最大。所以要持续每月都有新点评，不靠一次冲量。少量满分点评排不过大量高分点评。
+- 新点评怎么来：退房时请客人写点评（前台口头 + 退房邮件或二维码），可用平台的 Review Express 邀请。不能花钱买点评、不能只挑满意的客人邀请、不能用奖励换点评，违规会被降权或打标。
+- 差评处理：回复速度和语气会被潜在客人看到。点评回复由点评回复系统和人负责，这个 agent 不碰；它只统计差评主题，派给对应部门整改。
+- Travelers' Choice：按上一自然年 1–12 月的点评质量和数量评，要上线满 12 个月、达到点评数门槛和最低气泡分，约前 10% 获奖（第三方说法）。WGPK 2025 年开业，2026 年全年的点评决定 2027 年能不能拿。
+- 付费：Business Advantage（订阅，可放官网直订链接、首图、特别优惠）；Sponsored Placements（按点击付费置顶，约 0.5–2 美元一次，需先订 Business Advantage）；
+  元搜索比价位：由渠道经理或集团接入，在比价框里露出官网价。官网价比 OTA 贵时，比价框会把客人送去 OTA。
+- 看什么数：地区排名（第几名 / 共几家）、近 90 天新增点评数、近 90 天平均分、差评占比和主题、回复率。排名一般要 1–3 个月才动。
+
 # 收益管理日常
 - 指数：MPI = 我们入住率 ÷ 竞品入住率 × 100；ARI = 我们 ADR ÷ 竞品 ADR × 100；RGI = MPI × ARI ÷ 100。三个一起看：MPI 高、ARI 低就是价格定低了。
   用 Booking 本月数据近似：间夜 950 对同类 747（约 127），ADR 5,814 对 7,373（约 79）。这是近似值，不是 STR 指数。
@@ -80,7 +91,7 @@ export const KNOWLEDGE = String.raw`
 Booking 排名与项目：smartorder.ai/booking-com-ranking-algorithm、genius-discounts-vs-partner-programs；Agoda：smartorder.ai/how-to-increase-visibility-on-agoda、partnerhub.agoda.com/how-to-improve-your-content-score；
 Expedia：smartorder.ai/expedia-ranking-tips-for-hotels；携程点评规则：vocust.com/school/insightcase/352、424；取消：hoteltechreport.com（Bookassist 调查）；
 Pickup / pace：hospitalitynet.org/news/4124797；Booking 官方帮助（排名基础、Visibility Dashboard、排名看板）；Agoda AGP（partnerhub.agoda.com）；
-Expedia 可见度指南（partner.expediagroup.com）；取消基准：D-Edge、Cloudbeds；普吉市场：Knight Frank Bangkok & Phuket Hotel Market 2H 2025；酒店资料：wgpk-shared-kb。
+Expedia 可见度指南（partner.expediagroup.com）；取消基准：D-Edge、Cloudbeds；TripAdvisor：tripadvisor.com/business/insights（Popularity Ranking、Travelers' Choice）、hoteltechreport.com（Sponsored Placements）；普吉市场：Knight Frank Bangkok & Phuket Hotel Market 2H 2025；酒店资料：wgpk-shared-kb。
 `;
 
 // Phuket season for a month (1–12): what the period means for pricing.

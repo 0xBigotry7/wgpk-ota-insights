@@ -64,7 +64,9 @@ test('concurrent polling lease prevents duplicate work and expiry permits recove
  assert.equal((await pollPmsArchive(env,new Date(now.getTime()+60000))).imported,1);env.close();
 });
 
-test('a genuinely newer source report advances the cockpit; same archive re-poll never duplicates it',async()=>{
+test('a genuinely newer source report advances the cockpit; same archive re-poll never duplicates it',async t=>{
+ // /api/state reads the clock; pin it just after the import so the test does not expire.
+ t.mock.timers.enable({apis:['Date'],now:Date.parse('2026-10-24T04:06:00Z')});
  const env=await envFor();await pollPmsArchive(env,now);
  const bytes=report('23-OCT-26','24-OCT-26'),key='reports/test/newhistory.txt';
  await env.ARCHIVE.prepare('insert into report_emails values (?,?)').bind('new-email','2026-10-24T04:01:00Z').run();
