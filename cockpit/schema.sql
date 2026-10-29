@@ -165,6 +165,42 @@ CREATE TABLE IF NOT EXISTS pms_bridge_lease (
   until_ms INTEGER NOT NULL
 );
 
+-- IDeaS G3 Data Extraction (property level), one snapshot per day kept as history: the agent's "teacher".
+CREATE TABLE IF NOT EXISTS ideas_snapshots (
+  snapshot_date TEXT PRIMARY KEY,   -- day IDeaS generated it (ICT)
+  generated_at TEXT,
+  currency TEXT,
+  source_sha256 TEXT NOT NULL,
+  received_at TEXT NOT NULL,
+  imported_at TEXT NOT NULL,
+  origin TEXT NOT NULL,             -- email | manual
+  rows INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS ideas_daily (
+  snapshot_date TEXT NOT NULL,
+  stay_date TEXT NOT NULL,
+  capacity REAL, remaining REAL, otb REAL, otb_stly REAL, otb_group REAL, otb_transient REAL, ooo REAL, cancelled REAL,
+  revenue_otb REAL, revenue_stly REAL, revenue_forecast REAL, budget_revenue REAL,
+  occ_forecast REAL, budget_rooms REAL, unconstrained_demand REAL, overbooking REAL,
+  revpar REAL, revpar_forecast REAL, adr REAL, adr_forecast REAL, lrv REAL, wash_pct REAL,
+  bar REAL, floor REAL, ceiling REAL,
+  special_event TEXT,
+  competitor_median REAL,
+  competitors TEXT,                 -- JSON {hotel: rate}
+  PRIMARY KEY (snapshot_date, stay_date)
+);
+CREATE TABLE IF NOT EXISTS ideas_bridge_receipts (
+  file_id TEXT NOT NULL,
+  checksum TEXT NOT NULL,
+  bridge_version TEXT NOT NULL,
+  processed_at TEXT NOT NULL,
+  status TEXT NOT NULL,
+  attempts INTEGER NOT NULL,
+  snapshot_date TEXT,
+  reason TEXT NOT NULL,
+  PRIMARY KEY (file_id, checksum, bridge_version)
+);
+
 -- OTA operator agent (OpenClaw on the hotel Mac mini): dashboard questions it answers, its durable notes, liveness.
 CREATE TABLE IF NOT EXISTS agent_chat (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

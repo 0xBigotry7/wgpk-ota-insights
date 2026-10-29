@@ -3,6 +3,7 @@
 // the only writes are to-dos, agent notes (durable memory) and chat replies. Nothing here reaches an OTA back office.
 import { context, groundAnswer } from "./copilot.js";
 import { KNOWLEDGE, ROUTINES } from "./knowledge.js";
+import { agentIdeas } from "./ideas.js";
 
 export const AGENT_ONLINE_S = 180;      // no heartbeat for this long: the dashboard copilot falls back to the API model
 export const CHAT_WAIT_S = 75;          // a queued question unanswered this long is answered by the fallback model
@@ -58,6 +59,7 @@ export async function handleAgent(request, env, path, loadState) {
       return { generated_at: iso(), text: `${memory.length ? `# Agent 记忆\n${memory.join("\n")}\n\n` : ""}${context(state, state.monitor)}` };
     }
     if (route === "metrics") return { metrics: await metrics(db, url.searchParams) };
+    if (route === "ideas") return { ideas: await agentIdeas(db, url.searchParams) };
     if (route === "notes") return { notes: await notes(db, url.searchParams.get("all") === "1") };
     if (route === "chat/next") {
       await beat(db, { via: "chat/next", agent: clip(request.headers.get("User-Agent"), 80) });

@@ -17,6 +17,7 @@ import { paceView } from "./pace.js";
 import { eventPlan } from "./events.js";
 import { operatorView, approveDecision, updateDecision } from "./operator.js";
 import { pollPmsArchive } from "./pms-bridge.js";
+import { ingestIdeas, pollIdeasArchive } from "./ideas.js";
 import { handleAgent, agentStatus, enqueue, poll, settle } from "./agent.js";
 
 const SESSION_COOKIE = "wgpk_ota_session";
@@ -80,6 +81,13 @@ export default {
       return json(out, out.error ? out.status || 400 : 200);
     }
 
+    // One IDeaS Data Extraction export posted by hand (raw .xlsx body) until IDeaS can schedule it by e-mail.
+    if (path === "/api/ingest/ideas" && request.method === "POST") {
+      if (!ingestAuthorized(request, env)) return json({ error: "unauthorized" }, 401);
+      const out = await ingestIdeas(request, env);
+      return json(out, out.error ? out.status || 400 : 200);
+    }
+
     if (path.startsWith("/api/")) {
       if (request.method === "POST") {
         if (["/api/ingest", "/api/advice", "/api/pms", "/api/pms/poll"].includes(path)) {
@@ -140,7 +148,7 @@ export default {
   // Also hands every serious alert to its department as a to-do, once per alert while it stays open.
   async scheduled(event, env, ctx) {
     if (event.cron === "7,37 * * * *") {
-      ctx.waitUntil(pollPmsArchive(env));
+      ctx.waitUntil(Promise.allSettled([pollPmsArchive(env), pollIdeasArchive(env)]));
       return;
     }
     ctx.waitUntil(dispatchAlerts(env).then(() => pushDigest(env)));
