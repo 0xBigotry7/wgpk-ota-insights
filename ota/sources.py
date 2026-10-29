@@ -102,7 +102,7 @@ def link_catalog(db: sqlite3.Connection, run_id: str) -> list[dict]:
     rows = db.execute("SELECT cid, slug, links_path FROM snapshots WHERE run_id=? AND links_path IS NOT NULL ORDER BY cid, slug",
                       (run_id,)).fetchall()
     by_cid: dict[str, dict[str, str]] = {}
-    for cid, page_slug, path in rows:
+    for cid, _slug, path in rows:
         if not path or not Path(path).exists():
             continue
         try:
