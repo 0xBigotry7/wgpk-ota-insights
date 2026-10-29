@@ -14,7 +14,11 @@ All calls go through the cockpit skill's `ota-api`.
    pace, search rank, booker insights, Agoda dashboard, Ctrip traffic…) are already read every day; their
    numbers are in `GET /api/agent/metrics?platform=…`. Check there first: a request for one of those pages
    comes back `rejected` with "already read daily as <platform/page>".
-2. **Request a page.** Find its URL (from a sample's links, a fixed page, or Gary). Then:
+2. **Request a page.** Never guess a URL (a guessed one usually comes back 404). Pick it from the link catalog:
+   the fixed pages `booking/links`, `agoda/links`, `expedia/links`, `ctrip/links` in `GET /api/agent/sources`
+   (read their sample: one line per page, `label<TAB>url`, marked `[已每天采集: …]` when the collector already reads
+   it daily — don't request those). The catalog is refreshed from the pages read each day and holds analysis pages
+   only. If the page you need is not in it, ask Gary for the link. Then:
    `ota-api POST /api/agent/sources '{"platform":"booking","url":"https://admin.booking.com/…","why":"which decision this serves"}'`
    Only Booking, Agoda, Ctrip, Expedia and Medallia back-office hosts. Pages that act (save, update, cancel,
    reply, payment…) or hold guest messages or reviews are refused by the server; do not try to get around it.
