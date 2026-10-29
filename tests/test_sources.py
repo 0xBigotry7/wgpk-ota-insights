@@ -74,3 +74,52 @@ def test_duplicates_do_not_count_toward_the_probe_cap(tmp_path):
     db = sqlite3.connect(tmp_path / "p.db")
     sources.record_probe(db, "2026-10-29T12:35:00", 7, "duplicate")
     assert sources.probes_today(db, "2026-10-29") == 0
+
+
+def test_cockpit_url_rules_apply_here_too():
+    base = "https://admin.booking.com/hotel/hoteladmin/extranet_ng/manage"
+    assert sources.check_url("booking", f"{base}/statistics/cancellations.html") is None      # a word, not the verb
+    assert sources.check_url("booking", f"{base}/cancel.html")                                # the verb
+    assert sources.check_url("booking", f"{base}/guest_reviews.html")                         # guest conversations
+    assert sources.check_url("booking", f"{base}/x.html#/messages")                           # hash routes too
+
+
+def test_session_parameters_and_anchors_are_stripped():
+    url = sources.strip_session("https://admin.booking.com/a/b.html?hotel_id=1&lang=en&ses=abc&period=DAYS30&authKey=z#main")
+    assert url == "https://admin.booking.com/a/b.html?period=DAYS30"
+    assert sources.strip_session("https://ycs.agoda.com/x?token=1#/analytics/pace").endswith("/x#/analytics/pace")
+
+
+def test_link_catalog_from_pages_already_read(tmp_path):
+    import json
+    db = sqlite3.connect(tmp_path / "s.db")
+    db.execute("CREATE TABLE snapshots (run_id TEXT, cid TEXT, slug TEXT, links_path TEXT)")
+    base = "https://admin.booking.com/hotel/hoteladmin/extranet_ng/manage"
+    links = [{"text": "Booker insights", "href": f"{base}/statistics/booker_insights.html?hotel_id=1&ses=s1"},
+             {"text": "Booker insights", "href": f"{base}/statistics/booker_insights.html?hotel_id=1&ses=s2"},
+             {"text": "Market insights", "href": f"{base}/market_insights.html?hotel_id=1&ses=s1"},
+             {"text": "Reply", "href": f"{base}/reviews/reply.html?ses=s1"},
+             {"text": "Inbox", "href": f"{base}/messaging/inbox.html?ses=s1"},
+             {"text": "Elsewhere", "href": "https://example.com/stats"},
+             {"text": "Jane Doe 5124721786 Superior", "href": f"{base}/booking.html?res_id=5124721786&ses=s1"},
+             {"text": "Sales report", "href": f"{base}/statistics/sales_insights.html?reservationType=BOOKED&ses=s1"},
+             {"text": "Export", "href": f"{base}/statistics/export/api/v1/rates?ses=s1"},
+             {"text": "Late deal", "href": f"{base}/promotions/setup.html?product=X&ses=s1"},
+             {"text": "Skip to main content", "href": f"{base}/statistics/demand_data.html?ses=s1"}]
+    lp = tmp_path / "genius.links.json"
+    lp.write_text(json.dumps(links + [{"text": f"p{i}", "href": f"{base}/statistics/p{i}.html"} for i in range(300)]))
+    mp = tmp_path / "medallia.links.json"
+    mp.write_text(json.dumps([{"text": "Post Stay Survey", "href": "https://wyndhamhotels.medallia.com/sso/x/pages/249?r=1"}]))
+    db.execute("INSERT INTO snapshots VALUES ('r', 'booking', 'genius', ?)", (str(lp),))
+    db.execute("INSERT INTO snapshots VALUES ('r', 'medallia', 'home', ?)", (str(mp),))
+    [page] = sources.link_catalog(db, "r")                              # Medallia left out entirely
+    assert page["slug"] == "booking/links"
+    lines = page["sample_text"].splitlines()
+    assert len(lines) == sources.MAX_LINKS
+    assert lines[0] == f"Booker insights\t{base}/statistics/booker_insights.html\t[已每天采集: booking/booker-insights]"
+    assert lines[1] == f"Market insights\t{base}/market_insights.html"
+    assert "sales_insights.html?reservationType" not in "\n".join(lines)     # conservative: "reservation" anywhere drops it
+    text = page["sample_text"]
+    for leak in ("ses=", "reply", "inbox", "Jane", "5124721786", "res_id", "export", "promotions"):
+        assert leak not in text, leak
+    assert f"demand_data.html\t{base}/statistics/demand_data.html" in text      # generic label replaced by the page name
