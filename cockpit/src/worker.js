@@ -9,6 +9,7 @@ import { metricContext } from "./contracts.js";
 import { monitor, digest } from "./monitor.js";
 import { ask, context, groundAnswer, OWNERS } from "./copilot.js";
 import { handleSources, ingestSources } from "./sources.js";
+import { handleRefresh, ingestRefresh } from "./refresh.js";
 import { ROUTINES, periodKey, explain } from "./knowledge.js";
 import { validatePms, ingestPms, revenueView, scenario } from "./revenue.js";
 import {channelView} from './channels.js';
@@ -49,12 +50,24 @@ export default {
       if (request.method === "POST" && path === "/api/agent/todos") return createTodo(request, env);
       const t = path.match(/^\/api\/agent\/todos\/(\d+)$/);
       if (request.method === "POST" && t) return updateTodo(request, env, Number(t[1]));
+      if (path === "/api/agent/refresh") {
+        const out = await handleRefresh(request, env.DB);
+        return json(out, out.error ? out.status || 400 : 200);
+      }
       if (path.startsWith("/api/agent/sources")) {
         const out = await handleSources(request, env.DB, path.slice("/api/agent/".length));
         if (!out) return json({ error: "not found" }, 404);
         return json(out, out.error ? out.status || 400 : 200);
       }
       const out = await handleAgent(request, env, path, loadState);
+      if (!out) return json({ error: "not found" }, 404);
+      return json(out, out.error ? out.status || 400 : 200);
+    }
+
+    // The Mac mini collector: the agent's waiting refresh request, and how it went.
+    if (path.startsWith("/api/ingest/refresh")) {
+      if (!ingestAuthorized(request, env)) return json({ error: "unauthorized" }, 401);
+      const out = await ingestRefresh(request, env.DB, path);
       if (!out) return json({ error: "not found" }, 404);
       return json(out, out.error ? out.status || 400 : 200);
     }

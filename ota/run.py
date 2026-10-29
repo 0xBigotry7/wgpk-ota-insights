@@ -15,7 +15,7 @@ import time
 import urllib.request
 from pathlib import Path
 
-from . import advise, cockpit, collect, config, extract, guard, sources, store
+from . import advise, cockpit, collect, config, extract, guard, refresh, sources, store
 from .platforms import PLATFORMS, Page
 
 PUSH_RETRY_S = 10
@@ -50,6 +50,9 @@ def once(only: set[str] | None) -> int:
         retry = store.signed_out_today(store.connect(config.DB), started.strftime("%Y%m%d"), RETRY_LATER)
         if not retry:
             print(f"skipped: today's collection already done ({prev})", flush=True)
+            config.load_env()
+            if req := refresh.claim():
+                return serve_refresh(req)
             return probe_sources()
         print(f"today's collection done ({prev}); second pass for signed-out {sorted(retry)}", flush=True)
         only, second_pass = retry, True
@@ -80,10 +83,31 @@ def once(only: set[str] | None) -> int:
         not_reached(db, run_id, only, outcome)
     store.finish_run(db, run_id, collect.now().isoformat(timespec="seconds"), outcome, summary)
     print(json.dumps({"run": run_id, "outcome": outcome, "summary": summary}, ensure_ascii=False), flush=True)
+    if not only and outcome == "done":
+        # The full read covers whatever the agent asked for since; it need not spend its one refresh a day.
+        config.load_env()
+        if req := refresh.claim():
+            refresh.report(req["id"], "done", run_id, "covered by the daily full collection")
     # The browser and the operator's lock are released by now; the rest only reads local files.
     # A partial test run does not rewrite the day's report; a second pass that fills in a signed-out platform does.
     after(db, run_id, report=not only or second_pass)
     return 0 if outcome == "done" else 1
+
+
+def serve_refresh(req: dict) -> int:
+    """Read only the platforms the agent asked for, under the same guards; report the outcome to the cockpit.
+
+    A guard skip (review window, operator busy, no Chrome) puts the request back for the next slot."""
+    db = store.connect(config.DB)
+    before = {r for (r,) in db.execute("SELECT id FROM runs")}
+    print(f"agent refresh {req['id']}: {sorted(req['platforms'])} ({req['reason'][:80]})", flush=True)
+    code = once(set(req["platforms"]))
+    new = sorted({r for (r,) in db.execute("SELECT id FROM runs")} - before)
+    run_id = new[-1] if new else ""
+    note = db.execute("SELECT note FROM runs WHERE id=?", (run_id,)).fetchone() if run_id else None
+    status = {0: "done", 3: "skipped"}.get(code, "failed")
+    refresh.report(req["id"], status, run_id, (note[0] if note and note[0] else "")[:500])
+    return code
 
 
 def agent_pages() -> dict[str, list]:
