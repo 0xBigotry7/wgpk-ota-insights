@@ -10,7 +10,10 @@ All calls go through the cockpit skill's `ota-api`.
 
 1. **See what exists.** `ota-api GET /api/agent/sources` lists your sources, the mode (auto | approve), the
    allowed hosts and the limits. Fixed analysis pages (`builtin: true`) have text you can read with
-   `GET /api/agent/sources/<id>/sample`. Read those before asking for a new page.
+   `GET /api/agent/sources/<id>/sample`. Read those before asking for a new page. Many more pages (sales,
+   pace, search rank, booker insights, Agoda dashboard, Ctrip traffic…) are already read every day; their
+   numbers are in `GET /api/agent/metrics?platform=…`. Check there first: a request for one of those pages
+   comes back `rejected` with "already read daily as <platform/page>".
 2. **Request a page.** Find its URL (from a sample's links, a fixed page, or Gary). Then:
    `ota-api POST /api/agent/sources '{"platform":"booking","url":"https://admin.booking.com/…","why":"which decision this serves"}'`
    Only Booking, Agoda, Ctrip, Expedia and Medallia back-office hosts. Pages that act (save, update, cancel,
