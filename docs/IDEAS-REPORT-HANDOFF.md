@@ -13,15 +13,16 @@ IDeaS G3 scheduled report (CSV, daily, early morning)
   → cockpit pms-bridge (IDeaS parser, written from the first archived file) → /api/agent/*
 ```
 
-`wgpk-ideas-email-ingest` is a second instance of `wgpk-concierge/infra/opera-analytics-email-worker`
-with the code unchanged; only `infra/ideas-email-worker/wrangler.ideas.jsonc` differs (name, address,
-sender). The OPERA address and its wyndham.com-only rule are untouched.
+`wgpk-ideas-email-ingest` (`infra/ideas-email-worker/`) is a copy of `wgpk-concierge/infra/opera-analytics-email-worker`
+that differs only in also accepting .xlsx; IDeaS G3 exports Excel only. The OPERA address and its wyndham.com-only
+rule are untouched.
 
-## Reports to schedule in IDeaS (CSV, not Excel)
+## Report to schedule in IDeaS
 
-1. Daily decisions / BAR by stay date (with overrides)
-2. Forecast vs on-the-books by stay date (occupancy / room nights, OTB, remaining demand)
-3. Pickup / pace by stay date (since yesterday, last 7 days)
+Monitor → Reports → Data Extraction: All Data at Property level, all competitors selected, start today, end +365 days,
+Excel (the only format), daily early morning, e-mail to ideas-reports@wyndhamgardenkamala.com. Scheduling needs the
+G3 "schedule reports" permission (on 2026-10-29 Gary's user did not have it). Until then an export can be posted by
+hand: `curl -X POST --data-binary @export.xlsx -H "Authorization: Bearer $OTA_INGEST_TOKEN" https://ota.wyndhamgardenkamala.com/api/ingest/ideas`.
 
 ## Sender lock
 
@@ -37,11 +38,10 @@ Never set it to anything that accepts any sender.
 
 ## One-time setup (Cloudflare account owner)
 
-From `infra/ideas-email-worker/`, with `wgpk-concierge` checked out next to this repo and its worker's
-`npm ci` done:
+From `infra/ideas-email-worker/`:
 
 ```sh
-npx wrangler@4 deploy -c wrangler.ideas.jsonc
+npm ci && npm run deploy
 npx wrangler@4 email routing rules create wyndhamgardenkamala.com --name "IDeaS report archive" \
   --match-type literal --match-field to --match-value ideas-reports@wyndhamgardenkamala.com \
   --action-type worker --action-value wgpk-ideas-email-ingest --priority 30
@@ -49,5 +49,5 @@ npx wrangler@4 email routing rules create wyndhamgardenkamala.com --name "IDeaS 
 
 Check: `npx wrangler@4 email routing rules list wyndhamgardenkamala.com` shows the rule enabled.
 
-Limits are inherited from the OPERA worker: csv/tsv/txt/dat/xml/pdf attachments (no xlsx), at most 24 MB per
-email. The cockpit only parses IDeaS files after a parser exists for their columns.
+Accepted attachments: csv/tsv/txt/dat/xml/pdf/xlsx, at most 24 MB per email. The cockpit imports .xlsx sent to
+this address (cockpit/src/ideas.js); any other layout is blocked with a reason in `ideas_bridge_receipts`.

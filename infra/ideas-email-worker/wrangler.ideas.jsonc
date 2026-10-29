@@ -1,10 +1,9 @@
-// Second instance of wgpk-concierge/infra/opera-analytics-email-worker (code reused unchanged) for IDeaS G3
-// scheduled reports. Deploy from this directory with that repo checked out next to this one:
-//   npx wrangler@4 deploy -c wrangler.ideas.jsonc
+// Copy of wgpk-concierge/infra/opera-analytics-email-worker for IDeaS G3 scheduled reports; it differs only in
+// also accepting .xlsx (IDeaS exports Excel only). Deploy from this directory: npm ci && npm run deploy
 // See docs/IDEAS-REPORT-HANDOFF.md.
 {
   "name": "wgpk-ideas-email-ingest",
-  "main": "../../../wgpk-concierge/infra/opera-analytics-email-worker/src/index.ts",
+  "main": "src/index.ts",
   "compatibility_date": "2026-07-28",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,

@@ -38,6 +38,16 @@ its files), and never changes prices, availability or promotions. Writes are lim
 | `/api/agent/notes/:id` | `{status: active\|archived}` | retire a note |
 | `/api/agent/heartbeat` | `{info?}` | liveness; `chat/next` also counts |
 
+## IDeaS (cockpit/src/ideas.js)
+
+- `GET /api/agent/ideas?days=60&from=YYYY-MM-DD` (AGENT_TOKEN): latest IDeaS G3 Data Extraction snapshot per stay date (otb, otb_stly,
+  occ_forecast, unconstrained_demand, budget_rooms, bar, floor, ceiling, lrv, competitor_median, competitors, adr/revenue on books and
+  forecast, cancelled, wash_pct, special_event), `change` vs the previous snapshot, `booking` = our Booking pace for the same stay
+  date / month, and `months` rolled up.
+- `POST /api/ingest/ideas` (OTA_INGEST_TOKEN): one export as the raw .xlsx body (manual import).
+- Cron `7,37 * * * *` imports .xlsx sent to ideas-reports@ from the archive (docs/IDEAS-REPORT-HANDOFF.md). One snapshot per
+  generation day is kept as history (`ideas_snapshots`, `ideas_daily`).
+
 ## Data sources the agent adds (cockpit/src/sources.js, skill agent/skills/ota-sources)
 
 Agent (AGENT_TOKEN):

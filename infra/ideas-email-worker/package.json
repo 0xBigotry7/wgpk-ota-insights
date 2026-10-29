@@ -1,0 +1,22 @@
+{
+  "name": "wgpk-ideas-email-ingest",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "npm run typecheck && npm test && wrangler deploy -c wrangler.ideas.jsonc --dry-run",
+    "deploy": "wrangler deploy -c wrangler.ideas.jsonc",
+    "test": "vitest run",
+    "typecheck": "wrangler types -c wrangler.ideas.jsonc && tsc --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "types": "wrangler types"
+  },
+  "dependencies": {
+    "postal-mime": "2.7.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "typescript": "7.0.2",
+    "vitest": "4.1.10",
+    "wrangler": "4.114.0"
+  }
+}
