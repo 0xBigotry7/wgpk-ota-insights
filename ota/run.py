@@ -112,6 +112,17 @@ def probe_sources() -> int:
         print(f"agent sources unavailable: {type(e).__name__}", flush=True)
         return 0
     db = store.connect(config.DB)
+    at = started.isoformat(timespec="seconds")
+    for s in [s for s in todo if sources.fixed_page(s["platform"], s["url"])]:
+        # A page the collector already reads every day: answer without spending a probe or the browser.
+        todo.remove(s)
+        fixed = sources.fixed_page(s["platform"], s["url"])
+        try:
+            sources.post_probe(s["id"], False, reason=f"already read daily as {fixed}; its numbers are in "
+                               f"GET /api/agent/metrics?platform={s['platform']}")
+            sources.record_probe(db, at, s["id"], "duplicate")
+        except Exception as e:  # noqa: BLE001
+            print(f"probe report failed for {s['id']}: {type(e).__name__}", flush=True)
     left = sources.MAX_PROBES_PER_DAY - sources.probes_today(db, started.date().isoformat())
     if not todo or left <= 0:
         return 0
@@ -135,7 +146,7 @@ def probe_sources() -> int:
     finally:
         guard.release(fd)
     for row in rows:
-        report_probe(db, row, started.isoformat(timespec="seconds"))
+        report_probe(db, row, at)
     return 0
 
 

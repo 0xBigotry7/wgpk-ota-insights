@@ -1,4 +1,6 @@
 """Agent-added data sources: what the collector will and will not read, and what it sends back."""
+import sqlite3
+
 import pytest
 
 from ota import sources
@@ -58,3 +60,17 @@ def test_probe_cap_counts_today_only(tmp_path):
     sources.record_probe(db, "2026-10-28T20:00:00", 1, "ok")
     sources.record_probe(db, "2026-10-29T12:35:00", 2, "ok")
     assert sources.probes_today(db, "2026-10-29") == 1
+
+
+def test_fixed_collector_pages_are_duplicates():
+    base = "https://admin.booking.com/hotel/hoteladmin/extranet_ng/manage/statistics"
+    assert sources.fixed_page("booking", f"{base}/booker_insights.html?hotel_id=13267658&lang=en") == "booking/booker-insights"
+    assert sources.fixed_page("booking", f"{base}/booker_insights.html?ses=abc&hotel_id=1") == "booking/booker-insights"
+    assert sources.fixed_page("agoda", f"{base}/booker_insights.html?hotel_id=1") is None
+    assert sources.fixed_page("booking", f"{base}/some_new_report.html?hotel_id=1") is None
+
+
+def test_duplicates_do_not_count_toward_the_probe_cap(tmp_path):
+    db = sqlite3.connect(tmp_path / "p.db")
+    sources.record_probe(db, "2026-10-29T12:35:00", 7, "duplicate")
+    assert sources.probes_today(db, "2026-10-29") == 0

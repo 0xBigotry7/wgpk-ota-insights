@@ -69,6 +69,29 @@ def template(url: str) -> str:
     return f"https://{u.netloc}{u.path}?hotel_id={{hotel_id}}&lang=en&ses={{ses}}" + (f"&{rest}" if rest else "")
 
 
+_SESSION_Q = ("ses", "hotel_id", "lang", "t")
+
+
+def _page_key(url: str) -> tuple[str, str, frozenset]:
+    """Host, path and the query apart from session parameters and template placeholders."""
+    u = urllib.parse.urlparse(url)
+    q = frozenset((k, v) for k, v in urllib.parse.parse_qsl(u.query) if k not in _SESSION_Q and "{" not in v)
+    return u.netloc, u.path.rstrip("/"), q
+
+
+def fixed_page(platform: str, url: str) -> str | None:
+    """'cid/slug' of the collector's own page that this URL duplicates, or None."""
+    from .platforms import PLATFORMS
+    key = _page_key(url)
+    for p in PLATFORMS:
+        if p.cid != platform:
+            continue
+        for page in p.pages:
+            if page.url.startswith("http") and _page_key(page.url) == key:
+                return f"{p.cid}/{page.slug}"
+    return None
+
+
 def redact(url: str) -> str:
     return re.sub(r"((?:ses|token|sid|session)=)[^&#]*", r"\1REDACTED", url or "")
 
@@ -172,7 +195,7 @@ def post_builtin(db: sqlite3.Connection, run_id: str) -> dict:
 
 def probes_today(db: sqlite3.Connection, day: str) -> int:
     db.execute("CREATE TABLE IF NOT EXISTS source_probes (at TEXT NOT NULL, source_id INTEGER, outcome TEXT)")
-    return db.execute("SELECT count(*) FROM source_probes WHERE at LIKE ?", (day + "%",)).fetchone()[0]
+    return db.execute("SELECT count(*) FROM source_probes WHERE at LIKE ? AND outcome != 'duplicate'", (day + "%",)).fetchone()[0]
 
 
 def record_probe(db: sqlite3.Connection, at: str, source_id: int, outcome: str) -> None:
