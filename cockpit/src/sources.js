@@ -10,7 +10,7 @@ export const SOURCE_HOSTS = {
   agoda: ["portal.agoda.com", "ycs.agoda.com"],
   ctrip: ["ebooking.ctrip.com"],
   expedia: ["apps.expediapartnercentral.com"],
-  medallia: ["wyndhamhotels.medallia.com"],
+  // No Medallia: its pages are numbered, so a URL cannot tell an analysis page from one guest's survey.
 };
 // Pages that act or hold guest conversations: never read, whatever the agent asks. Verbs match whole words of the
 // path and query (split on punctuation and camelCase), so "cancellations" or "credit" stay readable while
@@ -18,7 +18,7 @@ export const SOURCE_HOSTS = {
 const DENY_WORDS = new Set(["reply", "replies", "respond", "submit", "save", "update", "edit", "delete", "remove", "cancel",
   "close", "logout", "signout", "login", "signin", "payment", "payments", "payout", "payouts", "invoice", "invoices", "bank",
   "password", "confirm", "publish", "toggle", "approve", "accept", "decline", "modify", "create"]);
-const DENY_ANY = /(message|inbox|chat|conversation|review|guest[-_]?list|reservation[-_]?detail)/i;
+const DENY_ANY = /(message|inbox|chat|conversation|review|guest[-_]?list|reservation[-_]?detail|答复|回复|订单|消息|点评|评论|聊天|预订详情)/i;
 const words = (s) => s.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
 export const MAX_ACTIVE = 10;
 export const MAX_PROPOSED_PER_DAY = 3;
@@ -39,7 +39,7 @@ export function urlProblem(platform, raw) {
   if (u.protocol !== "https:" || u.username || u.password || u.port) return "url must be plain https";
   if (!hosts.includes(u.hostname)) return `host must be one of ${hosts.join(", ")}`;
   let text;
-  try { text = decodeURIComponent(u.pathname + u.search); } catch { return "url is not decodable"; }
+  try { text = decodeURIComponent(u.pathname + u.search + u.hash); } catch { return "url is not decodable"; }
   if (DENY_ANY.test(text) || words(text).some((w) => DENY_WORDS.has(w))) return "this page can act or holds guest messages; not readable";
   return null;
 }

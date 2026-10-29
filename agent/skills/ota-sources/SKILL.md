@@ -20,7 +20,8 @@ All calls go through the cockpit skill's `ota-api`.
    it daily — don't request those). The catalog is refreshed from the pages read each day and holds analysis pages
    only. If the page you need is not in it, ask Gary for the link. Then:
    `ota-api POST /api/agent/sources '{"platform":"booking","url":"https://admin.booking.com/…","why":"which decision this serves"}'`
-   Only Booking, Agoda, Ctrip, Expedia and Medallia back-office hosts. Pages that act (save, update, cancel,
+   Only Booking, Agoda, Ctrip and Expedia back-office hosts (no Medallia: its pages are numbered, an analysis page and
+   one guest's survey look alike; its fixed pages are already read daily). Pages that act (save, update, cancel,
    reply, payment…) or hold guest messages or reviews are refused by the server; do not try to get around it.
    At most 3 new requests a day and 10 active sources.
 3. **Tell Gary** in one Telegram line right after a request: which page, why, and that it is read on the next
