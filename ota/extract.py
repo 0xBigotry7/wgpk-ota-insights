@@ -12,7 +12,7 @@ import re
 import sqlite3
 from pathlib import Path
 
-from . import llm
+from . import llm, sources
 from .catalog import CATALOG, Metric
 from .channel_extract import channel_values, source_date
 from .store import put_metric
@@ -112,7 +112,7 @@ def extract_run(db: sqlite3.Connection, run_id: str, ask=llm.ask_json) -> dict:
     counts: dict[str, int] = {}
     rows = db.execute("SELECT cid, slug, text_path FROM snapshots WHERE run_id=? AND status='ok'", (run_id,)).fetchall()
     for cid, slug, text_path in rows:
-        metrics = {m.key: m for m in CATALOG.get((cid, slug), ())}
+        metrics = {m.key: m for m in CATALOG.get((cid, slug), ()) or sources.catalog_for(cid, slug)}
         if not metrics or slug in NEVER_SEND or not text_path or not Path(text_path).exists():
             continue
         text = Path(text_path).read_text()[:MAX_CHARS]

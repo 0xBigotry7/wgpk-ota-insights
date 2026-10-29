@@ -8,13 +8,15 @@ Exit codes: 0 done, 3 skipped (review operator running or a review window is nea
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import sys
 import time
 import urllib.request
+from pathlib import Path
 
-from . import advise, cockpit, collect, config, extract, guard, store
-from .platforms import PLATFORMS
+from . import advise, cockpit, collect, config, extract, guard, sources, store
+from .platforms import PLATFORMS, Page
 
 PUSH_RETRY_S = 10
 # Platforms worth a second pass later the same day when the morning run found them signed out.
@@ -48,7 +50,7 @@ def once(only: set[str] | None) -> int:
         retry = store.signed_out_today(store.connect(config.DB), started.strftime("%Y%m%d"), RETRY_LATER)
         if not retry:
             print(f"skipped: today's collection already done ({prev})", flush=True)
-            return 0
+            return probe_sources()
         print(f"today's collection done ({prev}); second pass for signed-out {sorted(retry)}", flush=True)
         only, second_pass = retry, True
     near = guard.near_review_window(started, config.AVOID_SLOTS, config.AVOID_MARGIN_MIN)
@@ -64,8 +66,9 @@ def once(only: set[str] | None) -> int:
     run_id = started.strftime("%Y%m%d-%H%M%S")
     db = store.connect(config.DB)
     store.start_run(db, run_id, started.isoformat(timespec="seconds"))
+    extra = {} if only else agent_pages()
     try:
-        summary = collect.run_with_deadline(only, run_id, db)
+        summary = collect.run_with_deadline(only, run_id, db, extra)
         outcome = "done"
     except TimeoutError:
         summary, outcome = {"error": f"deadline {config.RUN_DEADLINE_S}s"}, "timeout"
@@ -81,6 +84,72 @@ def once(only: set[str] | None) -> int:
     # A partial test run does not rewrite the day's report; a second pass that fills in a signed-out platform does.
     after(db, run_id, report=not only or second_pass)
     return 0 if outcome == "done" else 1
+
+
+def agent_pages() -> dict[str, list]:
+    """Active agent-added sources as extra pages for today's full run; the cockpit being down never stops a run."""
+    config.load_env()
+    try:
+        found = sources.fetch()
+    except Exception as e:  # noqa: BLE001
+        print(f"agent sources unavailable: {type(e).__name__}", flush=True)
+        found = []
+    sources.save_active(found)
+    extra: dict[str, list] = {}
+    for s in sources.active(found):
+        extra.setdefault(s["platform"], []).append(Page(sources.slug(s), sources.template(s["url"]), settle_ms=4000))
+    return extra
+
+
+def probe_sources() -> int:
+    """Read newly approved agent sources once, in a free window, holding the operator's lock; at most
+    sources.MAX_PROBES_PER_DAY a day. Results (sanitized text or the reason) go back to the cockpit."""
+    started = collect.now()
+    config.load_env()
+    try:
+        todo = sources.probe_candidates(sources.fetch())
+    except Exception as e:  # noqa: BLE001
+        print(f"agent sources unavailable: {type(e).__name__}", flush=True)
+        return 0
+    db = store.connect(config.DB)
+    left = sources.MAX_PROBES_PER_DAY - sources.probes_today(db, started.date().isoformat())
+    if not todo or left <= 0:
+        return 0
+    if near := guard.near_review_window(started, config.AVOID_SLOTS, config.AVOID_MARGIN_MIN):
+        print(f"probe skipped: review window {near} is near", flush=True)
+        return 3
+    if not cdp_alive(config.CDP_PORT):
+        print("probe skipped: no operator Chrome", flush=True)
+        return 3
+    try:
+        fd = guard.take_operator_lock(config.OPERATOR_LOCK)
+    except guard.Busy as e:
+        print(f"probe skipped: {e}", flush=True)
+        return 3
+    batch = [s | {"url": sources.template(s["url"])} for s in todo[:left]]
+    try:
+        rows = asyncio.run(asyncio.wait_for(collect.probe(batch, config.DATA / "snapshots" /
+                                                          f"probe-{started:%Y%m%d-%H%M%S}"), timeout=300))
+    except Exception as e:  # noqa: BLE001
+        rows = [{"source_id": s["id"], "status": "error", "detail": f"{type(e).__name__}"} for s in batch]
+    finally:
+        guard.release(fd)
+    for row in rows:
+        report_probe(db, row, started.isoformat(timespec="seconds"))
+    return 0
+
+
+def report_probe(db, row: dict, at: str) -> None:
+    sid = row["source_id"]
+    text = Path(row["text_path"]).read_text() if row.get("status") == "ok" and row.get("text_path") else ""
+    sample, why = sources.sanitize(text) if text else (None, row.get("detail") or row.get("status") or "not read")
+    ok = bool(sample)
+    try:
+        sources.post_probe(sid, ok, row.get("url", ""), row.get("title", ""), sample or "", "" if ok else why)
+    except Exception as e:  # noqa: BLE001
+        print(f"probe {sid}: report failed {type(e).__name__}", flush=True)
+    sources.record_probe(db, at, sid, "ok" if ok else f"rejected: {why}"[:200])
+    print(json.dumps({"probe": sid, "ok": ok, "reason": "" if ok else why}, ensure_ascii=False), flush=True)
 
 
 def skipped(started, reason: str) -> int:
@@ -134,6 +203,10 @@ def after(db, run_id: str, report: bool = True) -> None:
     except Exception as e:  # noqa: BLE001
         print(f"extract failed: {type(e).__name__}: {e}", flush=True)
     push(db, run_id)
+    try:
+        print(json.dumps({"builtin_sources": sources.post_builtin(db, run_id)}), flush=True)
+    except Exception as e:  # noqa: BLE001
+        print(f"builtin sources push failed: {type(e).__name__}", flush=True)
     if not report:
         return
     try:
@@ -148,6 +221,7 @@ def main() -> int:
     ap.add_argument("--plan", action="store_true")
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--platforms", default="")
+    ap.add_argument("--probe-sources", action="store_true", help="probe newly approved agent sources now")
     ap.add_argument("--after", metavar="RUN_ID", help="re-run extraction, cockpit push and the daily report for a past run")
     a = ap.parse_args()
     only = {s.strip() for s in a.platforms.split(",") if s.strip()} or None
@@ -156,6 +230,8 @@ def main() -> int:
         return 0
     if a.once:
         return once(only)
+    if a.probe_sources:
+        return probe_sources()
     if a.after:
         after(store.connect(config.DB), a.after)
         return 0

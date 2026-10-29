@@ -7,13 +7,14 @@ skipped: this program never signs in, never fills a field and never clicks.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import datetime as dt
 import json
 import os
 from pathlib import Path
 
 from . import config, store
-from .platforms import PLATFORMS, Platform, fill, page_problem, signed_out
+from .platforms import BY_CID, PLATFORMS, Page, Platform, fill, page_problem, signed_out
 from .readonly import ReadOnlyTab
 
 BKK = dt.timezone(dt.timedelta(hours=7))
@@ -84,7 +85,7 @@ async def collect_platform(ctx, p: Platform, run_dir: Path) -> list[dict]:
     return rows
 
 
-async def collect(only: set[str] | None, run_id: str, db) -> dict:
+async def collect(only: set[str] | None, run_id: str, db, extra: dict[str, list[Page]] | None = None) -> dict:
     from playwright.async_api import async_playwright  # imported here so tests run without a browser
 
     run_dir = _private_dir(config.DATA / "snapshots" / run_id)
@@ -95,6 +96,8 @@ async def collect(only: set[str] | None, run_id: str, db) -> dict:
         for p in PLATFORMS:
             if only and p.cid not in only:
                 continue
+            if extra and extra.get(p.cid):
+                p = dataclasses.replace(p, pages=p.pages + tuple(extra[p.cid]))   # agent-added sources
             try:
                 rows = await collect_platform(ctx, p, run_dir)
             except Exception as e:  # noqa: BLE001 - one platform never stops the run
@@ -109,5 +112,25 @@ async def collect(only: set[str] | None, run_id: str, db) -> dict:
     return summary
 
 
-def run_with_deadline(only: set[str] | None, run_id: str, db) -> dict:
-    return asyncio.run(asyncio.wait_for(collect(only, run_id, db), timeout=config.RUN_DEADLINE_S))
+def run_with_deadline(only: set[str] | None, run_id: str, db, extra: dict[str, list[Page]] | None = None) -> dict:
+    return asyncio.run(asyncio.wait_for(collect(only, run_id, db, extra), timeout=config.RUN_DEADLINE_S))
+
+
+async def probe(requests: list[dict], run_dir: Path) -> list[dict]:
+    """Open each requested page once (after its platform's landing page, for the session) and return its row."""
+    from playwright.async_api import async_playwright
+
+    out = []
+    async with async_playwright() as pw:
+        browser = await pw.chromium.connect_over_cdp(f"http://127.0.0.1:{config.CDP_PORT}")
+        ctx = browser.contexts[0]
+        for req in requests:
+            p = BY_CID[req["platform"]]
+            page = Page(f"probe-{int(req['id'])}", req["url"], settle_ms=6000)
+            try:
+                rows = await collect_platform(ctx, dataclasses.replace(p, pages=(page,)), _private_dir(run_dir / p.cid))
+                row = next((r for r in rows if r["slug"] == page.slug), rows[0])
+            except Exception as e:  # noqa: BLE001
+                row = {"status": "error", "detail": f"{type(e).__name__}: {e}"[:300]}
+            out.append(row | {"source_id": req["id"]})
+    return out
