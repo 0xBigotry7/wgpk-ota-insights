@@ -285,7 +285,8 @@ export async function agentIdeas(db, q) {
   const out = rows.map(r => {
     const p = before[r.stay_date], b = pace[r.stay_date];
     return {
-      stay_date: r.stay_date, otb: r.otb, otb_stly: r.otb_stly, capacity: r.capacity, remaining: r.remaining,
+      stay_date: r.stay_date, otb: r.otb, otb_stly: r.otb_stly, otb_group: r.otb_group, otb_transient: r.otb_transient,
+      capacity: r.capacity, remaining: r.remaining, ooo: r.ooo,
       occ_forecast: round(r.occ_forecast), unconstrained_demand: round(r.unconstrained_demand), budget_rooms: r.budget_rooms,
       bar: r.bar, floor: r.floor, ceiling: r.ceiling, lrv: round(r.lrv, 0), competitor_median: r.competitor_median,
       competitors: r.competitors ? JSON.parse(r.competitors) : null, adr_otb: round(r.adr, 0), adr_forecast: round(r.adr_forecast, 0),
