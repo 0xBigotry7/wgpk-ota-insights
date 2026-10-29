@@ -145,3 +145,16 @@ def test_pace_daily_columns_get_years_across_new_year():
           if x['key'] == 'pace_room_nights'}
     assert set(by) == {'stay_2026-12-30', 'stay_2026-12-31', 'stay_2027-01-01'}
     assert by['stay_2027-01-01']['value'] == 38 and by['stay_2027-01-01']['benchmark'] == 41
+
+
+def test_pace_daily_columns_with_year_lines():
+    # Booking's 7-day pace view prints each stay date over its year (seen 2026-10-29).
+    text = ("Room revenue\n\t29 Oct\n2026\n\t30 Oct\n2026\n\tTotal\n"
+            "Room nights\t21\t14\t1,656\nRoom nights (Last year)\t16\t14\t1,405\n\n"
+            "Revenue (THB)\t47,769.71\t34,011.86\t11,093,390.71\nShow total sum\n")
+    vals = channel_values('booking', 'pace-7d', text, '2026-10-29')
+    by = {(x['key'], x['period_override']): x for x in vals}
+    assert by[('pace_room_nights', 'stay_2026-10-29')]['value'] == 21
+    assert by[('pace_room_nights', 'stay_2026-10-29')]['benchmark'] == 16
+    assert by[('pace_revenue', 'stay_2026-10-30')]['value'] == 34011.86
+    assert not any(p == 'total' for _, p in by)
