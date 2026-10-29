@@ -41,6 +41,7 @@ its files), and never changes prices, availability or promotions. Writes are lim
 ## IDeaS (cockpit/src/ideas.js)
 
 - `GET /api/agent/ideas?days=60&from=YYYY-MM-DD` (AGENT_TOKEN): latest IDeaS G3 Data Extraction snapshot per stay date (otb, otb_stly,
+  otb_group, otb_transient, ooo,
   occ_forecast, unconstrained_demand, budget_rooms, bar, floor, ceiling, lrv, competitor_median, competitors, adr/revenue on books and
   forecast, cancelled, wash_pct, special_event), `change` vs the previous snapshot, `booking` = our Booking pace for the same stay
   date / month, and `months` rolled up.
