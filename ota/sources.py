@@ -25,9 +25,8 @@ from .catalog import Metric
 # host -> platform id; anything else is refused
 HOSTS = {
     "admin.booking.com": "booking", "portal.agoda.com": "agoda", "ycs.agoda.com": "agoda",
-    "apps.expediapartnercentral.com": "expedia", "ebooking.ctrip.com": "ctrip", "www.tripadvisor.com": "tripadvisor",
-    "wyndhamhotels.medallia.com": "medallia", "business.google.com": "google",
-}
+    "apps.expediapartnercentral.com": "expedia", "ebooking.ctrip.com": "ctrip",
+}   # same hosts as the cockpit's SOURCE_HOSTS; no Medallia (numbered pages: analysis and one guest's survey look alike)
 DENY = re.compile(r"reply|respond|submit|save|update|edit|delete|remove|log-?out|sign-?out|sign-?in|log-?in|"
                   r"messag|inbox|hermes|chat|payment|payout|invoice|bank|password|permission|/users?\b|"
                   r"refund|confirm|approve|accept|decline|upload|cancel_res", re.I)
@@ -44,7 +43,8 @@ BUILTIN = (("booking", "genius"), ("booking", "competitive-set"), ("booking", "o
 DENY_WORDS = {"reply", "replies", "respond", "submit", "save", "update", "edit", "delete", "remove", "cancel", "close",
               "logout", "signout", "login", "signin", "payment", "payments", "payout", "payouts", "invoice", "invoices",
               "bank", "password", "confirm", "publish", "toggle", "approve", "accept", "decline", "modify", "create"}
-DENY_ANY = re.compile(r"(message|inbox|chat|conversation|review|guest[-_]?list|reservation[-_]?detail)", re.I)
+DENY_ANY = re.compile(r"(message|inbox|chat|conversation|review|guest[-_]?list|reservation[-_]?detail|"
+                      r"答复|回复|订单|消息|点评|评论|聊天|预订详情)", re.I)
 SESSION_KEYS = {"ses", "session", "sid", "token", "t", "lang", "hotel_id"}
 MAX_LINKS = 200
 # The link catalog is stricter than a request check: analysis pages only (an allowlist), never anything that names a

@@ -20,6 +20,13 @@ test("source URLs: only OTA back-office hosts, never pages that act or hold gues
   assert.match(urlProblem("agoda", "https://admin.booking.com/x"), /host/);
   for (const bad of [`${BK}/messaging/inbox.html`, `${BK}/rates/update.html`, `${BK}/x.html?action=cancel`, `${BK}/saveRoomRates`,
     `${BK}/reviews.html`, `${BK}/logout`]) assert.ok(urlProblem("booking", bad), bad);
+  // Medallia pages are numbered: an analysis page and one guest's survey look alike, so none are requestable.
+  assert.match(urlProblem("medallia", "https://wyndhamhotels.medallia.com/sso/wyndhamhotels/applications/ex_WEB-5/pages/664"), /platform/);
+  // Chinese action / guest words, and hash routes, count too.
+  for (const bad of ["https://ebooking.ctrip.com/ebkorder/订单列表", "https://ebooking.ctrip.com/comment/点评回复",
+    `https://ebooking.ctrip.com/x?tab=${encodeURIComponent("消息")}`, `${BK}/statistics/x.html#/messages`, "https://ycs.agoda.com/x#/inbox"])
+    assert.ok(urlProblem(bad.includes("ctrip") ? "ctrip" : bad.includes("agoda") ? "agoda" : "booking", bad), bad);
+  assert.equal(urlProblem("ctrip", "https://ebooking.ctrip.com/datacenter/traffic#/analysis"), null);
 });
 
 test("agent adds a source, collector probes it, agent sets a catalog, collector reads it daily", async () => {

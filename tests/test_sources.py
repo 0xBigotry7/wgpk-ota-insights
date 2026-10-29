@@ -25,6 +25,10 @@ def test_analysis_pages_allowed(platform, url):
     ("expedia", "https://apps.expediapartnercentral.com/lodging/payments/payout.html", "pay"),
     ("booking", "https://admin.booking.com/manage/rates/update.html", "update"),
     ("booking", "https://admin.booking.com/logout", "logout"),
+    ("medallia", "https://wyndhamhotels.medallia.com/sso/wyndhamhotels/applications/ex_WEB-5/pages/664", "not a known"),
+    ("ctrip", "https://ebooking.ctrip.com/ebkorder/订单列表", "action or a private page"),
+    ("ctrip", "https://ebooking.ctrip.com/comment/点评回复", "action or a private page"),
+    ("booking", "https://admin.booking.com/statistics/x.html#/messages", "messag"),
 ])
 def test_actions_and_private_pages_refused(platform, url, why):
     assert why in (sources.check_url(platform, url) or "")

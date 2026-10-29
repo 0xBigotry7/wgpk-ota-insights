@@ -53,7 +53,8 @@ its files), and never changes prices, availability or promotions. Writes are lim
 
 Agent (AGENT_TOKEN):
 - `GET /api/agent/sources`: mode, limits, all sources (proposed | approved | probed | active | rejected | retired; `builtin` = a fixed collector page shared for its text).
-- `POST /api/agent/sources {platform, url, why}`: allowed hosts only; action/guest-message/review pages refused; 3 a day. Mode auto → `approved`, approve → `proposed`.
+- `POST /api/agent/sources {platform, url, why}`: Booking/Agoda/Ctrip/Expedia back-office hosts only (no Medallia); action,
+  guest-message, review and order pages refused (English and Chinese words, path, query and #hash); 3 a day. Mode auto → `approved`, approve → `proposed`.
 - `GET /api/agent/sources/:id/sample`: sanitized page text from the probe.
 - `POST /api/agent/sources/:id/catalog {metrics:[{key, label, unit, period, hint, peer}]}`: needs a probed page; ≤10 active; sets `active`.
 - `POST /api/agent/sources/:id/status {status:"retired", reason}`; `POST /api/agent/sources/mode {mode:"approve"}` (tighten only).
