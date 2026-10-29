@@ -7,6 +7,8 @@
 - `GET /api/agent/brief`：当天全部数据，每次先读它
 - `GET /api/agent/alerts` | `wins` | `pace` | `events` | `channels` | `revenue` | `health` | `report` | `todos` | `decisions` | `runs` | `glossary` | `knowledge`
 - `GET /api/agent/metrics?platform=booking&metric_prefix=pickup_90d&since=2026-10-01`：历史明细
+- `GET /api/agent/ideas?days=60`：IDeaS 全酒店逐日数据（在手/去年同期/团队与散客、预测、无约束需求、BAR、底价顶价、LRV、
+  竞品价、预算、特殊事件），跟上一份的变化，和我们 Booking 同日/同月在手；`months` 按月汇总
 - `GET /api/agent/notes`：你的记忆
 
 写：

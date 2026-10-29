@@ -13,6 +13,8 @@ Run `{baseDir}/ota-api` through exec. It is the only command you may run; it onl
                                                                # health, report, todos, decisions, runs,
                                                                # glossary, knowledge, notes
     {baseDir}/ota-api GET '/api/agent/metrics?platform=booking&metric_prefix=pickup_90d&since=2026-10-01'
+    {baseDir}/ota-api GET '/api/agent/ideas?days=60'            # IDeaS whole-hotel view per stay date (+ months);
+                                                                  # read it for demand, price, forecast, whole-hotel OTB
     {baseDir}/ota-api POST /api/agent/todos '{"title":"…","detail":"…","owner":"收益/销售","platform":"booking","source":"agent"}'
     {baseDir}/ota-api POST /api/agent/todos/12 '{"status":"done"}'
     {baseDir}/ota-api POST /api/agent/notes '{"topic":"…","note":"…"}'
