@@ -1,7 +1,7 @@
 """What a run records and pushes when it does not finish normally."""
 import datetime as dt
 
-from ota import cockpit, collect, config, guard, run, store
+from ota import cockpit, collect, config, guard, refresh, run, store
 
 BKK = dt.timezone(dt.timedelta(hours=7))
 
@@ -13,6 +13,7 @@ def setup(tmp_path, monkeypatch, now):
     monkeypatch.setattr(run, "PUSH_RETRY_S", 0)
     monkeypatch.setattr(run, "agent_pages", lambda: {})           # no cockpit calls in tests
     monkeypatch.setattr(run, "probe_sources", lambda: 0)
+    monkeypatch.setattr(refresh, "claim", lambda: None)            # no agent refresh waiting
     pushed = []
     monkeypatch.setattr(cockpit, "push_run", lambda db, rid: pushed.append(cockpit.payload(db, rid)) or {"ok": True})
     return pushed
@@ -90,3 +91,49 @@ def test_every_launchd_slot_is_outside_the_review_windows():
     for when in plist["StartCalendarInterval"]:
         at = dt.datetime(2026, 10, 29, when["Hour"], when["Minute"], tzinfo=BKK)
         assert guard.near_review_window(at, slots, 60) is None, at
+
+
+def _done_today(db, day="20261029"):
+    store.start_run(db, f"{day}-102000", "x")
+    store.finish_run(db, f"{day}-102000", "y", "done", {})
+
+
+def _browser_ok(monkeypatch, seen):
+    monkeypatch.setattr(run, "cdp_alive", lambda port: True)
+    monkeypatch.setattr(guard, "take_operator_lock", lambda path: None)
+    monkeypatch.setattr(guard, "release", lambda fd: None)
+    monkeypatch.setattr(collect, "run_with_deadline", lambda only, rid, db, extra=None: seen.setdefault("only", only) and {})
+    monkeypatch.setattr(run, "after", lambda db, rid, report=True: seen.setdefault("report", report))
+
+
+def test_agent_refresh_reads_only_the_asked_platforms_after_the_daily_run(tmp_path, monkeypatch):
+    setup(tmp_path, monkeypatch, dt.datetime(2026, 10, 29, 12, 35, tzinfo=BKK))
+    _done_today(store.connect(config.DB))
+    seen, reports = {}, []
+    _browser_ok(monkeypatch, seen)
+    monkeypatch.setattr(refresh, "claim", lambda: {"id": 7, "platforms": {"booking"}, "reason": "老姚问 11 月"})
+    monkeypatch.setattr(refresh, "report", lambda rid, status, run_id="", detail="": reports.append((rid, status, run_id)))
+    assert run.once(None) == 0
+    assert seen == {"only": {"booking"}, "report": False}           # a partial read never rewrites the day's report
+    assert reports == [(7, "done", "20261029-123500")]
+
+
+def test_agent_refresh_near_a_review_window_goes_back_to_the_queue(tmp_path, monkeypatch):
+    setup(tmp_path, monkeypatch, dt.datetime(2026, 10, 29, 13, 0, tzinfo=BKK))   # 45 min before 13:45
+    _done_today(store.connect(config.DB))
+    reports = []
+    monkeypatch.setattr(refresh, "claim", lambda: {"id": 8, "platforms": {"agoda"}, "reason": "x"})
+    monkeypatch.setattr(refresh, "report", lambda rid, status, run_id="", detail="": reports.append((rid, status)))
+    assert run.once(None) == 3
+    assert reports == [(8, "skipped")]
+
+
+def test_daily_full_run_covers_a_waiting_refresh(tmp_path, monkeypatch):
+    setup(tmp_path, monkeypatch, dt.datetime(2026, 10, 29, 10, 20, tzinfo=BKK))
+    seen, reports = {}, []
+    _browser_ok(monkeypatch, seen)
+    monkeypatch.setattr(refresh, "claim", lambda: {"id": 9, "platforms": {"ctrip"}, "reason": "x"})
+    monkeypatch.setattr(refresh, "report", lambda rid, status, run_id="", detail="": reports.append((rid, status, run_id)))
+    assert run.once(None) == 0
+    assert seen["only"] is None
+    assert reports == [(9, "done", "20261029-102000")]

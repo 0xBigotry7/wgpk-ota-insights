@@ -54,6 +54,22 @@ Collector (OTA_INGEST_TOKEN):
 - `POST /api/ingest/sources/:id/approve`, `POST /api/ingest/sources/mode {mode: auto|approve}`: Gary's side.
 - Extracted numbers come in through the normal `/api/ingest` with the catalog keys.
 
+## Fresher numbers on demand (cockpit/src/refresh.js, ota/refresh.py)
+
+The collector reads every platform once a day at 10:20. When a question or decision needs today's numbers and a
+platform's data is older, the agent may ask for one extra read a day (Gary 2026-10-29: OTA work is not hour-by-hour):
+
+- `POST /api/agent/refresh {platforms: ["booking", …], reason}`: platforms from booking, agoda, expedia, ctrip,
+  google, tripadvisor, medallia; reason required. While a request is pending another ask merges into it. A second
+  request the same Bangkok day is 429. The reply carries `next_slot`.
+- `GET /api/agent/refresh`: the last 10 requests (pending → running → done | failed) with run id and detail.
+- Collector (ingest token): `GET /api/ingest/refresh/next` claims the waiting request; `POST /api/ingest/refresh/:id
+  {status: done|skipped|failed, run_id, detail}`. Skipped puts it back in the queue; a claim untouched for 30 min
+  returns to pending.
+- The collector serves it only after the day's full run is done, at its existing slots (12:35, 17:05, 19:30, 22:15),
+  with the usual guards: review windows, the operator's lock and Chrome, read-only pages. A full run that finishes
+  while a request waits marks it done ("covered by the daily full collection").
+
 ## Dashboard chat (the copilot panel talks to the agent)
 
 1. When the agent has been seen in the last 180 s, a question typed in the dashboard is queued instead of

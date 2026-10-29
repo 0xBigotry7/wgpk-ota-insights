@@ -215,3 +215,16 @@ CREATE TABLE IF NOT EXISTS agent_settings (
   value TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+-- On-demand re-collection the agent asks for (refresh.js); the Mac mini collector serves it at its next free slot.
+CREATE TABLE IF NOT EXISTS refresh_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at TEXT NOT NULL,
+  platforms TEXT NOT NULL,                 -- JSON list of collector platform ids
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL,                    -- pending | running | done | failed
+  picked_at TEXT,
+  finished_at TEXT,
+  run_id TEXT,
+  detail TEXT
+);
+CREATE INDEX IF NOT EXISTS refresh_requests_status ON refresh_requests (status);
