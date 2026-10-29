@@ -1,0 +1,24 @@
+// Second instance of wgpk-concierge/infra/opera-analytics-email-worker (code reused unchanged) for IDeaS G3
+// scheduled reports. Deploy from this directory with that repo checked out next to this one:
+//   npx wrangler@4 deploy -c wrangler.ideas.jsonc
+// See docs/IDEAS-REPORT-HANDOFF.md.
+{
+  "name": "wgpk-ideas-email-ingest",
+  "main": "../../../wgpk-concierge/infra/opera-analytics-email-worker/src/index.ts",
+  "compatibility_date": "2026-07-28",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "vars": {
+    "INGEST_ADDRESS": "ideas-reports@wyndhamgardenkamala.com",
+    // Rejects every sender until the IDeaS envelope sender domain is read from `wrangler tail` on its first
+    // send; then set it here and redeploy. Never leave it open to any sender.
+    "ALLOWED_SENDER_DOMAIN": "sender-not-pinned.invalid"
+  },
+  "r2_buckets": [{ "binding": "REPORTS", "bucket_name": "wgpk-opera-analytics" }],
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "wgpk-opera-analytics",
+    "database_id": "f23b96d4-bbc5-4567-940f-3b225f697143"
+  }],
+  "observability": { "enabled": true, "head_sampling_rate": 1 }
+}
