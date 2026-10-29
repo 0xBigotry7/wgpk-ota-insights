@@ -22,13 +22,18 @@
   </dict>
   <key>StartCalendarInterval</key>
   <!-- The review operator runs at 09:15, 11:30, 13:45, 16:00, 18:15 and 21:00 (Review Desk schedule_times);
-       with the 60-min guard only 10:15-10:30 and 22:00-08:15 are free.
+       with the 60-min guard the free gaps are 10:15-10:30, 12:30-12:45, 17:00-17:15, 19:15-20:00 and 22:00-08:15.
        10:20: just after the 09:15 run has refreshed the OTA logins (Booking is signed in then).
        22:15: fallback when 10:20 did not finish, and a Medallia-only pass when 10:20 found Medallia signed
        out (its Okta challenge is only cleared by the operator's 11:30 run). Otherwise it exits at once. -->
   <array>
     <dict><key>Hour</key><integer>10</integer><key>Minute</key><integer>20</integer></dict>
     <dict><key>Hour</key><integer>22</integer><key>Minute</key><integer>15</integer></dict>
+    <!-- 12:35, 17:05, 19:30: the other free gaps. Once the day's collection is done these only probe pages the
+         ota agent asked for (at most 3 a day), so a new source is tried within hours. -->
+    <dict><key>Hour</key><integer>12</integer><key>Minute</key><integer>35</integer></dict>
+    <dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>5</integer></dict>
+    <dict><key>Hour</key><integer>19</integer><key>Minute</key><integer>30</integer></dict>
   </array>
   <key>RunAtLoad</key><false/>
   <key>StandardOutPath</key><string>/Users/wyndham/wgpk-ota-insights/logs/ota.out.log</string>

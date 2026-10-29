@@ -11,6 +11,8 @@ def setup(tmp_path, monkeypatch, now):
     monkeypatch.setattr(config, "load_env", lambda: None)
     monkeypatch.setattr(collect, "now", lambda: now)
     monkeypatch.setattr(run, "PUSH_RETRY_S", 0)
+    monkeypatch.setattr(run, "agent_pages", lambda: {})           # no cockpit calls in tests
+    monkeypatch.setattr(run, "probe_sources", lambda: 0)
     pushed = []
     monkeypatch.setattr(cockpit, "push_run", lambda db, rid: pushed.append(cockpit.payload(db, rid)) or {"ok": True})
     return pushed
@@ -30,7 +32,7 @@ def test_timeout_marks_platforms_not_reached(tmp_path, monkeypatch):
     monkeypatch.setattr(guard, "release", lambda fd: None)
     monkeypatch.setattr(run, "after", lambda db, rid, report=True: run.push(db, rid))
 
-    def half_then_timeout(only, run_id, db):
+    def half_then_timeout(only, run_id, db, extra=None):
         store.add_snapshot(db, run_id=run_id, cid="booking", slug="landing", captured_at="x", status="ok")
         raise TimeoutError
 
@@ -60,7 +62,7 @@ def test_second_pass_only_for_platforms_signed_out_this_morning(tmp_path, monkey
     monkeypatch.setattr(run, "cdp_alive", lambda port: True)
     monkeypatch.setattr(guard, "take_operator_lock", lambda path: None)
     monkeypatch.setattr(guard, "release", lambda fd: None)
-    monkeypatch.setattr(collect, "run_with_deadline", lambda only, rid, db: seen.setdefault("only", only) and {})
+    monkeypatch.setattr(collect, "run_with_deadline", lambda only, rid, db, extra=None: seen.setdefault("only", only) and {})
     monkeypatch.setattr(run, "after", lambda db, rid, report=True: seen.setdefault("report", report))
     assert run.once(None) == 0
     assert seen == {"only": {"medallia"}, "report": True}
@@ -78,3 +80,13 @@ def test_schedule_avoids_every_review_desk_slot():
     for hh, mm in ((10, 20), (22, 15)):
         assert guard.near_review_window(d.datetime(2026, 10, 25, hh, mm, tzinfo=BKK), slots, 60) is None
     assert guard.near_review_window(d.datetime(2026, 10, 25, 11, 30, tzinfo=BKK), slots, 60) == "11:30"
+
+
+def test_every_launchd_slot_is_outside_the_review_windows():
+    import plistlib
+    from pathlib import Path as P
+    plist = plistlib.loads((P(__file__).resolve().parent.parent / "launchd" / "com.wgpk.ota-insights.plist").read_bytes())
+    slots = plist["EnvironmentVariables"]["WGPK_OTA_AVOID"].split(",")
+    for when in plist["StartCalendarInterval"]:
+        at = dt.datetime(2026, 10, 29, when["Hour"], when["Minute"], tzinfo=BKK)
+        assert guard.near_review_window(at, slots, 60) is None, at
