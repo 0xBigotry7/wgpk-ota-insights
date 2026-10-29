@@ -113,9 +113,12 @@ def test_agent_refresh_reads_only_the_asked_platforms_after_the_daily_run(tmp_pa
     _browser_ok(monkeypatch, seen)
     monkeypatch.setattr(refresh, "claim", lambda: {"id": 7, "platforms": {"booking"}, "reason": "老姚问 11 月"})
     monkeypatch.setattr(refresh, "report", lambda rid, status, run_id="", detail="": reports.append((rid, status, run_id)))
+    probes = []
+    monkeypatch.setattr(run, "probe_sources", lambda: probes.append(1) or 0)
     assert run.once(None) == 0
     assert seen == {"only": {"booking"}, "report": False}           # a partial read never rewrites the day's report
     assert reports == [(7, "done", "20261029-123500")]
+    assert probes == [1]                                            # agent sources are still probed in the slot
 
 
 def test_agent_refresh_near_a_review_window_goes_back_to_the_queue(tmp_path, monkeypatch):
