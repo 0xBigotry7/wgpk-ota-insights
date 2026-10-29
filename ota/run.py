@@ -52,7 +52,9 @@ def once(only: set[str] | None) -> int:
             print(f"skipped: today's collection already done ({prev})", flush=True)
             config.load_env()
             if req := refresh.claim():
-                return serve_refresh(req)
+                rc = serve_refresh(req)
+                probe_sources()          # checks the review window and the lock again
+                return rc
             return probe_sources()
         print(f"today's collection done ({prev}); second pass for signed-out {sorted(retry)}", flush=True)
         only, second_pass = retry, True
