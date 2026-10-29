@@ -74,15 +74,15 @@ def pace_table(text: str, day: str = "") -> tuple[list[str], dict[str, list[floa
         cols = [f"{y}-{MONTHS[mo]:02d}" for mo, y in re.findall(r"\t([A-Z][a-z]{2,3})\n(20\d{2})", head[1])
                 if mo in MONTHS]
     else:
-        # Daily view: "\t28 Oct\n\t29 Oct\n ... \tTotal" with no year; the year follows the sample day.
-        head = re.search(r"((?:\t\d{1,2} [A-Z][a-z]{2,3}\n)+)\tTotal\n", text)
+        # Daily view: "\t29 Oct\n2026\n ... \tTotal"; without a year line the year follows the sample day.
+        head = re.search(r"((?:\t\d{1,2} [A-Z][a-z]{2,3}\n(?:20\d{2}\n)?)+)\tTotal\n", text)
         if not head or not day:
             return [], {}
         cols, start = [], dt.date.fromisoformat(day)
-        for d, mo in re.findall(r"\t(\d{1,2}) ([A-Z][a-z]{2,3})", head[1]):
+        for d, mo, y in re.findall(r"\t(\d{1,2}) ([A-Z][a-z]{2,3})\n(20\d{2})?", head[1]):
             if mo not in MONTHS:
                 return [], {}
-            year = start.year + (1 if MONTHS[mo] < start.month else 0)
+            year = int(y) if y else start.year + (1 if MONTHS[mo] < start.month else 0)
             cols.append(dt.date(year, MONTHS[mo], int(d)).isoformat())
     cols.append("total")
     rows: dict[str, list[float | None]] = {}
