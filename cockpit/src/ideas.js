@@ -162,7 +162,10 @@ export async function parseIdeas(bytes) {
     const event = col[norm('Special Event This Year')] ? String(r[col[norm('Special Event This Year')]] || '').trim() : '';
     row.special_event = event ? event.slice(0, 120) : null;
     const rates = {};
-    for (const [letter, name] of competitors) { const v = num(r[letter]); if (v !== null && v > 0) rates[name.slice(0, 80)] = v; }
+    for (const [letter, name] of competitors) {             // "Closed", "Sold Out", "-", "N/A" mean no rate
+      const v = Number(String(r[letter] ?? '').trim().replaceAll(',', ''));
+      if (String(r[letter] ?? '').trim() && Number.isFinite(v) && v > 0) rates[name.slice(0, 80)] = v;
+    }
     const own = Object.keys(rates).filter(n => norm(n) === norm(r[col[norm('Property Name')]] || ''));
     for (const n of own) delete rates[n];                   // the hotel's own column is not a competitor
     const values = Object.values(rates).sort((a, b) => a - b);

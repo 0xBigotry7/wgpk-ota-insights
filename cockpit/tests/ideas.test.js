@@ -38,7 +38,7 @@ const HEAD = ['Property Name', 'Day of Week', 'Occupancy Date', 'Special Event T
 function exportFile({ generated = '29-Oct-2026 15:52:36 ICT', otb = 100, bar = '2800.00' } = {}) {
   const rows = [HEAD,
     ['Test Hotel', 'Thursday', 46324, null, 100, 20, otb, 50, 90.5, 95.2, 80, 1200.5, 0, bar, 2500, 6500, null, 3000, 5000],
-    ['Test Hotel', 'Friday', 46325, 'Loy Krathong', 100, 30, 70, 60, 75.25, 80, 82, 1300, 1500.4, '3100.00', 2500, 6500, 9999, 4000, null],
+    ['Test Hotel', 'Friday', 46325, 'Loy Krathong', 100, 30, 70, 60, 75.25, 80, 82, 1300, 1500.4, '3100.00', 2500, 6500, 9999, 4000, 'Sold Out'],
     ['Dummy for excel - new worksheet']];
   const criteria = [['Data Extraction Report'], ['Property Name', 'Start Date', 'End Date', 'Currency', 'Created By', 'Generated On', 'Account ID'],
     ['Test Hotel', 46324, 46325, 'THB', 'Some Person', generated, '0000-0000']];
@@ -63,7 +63,7 @@ test('parser reads the Data Extraction layout and keeps only numbers and the eve
   assert.equal(rows.length, 2);
   assert.deepEqual([rows[0].stay_date, rows[0].otb, rows[0].occ_forecast, rows[0].bar, rows[0].lrv], ['2026-10-29', 100, 90.5, 2800, 0]);
   assert.equal(rows[0].competitor_median, 4000);                   // the hotel's own column is not a competitor
-  assert.equal(rows[1].competitor_median, 4000);                   // own column 9999 dropped, one rival left
+  assert.equal(rows[1].competitor_median, 4000);                   // own column dropped, "Sold Out" is no rate
   assert.equal(rows[1].special_event, 'Loy Krathong');
   assert.ok(!JSON.stringify({ snapshot, rows }).includes('Some Person') && !JSON.stringify({ snapshot, rows }).includes('0000-0000'));
 });
