@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Tells Gary on Telegram (ota bot) when someone else asks the ota agent for work (agent/relay/owner_relay.py).
+     Reads the ota agent's session store read-only; sends only to Gary. Never touches the review operator.
+     Uninstall: launchctl bootout gui/$(id -u)/com.wgpk.ota-owner-relay -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.wgpk.ota-owner-relay</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>/Users/wyndham/wgpk-ota-insights/app/agent/relay/owner_relay.py</string>
+  </array>
+  <key>StartInterval</key><integer>60</integer>
+  <key>RunAtLoad</key><true/>
+  <key>StandardOutPath</key><string>/Users/wyndham/wgpk-ota-insights/logs/owner-relay.log</string>
+  <key>StandardErrorPath</key><string>/Users/wyndham/wgpk-ota-insights/logs/owner-relay.log</string>
+</dict>
+</plist>
