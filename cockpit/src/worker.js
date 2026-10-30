@@ -27,7 +27,7 @@ const PAGE_STATUS_DAYS = 3;
 const PLATFORMS = ["booking", "agoda", "expedia", "ctrip", "google", "tripadvisor", "medallia"];
 const PAGE_STATUSES = ["ok", "signed_out", "page_missing", "error"];
 const BASE_CSP = "frame-ancestors 'none'";
-const TODO_STATUSES = ["open", "done", "dropped"];
+const TODO_STATUSES = ["open", "done", "dropped", "cancelled"];   // cancelled: superseded or withdrawn, with a reason
 const COPILOT_PER_HOUR = 60;
 
 const jsonHeaders = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
@@ -182,7 +182,7 @@ const todoText = (a) => [clip(a.title, 200), clip([a.action, ...(a.steps || []).
  */
 export function planDispatch(todos = [], alerts = [], hl = null) {
   const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
-  const taken = new Set(todos.filter((t) => t.status === "open" || (["done", "dropped"].includes(t.status) && t.updated_at >= weekAgo))
+  const taken = new Set(todos.filter((t) => t.status === "open" || (["done", "dropped", "cancelled"].includes(t.status) && t.updated_at >= weekAgo))
     .map((t) => t.source_ref));
   const create = alerts.filter((a) => (a.level === "critical" || a.level === "serious") && !taken.has(a.id));
   const byId = new Map(alerts.map((a) => [a.id, a]));
@@ -429,8 +429,16 @@ async function createTodo(request, env) {
 
 async function updateTodo(request, env, id) {
   const body = await request.json().catch(() => null);
-  if (!body || !TODO_STATUSES.includes(body.status)) return json({ error: "status must be open, done or dropped" }, 400);
-  await env.DB.prepare("update todos set status = ?, updated_at = ? where id = ?").bind(body.status, new Date().toISOString(), id).run();
+  if (!body || !TODO_STATUSES.includes(body.status)) return json({ error: "status must be open, done, dropped or cancelled" }, 400);
+  const now = new Date().toISOString();
+  if (body.status === "cancelled") {
+    const reason = clip(body.reason, 300).trim();
+    if (!reason) return json({ error: "cancelled needs a reason, e.g. superseded by #21" }, 400);
+    await env.DB.prepare("update todos set status = 'cancelled', updated_at = ?, detail = substr(detail || ? || ?, 1, 1200) where id = ?")
+      .bind(now, "\n撤销原因：", reason, id).run();
+    return json({ ok: true, id, status: "cancelled" });
+  }
+  await env.DB.prepare("update todos set status = ?, updated_at = ? where id = ?").bind(body.status, now, id).run();
   return json({ ok: true, id, status: body.status });
 }
 
