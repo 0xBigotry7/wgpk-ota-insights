@@ -51,8 +51,8 @@ def test_history_is_not_replayed_then_new_work_is_told_once(tmp_path, monkeypatc
     add(c, "hk", 3, [user("请逐个渠道分析并建待办"), tool("ota-api POST /api/agent/todos '{...}'"),
                      said("已建 4 项待办：Booking 11 月、携程下单……")], 2_000_000)
     add(c, "gary", 0, [user("你好", sender="2078847155"), said("hi")], 2_000_000)
-    assert relay.run_once(2_000_000 + 30_000, out.append) == 0        # still settling
-    assert relay.run_once(2_000_000 + 61_000, out.append) == 1
+    assert relay.run_once(2_000_000 + 120_000, out.append) == 0       # still settling (180 s)
+    assert relay.run_once(2_000_000 + 181_000, out.append) == 1
     assert out == ["老姚让我：请逐个渠道分析并建待办\n我做了：建/改待办——已建 4 项待办：Booking 11 月、携程下单……"]
     assert relay.run_once(2_000_000 + 600_000, out.append) == 0       # told once
 
@@ -63,3 +63,23 @@ def test_pure_chat_gets_no_notice(tmp_path, monkeypatch):
     add(c, "hk", 0, [user("/start"), said("你好"), user("谢谢"), said("不客气")], 1_000)
     out = []
     assert relay.run_once(10**9, out.append) == 0 and out == []
+
+
+def test_a_failed_send_is_retried_and_earlier_lines_are_not_resent(tmp_path, monkeypatch):
+    c = setup(tmp_path, monkeypatch)
+    relay.run_once(0, lambda s: None)
+    add(c, "hk", 0, [user("请分析 Booking 渠道"), said("好"), user("再看看携程的转化"), said("好的")], 1_000)
+    out = []
+
+    def flaky(text):
+        if "携程" in text:
+            raise OSError("network")
+        out.append(text)
+
+    try:
+        relay.run_once(10**9, flaky)
+    except OSError:
+        pass
+    assert len(out) == 1 and "Booking" in out[0]
+    relay.run_once(10**9, out.append)
+    assert len(out) == 2 and "携程" in out[1]                          # retried, Booking line not repeated

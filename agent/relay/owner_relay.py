@@ -26,7 +26,7 @@ HOME = Path.home()
 DB = Path(os.environ.get("OTA_AGENT_DB", HOME / ".openclaw/agents/ota/agent/openclaw-agent.sqlite"))
 STATE = Path(os.environ.get("OTA_RELAY_STATE", HOME / ".config/wgpk-ota-agent/relay-state.json"))
 TOKEN_FILE = Path(os.environ.get("OTA_BOT_TOKEN_FILE", HOME / ".config/wgpk-ota-agent/telegram_bot_token"))
-SETTLE_S = 60             # a turn counts as finished when nothing was added to it for this long
+SETTLE_S = 180            # a turn counts as finished when nothing was added to it for this long (long tool calls)
 KEY = re.compile(r"^agent:ota:telegram(?::ota)?:direct:(\d+)$")
 # What the agent did, recognised from its ota-api calls.
 ACTIONS = (("POST /api/agent/todos", "建/改待办"), ("POST /api/agent/notes", "记笔记"),
@@ -109,6 +109,14 @@ def run_once(now_ms: int | None = None, sender=send) -> int:
     state = json.loads(STATE.read_text()) if STATE.exists() else None
     first = state is None
     state = state or {}
+
+    def save() -> None:
+        STATE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = STATE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(state))
+        os.chmod(tmp, 0o600)
+        tmp.replace(STATE)
+
     db = sqlite3.connect(f"file:{DB}?mode=ro", uri=True, timeout=5)
     sent = 0
     try:
@@ -126,17 +134,18 @@ def run_once(now_ms: int | None = None, sender=send) -> int:
             for t in turns([(seq, created, json.loads(ev)) for seq, created, ev in rows]):
                 if now_ms - t["last_at"] < SETTLE_S * 1000:
                     break                                         # still running: look again next minute
-                if t["sender"] != GARY and worth_telling(t):
-                    sender(line(t))
-                    sent += 1
                 state[sid] = t["last_seq"]
+                if t["sender"] != GARY and worth_telling(t):
+                    try:
+                        sender(line(t))
+                    except Exception:
+                        state[sid] = t["first_seq"] - 1            # not sent: try this turn again next minute
+                        raise
+                    sent += 1
+                    save()                                        # a later failure never resends this line
     finally:
         db.close()
-    STATE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = STATE.with_suffix(".tmp")
-    tmp.write_text(json.dumps(state))
-    os.chmod(tmp, 0o600)
-    tmp.replace(STATE)
+        save()
     return sent
 
 

@@ -13,7 +13,7 @@
 
 写：
 - `POST /api/agent/todos` `{title, detail, owner, platform, source: "agent"}`
-- `POST /api/agent/todos/:id` `{status}`
+- `POST /api/agent/todos/:id` `{status}`：open | done（真的做完）| dropped | cancelled（被替代或撤回，必须带 `reason`，例如 "superseded by #21"）
 - `POST /api/agent/notes` `{topic, note}`：记下以后用得上的经验和决定
 - `GET /api/agent/chat/next`、`POST /api/agent/chat/:id {reply, actions, model}`：驾驶舱对话
 - `POST /api/agent/refresh` `{platforms, reason}`：请采集程序在下一个空档补读这些平台（只读，每天最多 1 次）；`GET /api/agent/refresh` 看状态

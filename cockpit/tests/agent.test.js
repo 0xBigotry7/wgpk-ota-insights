@@ -59,3 +59,17 @@ test("dashboard copilot: queued for the online agent, answered through the agent
   assert.equal(state.agent.online, true);
   env.DB.close();
 });
+
+test("agent cancels a superseded to-do with a reason; the reason stays visible and the alert is not re-dispatched", async () => {
+  const DB = db(), env = { DB, AGENT_TOKEN: "agent" };
+  const post = (path, body) => worker.fetch(new Request(`https://x${path}`, { method: "POST", headers: { Authorization: "Bearer agent", "Content-Type": "application/json" },
+    body: JSON.stringify(body) }), env);
+  const made = await (await post("/api/agent/todos", { title: "Booking 11月缺口", detail: "按 Booking 判断", owner: "收益/销售", platform: "booking", source: "agent" })).json();
+  assert.equal((await post(`/api/agent/todos/${made.id}`, { status: "cancelled" })).status, 400);
+  const r = await post(`/api/agent/todos/${made.id}`, { status: "cancelled", reason: "superseded by #21: 全酒店 11 月在手 +104%" });
+  assert.equal(r.status, 200);
+  const row = await DB.prepare("select status, detail from todos where id = ?").bind(made.id).first();
+  assert.equal(row.status, "cancelled");
+  assert.equal(row.detail, "按 Booking 判断\n撤销原因：superseded by #21: 全酒店 11 月在手 +104%");
+  DB.close();
+});

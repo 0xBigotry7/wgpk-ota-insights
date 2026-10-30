@@ -884,7 +884,7 @@ function board(state){
   $("board").innerHTML = lanes.map(([o, list]) => `<div class="card lane"><h3>${esc(o)} <span class="cnt">${list.filter(t => t.status === "open").length} 项未完成</span></h3>
     ${list.map(t => `<div class="todo ${t.status !== "open" ? "done" : ""}">
       <button class="chk" data-toggle="${t.id}" aria-label="${t.status !== "open" ? "标为未完成" : "标为完成"}">${icon("i-check","sm")}</button>
-      <div><div class="t">${esc(t.title)}</div><div class="meta">${pf(t.platform)} · ${{alert:"来自预警",auto:"自动派单",report:"来自报告",copilot:"来自 Copilot",manual:"手动",agent:"agent 派单"}[t.source] || ""} · ${esc(String(t.created_at).slice(5,10))}${t.status === "cleared" ? " · 问题已消失，自动关闭" : ""}</div>
+      <div><div class="t">${esc(t.title)}</div><div class="meta">${t.status === "cancelled" ? "已撤销 · " : ""}${pf(t.platform)} · ${{alert:"来自预警",auto:"自动派单",report:"来自报告",copilot:"来自 Copilot",manual:"手动",agent:"agent 派单"}[t.source] || ""} · ${esc(String(t.created_at).slice(5,10))}${t.status === "cleared" ? " · 问题已消失，自动关闭" : ""}</div>
         ${t.detail ? `<div class="meta" style="margin-top:2px">${esc(t.detail)}</div>` : ""}</div>
       <button class="btn ghost" data-drop="${t.id}" aria-label="删除" data-tip="不做了">${icon("i-x","sm")}</button></div>`).join("")}</div>`).join("");
 }

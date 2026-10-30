@@ -33,7 +33,7 @@ its files), and never changes prices, availability or promotions. Writes are lim
 | Path | Body | Effect |
 |---|---|---|
 | `/api/agent/todos` | `{title, detail?, owner, platform, source: "agent", source_ref?}` | new to-do on the dashboard board. `owner` is one of 收益/销售, 前台, 客房, 工程, 餐饮, 市场/内容, 总经理 |
-| `/api/agent/todos/:id` | `{status: open\|done\|dropped}` | update a to-do |
+| `/api/agent/todos/:id` | `{status: open\|done\|dropped\|cancelled, reason}` | update a to-do; `cancelled` (superseded or withdrawn) needs a `reason`, appended to the detail |
 | `/api/agent/notes` | `{topic, note}` | durable memory: what worked, hotel facts, decisions. Shown on the dashboard |
 | `/api/agent/notes/:id` | `{status: active\|archived}` | retire a note |
 | `/api/agent/heartbeat` | `{info?}` | liveness; `chat/next` also counts |
