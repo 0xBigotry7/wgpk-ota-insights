@@ -13,6 +13,7 @@ its files), and never changes prices, availability or promotions. Writes are lim
 | Path | Returns |
 |---|---|
 | `/api/agent/brief` | `{text}`: the full data block (agent notes, data reliability, stay-month pace, holidays, every metric with its window and benchmark, alerts, report, to-dos). Start every task here. `?format=json` for the structured version |
+| `/api/agent/daily` | the daily brief's compact inputs: whole hotel (IDeaS months + next 14 days), channel pace with pickup_1d/7d, serious alerts, open to-dos with `age_days`/`idle_days`, data freshness, yesterday's brief, latest IDeaS学习 notes |
 | `/api/agent/alerts` | serious/warning alerts with `why`, `steps`, `kpi`, `owner` |
 | `/api/agent/wins` | what is going well |
 | `/api/agent/pace` | per stay month: booked within 30/90 days and ADR vs peers; on-the-books vs last year and pickup when available |

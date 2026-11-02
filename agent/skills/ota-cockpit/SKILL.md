@@ -8,7 +8,8 @@ description: Read the hotel's OTA data (metrics, stay-month pace, alerts, report
 Run `{baseDir}/ota-api` through exec. It is the only command you may run; it only talks to
 `https://ota.wyndhamgardenkamala.com/api/agent/*` and adds the token itself.
 
-    {baseDir}/ota-api GET /api/agent/brief                     # start every task here
+    {baseDir}/ota-api GET /api/agent/brief                     # start every conversation task here
+    {baseDir}/ota-api GET /api/agent/daily                     # the daily brief's compact inputs (use this for the brief)
     {baseDir}/ota-api GET /api/agent/alerts                    # also wins, pace, events, channels, revenue,
                                                                # health, report, todos, decisions, runs,
                                                                # glossary, knowledge, notes

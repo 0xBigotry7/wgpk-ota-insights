@@ -60,6 +60,7 @@ export async function handleAgent(request, env, path, loadState) {
     }
     if (route === "metrics") return { metrics: await metrics(db, url.searchParams) };
     if (route === "ideas") return { ideas: await agentIdeas(db, url.searchParams) };
+    if (route === "daily") return { daily: await dailyInputs(db, await loadState(env)) };
     if (route === "notes") return { notes: await notes(db, url.searchParams.get("all") === "1") };
     if (route === "chat/next") {
       await beat(db, { via: "chat/next", agent: clip(request.headers.get("User-Agent"), 80) });
@@ -96,6 +97,40 @@ export async function handleAgent(request, env, path, loadState) {
     return { ok: true, accepted_actions: answer.actions.length, action_guard: answer.action_guard };
   }
   return null;
+}
+
+const r1 = (v) => (v == null ? null : Math.round(v * 10) / 10);
+const bkkDay = (ms = Date.now()) => new Date(ms + 7 * 3600e3).toISOString().slice(0, 10);
+
+/** Everything the daily brief needs and nothing else (a few KB instead of the ~90 KB brief + alerts + pace):
+ *  whole hotel first (IDeaS), then channel pace with pickup, open to-dos with their age, yesterday's brief. */
+export async function dailyInputs(db, state, now = Date.now()) {
+  const today = bkkDay(now), yesterday = bkkDay(now - 864e5);
+  const ideas = await agentIdeas(db, new URLSearchParams("days=14"));
+  const days = (iso) => Math.floor((now - Date.parse(iso)) / 864e5);
+  const allNotes = await notes(db);
+  return {
+    today,
+    whole_hotel: ideas.snapshot ? {
+      ideas_snapshot: ideas.snapshot.snapshot_date, previous_snapshot: ideas.previous?.snapshot_date || null,
+      snapshot_age_days: days(`${ideas.snapshot.snapshot_date}T00:00:00+07:00`),
+      months: ideas.months.slice(0, 4).map((m) => ({ month: m.month, otb: m.otb, otb_stly: m.otb_stly, occ_forecast: m.occ_forecast,
+        budget_rooms: m.budget_rooms, forecast_occupancy_pct: m.forecast_occupancy_pct, avg_bar: m.avg_bar })),
+      next_14_days: ideas.days.map((d) => ({ stay_date: d.stay_date, otb: d.otb, otb_stly: d.otb_stly, occ_forecast: d.occ_forecast,
+        bar: d.bar, lrv: d.lrv, competitor_median: d.competitor_median, special_event: d.special_event, change: d.change })),
+    } : null,
+    channel_pace: (state.pace?.platforms || []).map((p) => ({ platform: p.platform, months: p.months.slice(0, 4).map((m) => ({
+      month: m.month, room_nights: m.room_nights, room_nights_ly: m.room_nights_ly, gap_pct: r1(m.gap),
+      pickup_1d: m.pickup_1d?.value ?? null, pickup_7d: m.pickup_7d?.value ?? null })) })),
+    channel_next_days: (state.pace?.next_days || []).map((d) => ({ platform: d.platform, stay_date: d.stay_date, room_nights: d.room_nights, ly: d.room_nights_ly })),
+    alerts: (state.monitor?.alerts || []).filter((a) => ["critical", "serious"].includes(a.level)).slice(0, 12)
+      .map((a) => ({ id: a.id, level: a.level, title: a.title })),
+    open_todos: (state.todos || []).filter((t) => t.status === "open").map((t) => ({ id: t.id, title: t.title, owner: t.owner,
+      platform: t.platform, source: t.source, age_days: days(t.created_at), idle_days: days(t.updated_at) })),
+    data_freshness: (state.monitor?.health?.platforms || []).map((p) => ({ platform: p.platform, last_data: p.last_data, days_since_data: p.days_since_data })),
+    yesterday_brief: allNotes.find((n) => n.topic === `daily-brief-${yesterday}`)?.note || null,
+    ideas_learning: allNotes.filter((n) => n.topic === "IDeaS学习").slice(0, 3).map((n) => ({ id: n.id, created_at: n.created_at, note: clip(n.note, 900) })),
+  };
 }
 
 async function notes(db, all = false) {

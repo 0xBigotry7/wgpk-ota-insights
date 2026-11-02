@@ -4,7 +4,8 @@
 完整说明见仓库 `docs/AGENT-API.md`。
 
 读：
-- `GET /api/agent/brief`：当天全部数据，每次先读它
+- `GET /api/agent/brief`：当天全部数据（对话里回答问题时先读它）
+- `GET /api/agent/daily`：每日简报专用的精简数据（全酒店 IDeaS、渠道 pickup、未关闭待办及闲置天数、昨天的简报）
 - `GET /api/agent/alerts` | `wins` | `pace` | `events` | `channels` | `revenue` | `health` | `report` | `todos` | `decisions` | `runs` | `glossary` | `knowledge`
 - `GET /api/agent/metrics?platform=booking&metric_prefix=pickup_90d&since=2026-10-01`：历史明细
 - `GET /api/agent/ideas?days=60`：IDeaS 全酒店逐日数据（在手/去年同期/团队与散客、预测、无约束需求、BAR、底价顶价、LRV、

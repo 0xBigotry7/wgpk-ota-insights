@@ -298,3 +298,16 @@ test("dispatch refreshes open auto to-dos and clears them only when today's run 
   assert.deepEqual(plan.create.map((a) => a.id), ["booking:ctr"]);   // an auto-cleared alert that comes back is dispatched again
   assert.deepEqual(planDispatch(todos.slice(0, 1), [{ ...lost, title: "Agoda 55 单流失" }], hl).refresh, []);
 });
+
+
+test("month-to-date numbers that restart on the 1st raise no drop or peer-gap alerts early in the month", () => {
+  const run = [{ id: "20261101-102000" }];
+  const m = (day, value, benchmark = null) => mk({ day, metric: "revenue_mtd", period: "month_to_date", unit: "THB", value, benchmark, label: "本月至今收入" });
+  const metrics = [m("2026-10-25", 3_400_000), m("2026-11-01", 15_000, 900_000)];
+  const ids = monitor({ metrics, pages: [], runs: run }, new Date("2026-11-01T05:00:00Z")).alerts.map((a) => a.id);
+  assert.ok(!ids.some((id) => /revenue_mtd/.test(id)), ids.join(","));
+  // Later in the month the same comparison counts again.
+  const later = [m("2026-11-03", 400_000), m("2026-11-10", 300_000, 900_000)];
+  const ids2 = monitor({ metrics: later, pages: [], runs: [{ id: "20261110-102000" }] }, new Date("2026-11-10T05:00:00Z")).alerts.map((a) => a.id);
+  assert.ok(ids2.some((id) => /revenue_mtd/.test(id)), ids2.join(","));
+});

@@ -73,3 +73,22 @@ test("agent cancels a superseded to-do with a reason; the reason stays visible a
   assert.equal(row.detail, "按 Booking 判断\n撤销原因：superseded by #21: 全酒店 11 月在手 +104%");
   DB.close();
 });
+
+test("daily inputs: compact, whole hotel first, open to-dos with age, yesterday's brief", async () => {
+  const { dailyInputs } = await import("../src/agent.js");
+  const DB = db();
+  const now = Date.parse("2026-11-02T04:00:00Z");
+  await DB.prepare("insert into agent_notes (created_at, topic, note, status) values (?, ?, ?, 'active')").bind("2026-11-01T03:45:00Z", "daily-brief-2026-11-01", "昨天的简报").run();
+  const state = { pace: { platforms: [{ platform: "booking", months: [{ month: "2026-11", room_nights: 355, room_nights_ly: 550, gap: -35.46, pickup_1d: { value: 14 }, pickup_7d: null }] }], next_days: [] },
+    monitor: { alerts: [{ id: "a", level: "serious", title: "x" }, { id: "b", level: "warning", title: "y" }], health: { platforms: [{ platform: "expedia", last_data: "2026-10-27", days_since_data: 6 }] } },
+    todos: [{ id: 21, title: "t", owner: "收益/销售", platform: "booking", source: "agent", status: "open", created_at: "2026-10-30T05:58:00Z", updated_at: "2026-10-30T05:58:00Z" }] };
+  const d = await dailyInputs(DB, state, now);
+  assert.equal(d.today, "2026-11-02");
+  assert.equal(d.whole_hotel, null);                                        // no IDeaS snapshot in this DB
+  assert.deepEqual(d.channel_pace[0].months[0], { month: "2026-11", room_nights: 355, room_nights_ly: 550, gap_pct: -35.5, pickup_1d: 14, pickup_7d: null });
+  assert.deepEqual(d.alerts.map((a) => a.id), ["a"]);
+  assert.deepEqual([d.open_todos[0].id, d.open_todos[0].idle_days], [21, 2]);
+  assert.equal(d.yesterday_brief, "昨天的简报");
+  assert.ok(JSON.stringify(d).length < 4000);
+  DB.close();
+});
