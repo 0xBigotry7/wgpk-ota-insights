@@ -81,6 +81,7 @@ test("daily inputs: compact, whole hotel first, open to-dos with age, yesterday'
   await DB.prepare("insert into agent_notes (created_at, topic, note, status) values (?, ?, ?, 'active')").bind("2026-11-01T03:45:00Z", "daily-brief-2026-11-01", "昨天的简报").run();
   const state = { pace: { platforms: [{ platform: "booking", months: [{ month: "2026-11", room_nights: 355, room_nights_ly: 550, gap: -35.46, pickup_1d: { value: 14 }, pickup_7d: null }] }], next_days: [] },
     monitor: { alerts: [{ id: "a", level: "serious", title: "x" }, { id: "b", level: "warning", title: "y" }], health: { platforms: [{ platform: "expedia", last_data: "2026-10-27", days_since_data: 6 }] } },
+    metrics: [{ platform: "expedia", metric: "review_score", page: "landing", day: "2026-11-02" }, { platform: "expedia", metric: "bookings", page: "data-insights", day: "2026-10-27" }],
     todos: [{ id: 21, title: "t", owner: "收益/销售", platform: "booking", source: "agent", status: "open", created_at: "2026-10-30T05:58:00Z", updated_at: "2026-10-30T05:58:00Z" }] };
   const d = await dailyInputs(DB, state, now);
   assert.equal(d.today, "2026-11-02");
@@ -89,6 +90,7 @@ test("daily inputs: compact, whole hotel first, open to-dos with age, yesterday'
   assert.deepEqual(d.alerts.map((a) => a.id), ["a"]);
   assert.deepEqual([d.open_todos[0].id, d.open_todos[0].idle_days], [21, 2]);
   assert.equal(d.yesterday_brief, "昨天的简报");
+  assert.deepEqual([d.data_freshness[0].last_data, d.data_freshness[0].last_business_data], ["2026-10-27", "2026-10-27"]);
   assert.ok(JSON.stringify(d).length < 4000);
   DB.close();
 });

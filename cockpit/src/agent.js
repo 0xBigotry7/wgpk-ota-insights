@@ -127,7 +127,14 @@ export async function dailyInputs(db, state, now = Date.now()) {
       .map((a) => ({ id: a.id, level: a.level, title: a.title })),
     open_todos: (state.todos || []).filter((t) => t.status === "open").map((t) => ({ id: t.id, title: t.title, owner: t.owner,
       platform: t.platform, source: t.source, age_days: days(t.created_at), idle_days: days(t.updated_at) })),
-    data_freshness: (state.monitor?.health?.platforms || []).map((p) => ({ platform: p.platform, last_data: p.last_data, days_since_data: p.days_since_data })),
+    // Any number counts for last_data; last_business_data ignores review counts/scores read off a landing page,
+    // so a platform whose sales pages fail is not reported as fresh.
+    data_freshness: (state.monitor?.health?.platforms || []).map((p) => {
+      const business = (state.metrics || []).filter((m) => m.platform === p.platform && !/^review_|_score$|rating/.test(m.metric) && m.page !== "landing")
+        .reduce((d, m) => (m.day > d ? m.day : d), "");
+      return { platform: p.platform, last_data: p.last_data, last_business_data: business || null,
+        business_days_ago: business ? days(`${business}T00:00:00+07:00`) : null };
+    }),
     yesterday_brief: allNotes.find((n) => n.topic === `daily-brief-${yesterday}`)?.note || null,
     ideas_learning: allNotes.filter((n) => n.topic === "IDeaS学习").slice(0, 3).map((n) => ({ id: n.id, created_at: n.created_at, note: clip(n.note, 900) })),
   };
