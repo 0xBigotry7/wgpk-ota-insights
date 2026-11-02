@@ -29,7 +29,8 @@ def setup(tmp_path, monkeypatch):
     db = tmp_path / "agent.sqlite"
     c = sqlite3.connect(db)
     c.execute("CREATE TABLE session_windows (session_id TEXT, session_key TEXT)")
-    c.execute("CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, created_at INTEGER, event_json TEXT)")
+    c.execute("CREATE TABLE transcript_events (session_id TEXT, seq INTEGER, created_at INTEGER, event_json TEXT, "
+              "event_zstd BLOB, navigation_json TEXT)")
     c.executemany("INSERT INTO session_windows VALUES (?, ?)", [("hk", HK), ("gary", "agent:ota:telegram:direct:2078847155")])
     c.commit()
     monkeypatch.setattr(relay, "DB", db)
@@ -38,7 +39,7 @@ def setup(tmp_path, monkeypatch):
 
 
 def add(c, sid, start, events, at):
-    c.executemany("INSERT INTO transcript_events VALUES (?, ?, ?, ?)",
+    c.executemany("INSERT INTO transcript_events VALUES (?, ?, ?, ?, NULL, NULL)",
                   [(sid, start + i, at, json.dumps(e)) for i, e in enumerate(events)])
     c.commit()
 
@@ -60,7 +61,7 @@ def test_history_is_not_replayed_then_new_work_is_told_once(tmp_path, monkeypatc
 def test_pure_chat_gets_no_notice(tmp_path, monkeypatch):
     c = setup(tmp_path, monkeypatch)
     relay.run_once(0, lambda s: None)
-    add(c, "hk", 0, [user("/start"), said("你好"), user("谢谢"), said("不客气")], 1_000)
+    add(c, "hk", 0, [user("/start"), said("你好"), user("谢谢"), said("不客气"), user("以后请叫我Hank，谢谢"), said("好的")], 1_000)
     out = []
     assert relay.run_once(10**9, out.append) == 0 and out == []
 
@@ -83,3 +84,17 @@ def test_a_failed_send_is_retried_and_earlier_lines_are_not_resent(tmp_path, mon
     assert len(out) == 1 and "Booking" in out[0]
     relay.run_once(10**9, out.append)
     assert len(out) == 2 and "携程" in out[1]                          # retried, Booking line not repeated
+
+
+def test_compressed_replies_are_read(tmp_path, monkeypatch):
+    c = setup(tmp_path, monkeypatch)
+    relay.run_once(0, lambda s: None)
+    add(c, "hk", 0, [user("为什么 11 月 Booking 这么少？")], 1_000)
+    long_reply = json.dumps(said("Booking 只占全酒店约 4%……"))
+    c.execute("INSERT INTO transcript_events VALUES ('hk', 1, 1000, NULL, ?, ?)",
+              (b"zstd-bytes", json.dumps({"navigation": {"type": "message", "message": {"role": "assistant"}}})))
+    c.commit()
+    monkeypatch.setattr(relay, "unzstd", lambda blobs: [long_reply] * len(blobs))
+    out = []
+    assert relay.run_once(10**9, out.append) == 1
+    assert out == ["老姚让我：为什么 11 月 Booking 这么少？\n我做了：回答了——Booking 只占全酒店约 4%……"]

@@ -115,6 +115,11 @@ export function peerGap(m) {
   return lowerIsBetter(m.metric) ? -d : d;
 }
 
+// Month-to-date figures restart at 0 on the 1st: in the first days of a month (or against a reading from the
+// previous month) a "drop" or a gap to peers is the calendar, not performance.
+const MTD = (m) => m.period === "month_to_date" || /_mtd$/.test(m.metric);
+export const earlyMonth = (m) => MTD(m) && Number(String(m.day).slice(8, 10)) <= 3;
+
 // Thresholds per unit kind: [warning, serious]. A win needs twice the warning step.
 function steps(m) {
   if (m.unit === "%") return [1, 5];
@@ -267,7 +272,7 @@ export function monitor({ metrics = [], pages = [], runs = [], history = [] }, n
     const period = PERIOD_WORDS[m.period] ? `（${PERIOD_WORDS[m.period]}）` : "";
 
     // 1. Against the platform's own comparison value.
-    const g = peerGap(m);
+    const g = earlyMonth(m) ? null : peerGap(m);
     if (g != null) {
       const [w, s] = steps(m);
       const base = { platform: m.platform, metric: key, area: plan.area, owner: plan.owner, gap: g,
@@ -284,7 +289,7 @@ export function monitor({ metrics = [], pages = [], runs = [], history = [] }, n
     if (rows.length > 1 && !NEUTRAL.test(m.metric)) {
       const cutoff = new Date(Date.parse(m.day) - 7 * 864e5).toISOString().slice(0, 10);
       const ref = m.period ? [...rows].reverse().find((r) => r.day <= cutoff) : rows.at(-2);
-      if (ref && ref.value) {
+      if (ref && ref.value && !(MTD(m) && (earlyMonth(m) || ref.day.slice(0, 7) !== m.day.slice(0, 7)))) {
         let d = m.unit === "%" ? m.value - ref.value : ((m.value - ref.value) / Math.abs(ref.value)) * 100;
         if (lowerIsBetter(m.metric)) d = -d;
         const isScore = SCORE_UNIT.test(m.unit);

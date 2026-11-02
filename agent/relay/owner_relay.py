@@ -15,6 +15,7 @@ import json
 import os
 import re
 import sqlite3
+import subprocess
 import sys
 import time
 import urllib.parse
@@ -26,6 +27,7 @@ HOME = Path.home()
 DB = Path(os.environ.get("OTA_AGENT_DB", HOME / ".openclaw/agents/ota/agent/openclaw-agent.sqlite"))
 STATE = Path(os.environ.get("OTA_RELAY_STATE", HOME / ".config/wgpk-ota-agent/relay-state.json"))
 TOKEN_FILE = Path(os.environ.get("OTA_BOT_TOKEN_FILE", HOME / ".config/wgpk-ota-agent/telegram_bot_token"))
+NODE = os.environ.get("OTA_NODE_BIN", str(HOME / ".local/node/bin/node"))   # Node 24 has zstd; Python 3.9 does not
 SETTLE_S = 180            # a turn counts as finished when nothing was added to it for this long (long tool calls)
 KEY = re.compile(r"^agent:ota:telegram(?::ota)?:direct:(\d+)$")
 # What the agent did, recognised from its ota-api calls.
@@ -76,12 +78,52 @@ def turns(events: list[tuple[int, int, dict]]) -> list[dict]:
     return out
 
 
+WORK = re.compile(r"[?？]|分析|看看|看下|查|建|做|帮|为什么|多少|怎么|哪|是否|有没有|能不能|安排|整理|报告|方案|对比|预测|"
+                  r"analy|check|why|how|what|when|which|report|plan", re.I)
+
+
 def worth_telling(t: dict) -> bool:
-    """Pure chat (/start, a greeting) gets no notice; a request for work does."""
+    """Pure chat (/start, a greeting, "call me Hank") gets no notice; a request for work does: the agent acted
+    (to-dos, notes, refresh, sources) or the message reads like a question or a task."""
     ask = t["ask"]
     if not ask or ask.startswith("/"):
         return False
-    return bool(t["actions"]) or len(ask) >= 8
+    return bool(t["actions"]) or bool(WORK.search(ask))
+
+
+def unzstd(blobs: list[bytes]) -> list[str | None]:
+    """OpenClaw stores long events zstd-compressed (event_json NULL); decompress them with the local Node."""
+    if not blobs:
+        return []
+    script = ("const z=require('zlib');let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{"
+              "process.stdout.write(JSON.stringify(JSON.parse(s).map(h=>{try{return z.zstdDecompressSync(Buffer.from(h,'hex')).toString()}"
+              "catch(e){return null}})))})")
+    try:
+        p = subprocess.run([NODE, "-e", script], input=json.dumps([b.hex() for b in blobs]), capture_output=True,
+                           text=True, timeout=30)
+        out = json.loads(p.stdout) if p.returncode == 0 else []
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        out = []
+    return out if len(out) == len(blobs) else [None] * len(blobs)
+
+
+def events(rows: list[tuple]) -> list[tuple[int, int, dict]]:
+    """(seq, created_at, event) for rows of (seq, created_at, event_json, event_zstd, navigation_json)."""
+    texts = unzstd([z for _, _, j, z, _ in rows if j is None and z is not None])
+    out, i = [], 0
+    for seq, created, j, z, nav in rows:
+        if j is None and z is not None:
+            j, i = texts[i], i + 1
+            if j is None:                         # cannot decompress: keep its shape from the navigation summary
+                try:
+                    j = json.dumps(json.loads(nav or "{}").get("navigation") or {})
+                except ValueError:
+                    j = "{}"
+        try:
+            out.append((seq, created, json.loads(j or "{}")))
+        except ValueError:
+            continue
+    return out
 
 
 def clip(s: str, n: int) -> str:
@@ -126,12 +168,12 @@ def run_once(now_ms: int | None = None, sender=send) -> int:
             if not m or m.group(1) == GARY:
                 continue
             cursor = int(state.get(sid, -1))
-            rows = db.execute("SELECT seq, created_at, event_json FROM transcript_events WHERE session_id = ? AND seq > ? "
-                              "AND event_json IS NOT NULL ORDER BY seq", (sid, cursor)).fetchall()
+            rows = db.execute("SELECT seq, created_at, event_json, event_zstd, navigation_json FROM transcript_events "
+                              "WHERE session_id = ? AND seq > ? ORDER BY seq", (sid, cursor)).fetchall()
             if first:
                 state[sid] = rows[-1][0] if rows else cursor     # start from now; never replay history
                 continue
-            for t in turns([(seq, created, json.loads(ev)) for seq, created, ev in rows]):
+            for t in turns(events(rows)):
                 if now_ms - t["last_at"] < SETTLE_S * 1000:
                     break                                         # still running: look again next minute
                 state[sid] = t["last_seq"]
