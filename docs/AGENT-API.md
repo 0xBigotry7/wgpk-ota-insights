@@ -96,6 +96,11 @@ platform's data is older, the agent may ask for one extra read a day (Gary 2026-
    (same guard as before).
 4. When there is no answer within 75 s, the dashboard's own API model answers and a late agent reply gets 409.
 
+5. **Crew hub** (crew.sailinglabs.ai, the hotel's AI-team app) asks through the same queue with its own
+   `HUB_TOKEN`: `POST /api/hub/chat {messages}` → `{queued: id}` or `{offline: true}`; `GET /api/hub/chat/:id` →
+   202 while waiting, `{status: "answered", reply, actions, model}` or `{status: "expired"}` (Crew then answers from its
+   own read-only view). The hub token opens nothing else; suggested actions are shown in Crew as text, never created.
+
 ## Setup
 
 - `npx wrangler d1 execute wgpk_ota --remote --file cockpit/schema.sql` adds `agent_chat`, `agent_notes`
