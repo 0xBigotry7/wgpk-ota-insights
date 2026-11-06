@@ -29,7 +29,8 @@ database_id = "f23b96d4-bbc5-4567-940f-3b225f697143"
 binding = "PMS_REPORTS"
 bucket_name = "wgpk-opera-analytics"
 
-# Secrets (wrangler secret put): DASHBOARD_PASSWORD, SESSION_SECRET, OTA_INGEST_TOKEN.
+# Secrets (wrangler secret put): DASHBOARD_PASSWORD, SESSION_SECRET, OTA_INGEST_TOKEN, AGENT_TOKEN,
+# HUB_TOKEN (Crew hub: /api/hub/chat — ask the operator through the chat queue, nothing else).
 # There are no defaults: without them login and ingest are refused.
 
 # Daily alert push at 12:30 Bangkok, after the 10:20 run and its 11:30 fallback. Sends only when the

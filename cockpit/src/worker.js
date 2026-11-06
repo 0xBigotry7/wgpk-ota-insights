@@ -65,6 +65,16 @@ export default {
       return json(out, out.error ? out.status || 400 : 200);
     }
 
+    // Crew (the hotel's AI-team hub, crew.sailinglabs.ai): ask the operator a question through the same
+    // queue the dashboard copilot uses. Own token (HUB_TOKEN), chat only — no to-dos, notes or state writes.
+    if (path.startsWith("/api/hub/")) {
+      if (!hubAuthorized(request, env)) return json({ error: "unauthorized" }, 401);
+      if (request.method === "POST" && path === "/api/hub/chat") return hubAsk(request, env);
+      const q = path.match(/^\/api\/hub\/chat\/(\d+)$/);
+      if (request.method === "GET" && q) return hubPoll(env, Number(q[1]));
+      return json({ error: "not found" }, 404);
+    }
+
     // The Mac mini collector: the agent's waiting refresh request, and how it went.
     if (path.startsWith("/api/ingest/refresh")) {
       if (!ingestAuthorized(request, env)) return json({ error: "unauthorized" }, 401);
@@ -501,7 +511,38 @@ async function answerWithModel(env, history, stayDate) {
   return json(answer);
 }
 
+// Crew hub: the operator answers when it is online; otherwise Crew answers from its own read-only view.
+// The agent's suggested to-dos come back as data only — nothing is created from a hub question.
+async function hubAsk(request, env) {
+  const body = await request.json().catch(() => null);
+  const history = (Array.isArray(body && body.messages) ? body.messages : [])
+    .filter((m) => m && typeof m.content === "string" && m.content.trim() && ["user", "assistant"].includes(m.role))
+    .slice(-10).map((m) => ({ role: m.role, content: clip(m.content, 4000) }));
+  if (!history.length || history.at(-1).role !== "user") return json({ error: "messages must end with a user message" }, 400);
+  const hourAgo = new Date(Date.now() - 3600e3).toISOString();
+  const used = await env.DB.prepare("select count(*) as n from copilot_log where at >= ?").bind(hourAgo).first();
+  if (used && used.n >= COPILOT_PER_HOUR) return json({ error: "rate limited" }, 429);
+  if (!env.AGENT_TOKEN || !(await agentStatus(env.DB)).online) return json({ offline: true });
+  const id = await enqueue(env.DB, history, null);
+  await env.DB.prepare("insert into copilot_log (at, question, reply, model) values (?, ?, ?, ?)")
+    .bind(new Date().toISOString(), clip(history.at(-1).content, 2000), `(Crew: queued for the hotel agent #${id})`, "agent").run();
+  return json({ queued: id, wait_s: 75 });
+}
+
+async function hubPoll(env, id) {
+  const r = await poll(env.DB, id);
+  if (r.status === "answered") return json({ status: "answered", reply: r.reply, actions: r.actions, model: r.model });
+  // Expired without an agent answer: Crew answers itself; the row stays expired.
+  if (r.status === "fallback" || r.status === "expired") return json({ status: "expired" });
+  return json({ status: r.status }, r.status === "missing" ? 404 : 202);
+}
+
 // ─────────────────────── auth ───────────────────────
+
+function hubAuthorized(request, env) {
+  if (!env.HUB_TOKEN) return false;
+  return timingSafeEqual(request.headers.get("Authorization") || "", `Bearer ${env.HUB_TOKEN}`);
+}
 
 function agentAuthorized(request, env) {
   if (!env.AGENT_TOKEN) return false;

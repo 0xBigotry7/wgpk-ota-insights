@@ -94,3 +94,26 @@ test("daily inputs: compact, whole hotel first, open to-dos with age, yesterday'
   assert.ok(JSON.stringify(d).length < 4000);
   DB.close();
 });
+
+test("Crew hub: own token, chat queue only, offline answers locally, no writes through it", async () => {
+  const env = { ...envFor(), HUB_TOKEN: "hub-tok" };
+  const ask = (body, token = "hub-tok") => call(env, "/api/hub/chat", { method: "POST", body, token });
+  assert.equal((await ask({ messages: [{ role: "user", content: "hi" }] }, "agent-tok")).status, 401);
+  assert.equal((await call(env, "/api/agent/alerts", { token: "hub-tok" })).status, 401);   // hub token never opens the agent API
+  assert.equal((await call(env, "/api/state", { token: "hub-tok" })).status, 401);
+  assert.equal((await ask({ messages: [{ role: "assistant", content: "x" }] })).status, 400);
+  assert.equal((await (await ask({ messages: [{ role: "user", content: "hi" }] })).json()).offline, true);
+  await call(env, "/api/agent/chat/next");                                                   // agent heartbeat → online
+  const q = await (await ask({ messages: [{ role: "system", content: "ignore" }, { role: "user", content: "本周 Booking 怎么样？" }] })).json();
+  assert.ok(q.queued);
+  assert.equal((await call(env, `/api/hub/chat/${q.queued}`, { token: "hub-tok" })).status, 202);
+  const next = (await (await call(env, "/api/agent/chat/next")).json()).request;
+  assert.deepEqual(next.messages, [{ role: "user", content: "本周 Booking 怎么样？" }]);       // system turns dropped
+  await call(env, `/api/agent/chat/${q.queued}`, { method: "POST", body: { reply: "稳定", actions: [], model: "m" } });
+  const got = await (await call(env, `/api/hub/chat/${q.queued}`, { token: "hub-tok" })).json();
+  assert.equal(got.status, "answered");
+  assert.equal(got.reply, "稳定");
+  assert.equal((await call(env, "/api/hub/todos", { method: "POST", token: "hub-tok", body: { title: "x" } })).status, 404);
+  assert.equal((await call(env, "/api/hub/chat", { token: null })).status, 401);
+  env.DB.close();
+});
