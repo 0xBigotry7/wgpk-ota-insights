@@ -28,7 +28,7 @@ OPENCLAW = os.environ.get("OPENCLAW_BIN", str(Path.home() / ".local" / "node" / 
 POLL_S = 7
 TURN_S = 60               # the dashboard gives up at 75 s
 MODEL = "openai/gpt-6.1-sol"
-PROMPT = """驾驶舱里有人问你问题。先用 ota-cockpit 技能读 /api/agent/brief，必要时再查其它接口，然后用中文回答。
+PROMPT = """驾驶舱里有人问你问题。先用 ota-cockpit 技能读 /api/agent/brief，必要时再查其它接口，然后用提问人所用的语言回答（问题是英文就用英文，是中文就用中文）。
 只输出一个 JSON 对象：{{"reply": "回答，可用 - 列表和 **粗体**，不超过 400 字", "actions": [最多 4 条
 {{"type": "todo", "title": "...", "owner": "收益/销售|前台|客房|工程|餐饮|市场/内容|总经理", "platform": "...", "detail": "...", "evidence_ids": [...]}}]}}
 {stay_date}对话：
