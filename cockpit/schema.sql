@@ -264,3 +264,14 @@ CREATE TABLE IF NOT EXISTS refresh_requests (
   detail TEXT
 );
 CREATE INDEX IF NOT EXISTS refresh_requests_status ON refresh_requests (status);
+
+-- Crew live work (Gary approved Q3, TG 11609): the steps the operator takes through the agent API while it answers a
+-- queued chat — read tools only (e.g. "brief", "pace"), never their content. Crew shows them as live progress.
+CREATE TABLE IF NOT EXISTS agent_chat_progress (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  chat_id INTEGER NOT NULL,
+  at TEXT NOT NULL,
+  tool TEXT NOT NULL,
+  label TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS agent_chat_progress_chat ON agent_chat_progress (chat_id, id);

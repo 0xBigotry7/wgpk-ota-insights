@@ -48,6 +48,7 @@ export async function handleAgent(request, env, path, loadState) {
   const route = path.slice("/api/agent/".length);
 
   if (request.method === "GET") {
+    if (route !== "chat/next") await noteProgress(db, route).catch(() => {});
     if (route === "brief") {
       const state = await loadState(env);
       if (url.searchParams.get("format") === "json") {
@@ -155,6 +156,31 @@ async function metrics(db, q) {
   const limit = Math.max(1, Math.min(500, Number(q.get("limit")) || 200));
   const r = await db.prepare(`select day, platform, metric, period, label, value, unit, benchmark, page, run_id from metrics
     ${where.length ? `where ${where.join(" and ")}` : ""} order by day desc, platform, metric limit ${limit}`).bind(...args).all();
+  return r.results || [];
+}
+
+// Crew live work: which read tool the operator used while answering the currently claimed chat (tool name only).
+const STEP_LABEL = { brief: "Read the daily brief", daily: "Checked today's inputs", pace: "Checked pickup and pace", alerts: "Checked alerts",
+  wins: "Checked what went well", health: "Checked data health", events: "Checked events and demand", channels: "Compared channels",
+  revenue: "Read revenue", todos: "Read open to-dos", decisions: "Read recent decisions", report: "Read the latest analysis",
+  runs: "Checked collection runs", glossary: "Looked up a term", knowledge: "Read the playbook", metrics: "Read metrics",
+  ideas: "Read IDeaS demand and rates", notes: "Read its working notes" };
+const PROGRESS_MAX = 30;
+
+export async function noteProgress(db, route, now = Date.now()) {
+  const tool = String(route || "").split("/")[0].split("?")[0];
+  if (!tool) return;
+  const row = await db.prepare("select id from agent_chat where status = 'claimed' and claimed_at >= ? order by claimed_at desc limit 1")
+    .bind(iso(now - CLAIM_STALE_S * 1000)).first();
+  if (!row) return;
+  const n = await db.prepare("select count(*) as n from agent_chat_progress where chat_id = ?").bind(row.id).first();
+  if (n && n.n >= PROGRESS_MAX) return;
+  await db.prepare("insert into agent_chat_progress (chat_id, at, tool, label) values (?, ?, ?, ?)")
+    .bind(row.id, iso(now), clip(tool, 40), STEP_LABEL[tool] || `Read ${clip(tool, 30)}`).run();
+}
+
+export async function progressFor(db, id) {
+  const r = await db.prepare("select at, tool, label from agent_chat_progress where chat_id = ? order by id limit ?").bind(id, PROGRESS_MAX).all();
   return r.results || [];
 }
 

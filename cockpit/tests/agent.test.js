@@ -117,3 +117,27 @@ test("Crew hub: own token, chat queue only, offline answers locally, no writes t
   assert.equal((await call(env, "/api/hub/chat", { token: null })).status, 401);
   env.DB.close();
 });
+
+test("Crew hub progress: the operator's read tools on the claimed chat show up while it thinks (names only)", async () => {
+  const env = { ...envFor(), HUB_TOKEN: "hub-tok" };
+  await call(env, "/api/agent/alerts");                                                      // no claimed chat → nothing recorded
+  await call(env, "/api/agent/chat/next");                                                   // heartbeat → online
+  const q = await (await call(env, "/api/hub/chat", { method: "POST", token: "hub-tok", body: { messages: [{ role: "user", content: "pace?" }] } })).json();
+  let p = await (await call(env, `/api/hub/chat/${q.queued}`, { token: "hub-tok" })).json();
+  assert.deepEqual(p, { status: "pending", progress: [] });
+  await call(env, "/api/agent/chat/next");                                                   // the operator claims it
+  await call(env, "/api/agent/brief");
+  await call(env, "/api/agent/pace");
+  await call(env, "/api/agent/metrics?platform=booking");
+  const r = await call(env, `/api/hub/chat/${q.queued}`, { token: "hub-tok" });
+  assert.equal(r.status, 202);
+  p = await r.json();
+  assert.equal(p.status, "claimed");
+  assert.deepEqual(p.progress.map((x) => [x.tool, x.label]), [["brief", "Read the daily brief"], ["pace", "Checked pickup and pace"], ["metrics", "Read metrics"]]);
+  assert.ok(p.progress.every((x) => Object.keys(x).sort().join() === "at,label,tool"));    // no content, only what was read
+  await call(env, `/api/agent/chat/${q.queued}`, { method: "POST", body: { reply: "稳定", actions: [], model: "m" } });
+  const done = await (await call(env, `/api/hub/chat/${q.queued}`, { token: "hub-tok" })).json();
+  assert.equal(done.status, "answered");
+  assert.equal("progress" in done, false);
+  env.DB.close();
+});
