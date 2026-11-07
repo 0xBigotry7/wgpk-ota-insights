@@ -18,7 +18,7 @@ import { eventPlan } from "./events.js";
 import { operatorView, approveDecision, updateDecision } from "./operator.js";
 import { pollPmsArchive } from "./pms-bridge.js";
 import { ingestIdeas, pollIdeasArchive } from "./ideas.js";
-import { handleAgent, agentStatus, enqueue, poll, settle } from "./agent.js";
+import { progressFor, handleAgent, agentStatus, enqueue, poll, settle } from "./agent.js";
 
 const SESSION_COOKIE = "wgpk_ota_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
@@ -494,7 +494,9 @@ async function pollCopilot(env, id) {
     return json({ ...j, fallback: "hotel agent did not answer in time" }, res.status);
   }
   if (r.status === "expired") return json({ error: "酒店 agent 没按时回答，备用模型也没答上，请再问一次" }, 504);
-  return json({ status: r.status }, r.status === "missing" ? 404 : 202);
+  if (r.status === "missing") return json({ status: r.status }, 404);
+  // Still thinking: the read tools the operator has used so far (Crew shows them as live progress).
+  return json({ status: r.status, progress: await progressFor(env.DB, id).catch(() => []) }, 202);
 }
 
 async function answerWithModel(env, history, stayDate) {
@@ -534,7 +536,9 @@ async function hubPoll(env, id) {
   if (r.status === "answered") return json({ status: "answered", reply: r.reply, actions: r.actions, model: r.model });
   // Expired without an agent answer: Crew answers itself; the row stays expired.
   if (r.status === "fallback" || r.status === "expired") return json({ status: "expired" });
-  return json({ status: r.status }, r.status === "missing" ? 404 : 202);
+  if (r.status === "missing") return json({ status: r.status }, 404);
+  // Still thinking: the read tools the operator has used so far (Crew shows them as live progress).
+  return json({ status: r.status, progress: await progressFor(env.DB, id).catch(() => []) }, 202);
 }
 
 // ─────────────────────── auth ───────────────────────
