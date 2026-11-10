@@ -3,8 +3,8 @@
 The hotel address lighthouse-reports@wyndhamgardenkamala.com is a Cloudflare Email Routing alias (no IMAP):
 the Worker wgpk-lighthouse-email-ingest (wgpk-concierge/infra/lighthouse-email-worker) checks the sender
 (allowed domain + Cloudflare DMARC/DKIM verdict), archives the mail and serves it read-only at
-LIGHTHOUSE_INBOX_URL. --poll-inbox reads that API; --push-cockpit hands the latest market/events views and
-the market comparison to the cockpit, where the ota agent reads GET /api/agent/lighthouse.
+LIGHTHOUSE_INBOX_URL. The Worker itself parses each report (a JS port of parse_xlsx) and pushes the agent views to
+the cockpit, so nothing polls. --poll-inbox here is a manual backfill / cross-check of that port.
 """
 
 import argparse

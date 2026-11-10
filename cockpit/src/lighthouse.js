@@ -1,11 +1,12 @@
-// Lighthouse (ex OTA Insight) market and events views for the ota agent. The hotel Mac mini polls the
-// lighthouse-reports@ inbox API every 15 min, parses the scheduled XLSX with ota.lighthouse_mail and posts the
-// three views here (latest market, latest events, market change between the last two deliveries). The cockpit
-// only stores the latest of each; the snapshot history stays in the Mac mini's SQLite.
-export const LIGHTHOUSE_VIEWS = ["market", "events", "compare_market"];
+// Lighthouse (ex OTA Insight) market and events views for the ota agent. Event-driven, no poller: when a report
+// reaches lighthouse-reports@, the inbox Worker wgpk-lighthouse-email-ingest (wgpk-concierge
+// infra/lighthouse-email-worker) parses the XLSX (a port of ota/lighthouse_mail.py) and posts the views here over a
+// service binding: latest market, latest events, market change between the last two deliveries, and `status`
+// (did the newest report parse). The cockpit stores only the latest of each; history stays in the inbox's D1.
+export const LIGHTHOUSE_VIEWS = ["market", "events", "compare_market", "status"];
 const MAX_VIEW_BYTES = 1_500_000;
 
-/** POST /api/ingest/lighthouse {generated_at, views: {market, events, compare_market}} (Bearer OTA_INGEST_TOKEN). */
+/** POST /api/ingest/lighthouse {generated_at, views: {market, events, compare_market, status}} (Bearer OTA_INGEST_TOKEN). */
 export async function ingestLighthouse(request, db, now = new Date()) {
   let body;
   try { body = await request.json(); } catch { return { error: "body must be JSON", status: 400 }; }
@@ -32,17 +33,21 @@ export async function ingestLighthouse(request, db, now = new Date()) {
   return { ok: true, stored };
 }
 
-/** GET /api/agent/lighthouse?view=market|events|compare_market (default market). */
+const viewRow = (db, view) =>
+  db.prepare("select view, received_at, generated_at, stored_at, body from lighthouse_views where view = ?").bind(view).first();
+
+/** GET /api/agent/lighthouse?view=market|events|compare_market|status (default market). Every answer carries
+ * `inbox_status`, so the agent can say "a new report arrived but could not be read". */
 export async function agentLighthouse(db, params) {
   const view = params.get("view") || "market";
   if (!LIGHTHOUSE_VIEWS.includes(view)) return { error: `view must be one of ${LIGHTHOUSE_VIEWS.join(", ")}`, status: 400 };
-  const row = await db.prepare("select view, received_at, generated_at, stored_at, body from lighthouse_views where view = ?")
-    .bind(view).first();
+  const [row, status] = await Promise.all([viewRow(db, view), view === "status" ? null : viewRow(db, "status")]);
+  const inbox_status = status ? JSON.parse(status.body) : null;
   if (!row) {
-    return { view, available: false,
+    return { view, available: false, inbox_status,
       note: "No Lighthouse delivery yet (needs a scheduled report e-mailed to lighthouse-reports@; compare_market needs two)." };
   }
   return { view, available: true, received_at: row.received_at, generated_at: row.generated_at, stored_at: row.stored_at,
     note: "received_at is when the e-mail arrived, not Lighthouse's own refresh time. Prices are public rates, not ADR.",
-    data: JSON.parse(row.body) };
+    data: JSON.parse(row.body), ...(view === "status" ? {} : { inbox_status }) };
 }

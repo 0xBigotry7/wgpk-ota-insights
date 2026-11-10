@@ -25,5 +25,10 @@ test('lighthouse views: ingest needs the ingest token, the agent reads the lates
     assert.equal(r.lighthouse.data.daily[0]['My price'], 6380);
     assert.equal((await (await get('?view=events')).json()).lighthouse.available, false);
     assert.equal((await get('?view=prices')).status, 400);
+    const status = { last_report_at: '2026-11-12T01:30:00Z', files: [{ filename: 'x.xlsx', status: 'parse_failed', kind: null, reason: 'workbook headers changed' }] };
+    await post('tok', { views: { status } });
+    r = await (await get('?view=market')).json();
+    assert.equal(r.lighthouse.inbox_status.files[0].status, 'parse_failed');
+    assert.equal(r.lighthouse.data.daily[0]['My price'], 6380);
   } finally { DB.close(); }
 });
