@@ -17,6 +17,7 @@ import { paceView } from "./pace.js";
 import { eventPlan } from "./events.js";
 import { operatorView, approveDecision, updateDecision } from "./operator.js";
 import { pollPmsArchive } from "./pms-bridge.js";
+import { loadOperaFeeds, operaAlerts } from "./opera-feeds.js";
 import { ingestIdeas, pollIdeasArchive } from "./ideas.js";
 import { ingestLighthouse } from "./lighthouse.js";
 import { progressFor, handleAgent, agentStatus, enqueue, poll, settle } from "./agent.js";
@@ -406,6 +407,9 @@ async function loadState(env) {
   state.channels = channelView(state.metrics, state.pages);
   state.pace = paceView(state.metrics);
   state.events = eventPlan(state.metrics, state.pace);
+  // OPERA morning reports, read from the archive (opera-feeds.js). A failing read must not take the cockpit down.
+  state.opera_feeds = await loadOperaFeeds(env.PMS_ARCHIVE_DB).catch(() => null);
+  state.monitor.alerts.push(...operaAlerts(state.opera_feeds));
   state.agent = await agentStatus(env.DB).catch(() => ({ online: false }));
   state.agent.notes = await all(env.DB.prepare("select id, created_at, topic, note from agent_notes where status = 'active' order by id desc limit 30")).catch(() => []);
   state.operator = operatorView(state, decisions);

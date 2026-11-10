@@ -5,6 +5,7 @@ import { context, groundAnswer } from "./copilot.js";
 import { KNOWLEDGE, ROUTINES } from "./knowledge.js";
 import { agentIdeas } from "./ideas.js";
 import { agentLighthouse } from "./lighthouse.js";
+import { agentOpera, operaSummary } from "./opera-feeds.js";
 
 export const AGENT_ONLINE_S = 180;      // no heartbeat for this long: the dashboard copilot falls back to the API model
 export const CHAT_WAIT_S = 75;          // a queued question unanswered this long is answered by the fallback model
@@ -65,6 +66,10 @@ export async function handleAgent(request, env, path, loadState) {
     if (route === "lighthouse") {
       const out = await agentLighthouse(db, url.searchParams);
       return out.error ? out : { lighthouse: out };
+    }
+    if (route === "opera") {
+      const out = await agentOpera(env.PMS_ARCHIVE_DB, url.searchParams);
+      return out.error ? out : { opera: out };
     }
     if (route === "daily") return { daily: await dailyInputs(db, await loadState(env)) };
     if (route === "notes") return { notes: await notes(db, url.searchParams.get("all") === "1") };
@@ -142,6 +147,8 @@ export async function dailyInputs(db, state, now = Date.now()) {
         business_days_ago: business ? days(`${business}T00:00:00+07:00`) : null };
     }),
     yesterday_brief: allNotes.find((n) => n.topic === `daily-brief-${yesterday}`)?.note || null,
+    // OPERA morning reports (opera-feeds.js): whole-hotel 7-day pickup, OTB by market, channel ADR, country mix.
+    opera: state.opera_feeds !== undefined ? operaSummary(state.opera_feeds, now) : null,
     ideas_learning: allNotes.filter((n) => n.topic === "IDeaS学习").slice(0, 3).map((n) => ({ id: n.id, created_at: n.created_at, note: clip(n.note, 900) })),
   };
 }
@@ -169,7 +176,7 @@ const STEP_LABEL = { brief: "Read the daily brief", daily: "Checked today's inpu
   wins: "Checked what went well", health: "Checked data health", events: "Checked events and demand", channels: "Compared channels",
   revenue: "Read revenue", todos: "Read open to-dos", decisions: "Read recent decisions", report: "Read the latest analysis",
   runs: "Checked collection runs", glossary: "Looked up a term", knowledge: "Read the playbook", metrics: "Read metrics",
-  ideas: "Read IDeaS demand and rates", lighthouse: "Read Lighthouse market and events", notes: "Read its working notes" };
+  ideas: "Read IDeaS demand and rates", lighthouse: "Read Lighthouse market and events", opera: "Read OPERA pace, channels and countries", notes: "Read its working notes" };
 const PROGRESS_MAX = 30;
 
 export async function noteProgress(db, route, now = Date.now()) {
