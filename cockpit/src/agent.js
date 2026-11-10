@@ -4,6 +4,7 @@
 import { context, groundAnswer } from "./copilot.js";
 import { KNOWLEDGE, ROUTINES } from "./knowledge.js";
 import { agentIdeas } from "./ideas.js";
+import { agentLighthouse } from "./lighthouse.js";
 
 export const AGENT_ONLINE_S = 180;      // no heartbeat for this long: the dashboard copilot falls back to the API model
 export const CHAT_WAIT_S = 75;          // a queued question unanswered this long is answered by the fallback model
@@ -61,6 +62,10 @@ export async function handleAgent(request, env, path, loadState) {
     }
     if (route === "metrics") return { metrics: await metrics(db, url.searchParams) };
     if (route === "ideas") return { ideas: await agentIdeas(db, url.searchParams) };
+    if (route === "lighthouse") {
+      const out = await agentLighthouse(db, url.searchParams);
+      return out.error ? out : { lighthouse: out };
+    }
     if (route === "daily") return { daily: await dailyInputs(db, await loadState(env)) };
     if (route === "notes") return { notes: await notes(db, url.searchParams.get("all") === "1") };
     if (route === "chat/next") {
@@ -164,7 +169,7 @@ const STEP_LABEL = { brief: "Read the daily brief", daily: "Checked today's inpu
   wins: "Checked what went well", health: "Checked data health", events: "Checked events and demand", channels: "Compared channels",
   revenue: "Read revenue", todos: "Read open to-dos", decisions: "Read recent decisions", report: "Read the latest analysis",
   runs: "Checked collection runs", glossary: "Looked up a term", knowledge: "Read the playbook", metrics: "Read metrics",
-  ideas: "Read IDeaS demand and rates", notes: "Read its working notes" };
+  ideas: "Read IDeaS demand and rates", lighthouse: "Read Lighthouse market and events", notes: "Read its working notes" };
 const PROGRESS_MAX = 30;
 
 export async function noteProgress(db, route, now = Date.now()) {

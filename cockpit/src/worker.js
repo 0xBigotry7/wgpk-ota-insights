@@ -18,6 +18,7 @@ import { eventPlan } from "./events.js";
 import { operatorView, approveDecision, updateDecision } from "./operator.js";
 import { pollPmsArchive } from "./pms-bridge.js";
 import { ingestIdeas, pollIdeasArchive } from "./ideas.js";
+import { ingestLighthouse } from "./lighthouse.js";
 import { progressFor, handleAgent, agentStatus, enqueue, poll, settle } from "./agent.js";
 
 const SESSION_COOKIE = "wgpk_ota_session";
@@ -95,6 +96,13 @@ export default {
     if (path === "/api/ingest/ideas" && request.method === "POST") {
       if (!ingestAuthorized(request, env)) return json({ error: "unauthorized" }, 401);
       const out = await ingestIdeas(request, env);
+      return json(out, out.error ? out.status || 400 : 200);
+    }
+
+    // Lighthouse views from the Mac mini's inbox poller (ota.lighthouse_mail --poll-inbox --push-cockpit).
+    if (path === "/api/ingest/lighthouse" && request.method === "POST") {
+      if (!ingestAuthorized(request, env)) return json({ error: "unauthorized" }, 401);
+      const out = await ingestLighthouse(request, env.DB);
       return json(out, out.error ? out.status || 400 : 200);
     }
 

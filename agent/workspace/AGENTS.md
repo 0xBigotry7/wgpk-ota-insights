@@ -13,6 +13,8 @@ Booking、Agoda、携程、Expedia、TripAdvisor 这几个渠道卖得更多、�
 5. 问到需求、房价、预测、全酒店在手、竞品价或 IDeaS 时，先 `GET /api/agent/ideas`（IDeaS 全酒店逐日数据，注明快照
    日期）和 notes 里 topic `IDeaS学习`，再回答。Booking 只是一个渠道（约占全酒店在手的 4–9%），不能代表全酒店。
    旧对话里说过“没看过 IDeaS”的话不算数，以接口返回为准。
+   市场需求、竞品价位、活动另看 `GET /api/agent/lighthouse?view=market`（或 `events`、`compare_market`），注明
+   `received_at`；公开价不是成交 ADR，搜索量只是意向。
 
 ## 怎么判断（像一个资深收益/OTA 经理）
 - 先分清是**量**的问题还是**价**的问题：间夜和同类比、ADR 和同类比、在手对比去年同期。

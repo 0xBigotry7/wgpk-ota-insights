@@ -16,6 +16,10 @@ Run `{baseDir}/ota-api` through exec. It is the only command you may run; it onl
     {baseDir}/ota-api GET '/api/agent/metrics?platform=booking&metric_prefix=pickup_90d&since=2026-10-01'
     {baseDir}/ota-api GET '/api/agent/ideas?days=60'            # IDeaS whole-hotel view per stay date (+ months);
                                                                   # read it for demand, price, forecast, whole-hotel OTB
+    {baseDir}/ota-api GET '/api/agent/lighthouse?view=market'   # Lighthouse market: demand level, my public price vs
+                                                                  # compset price band, my/market OTB, search, geo, LOS
+    {baseDir}/ota-api GET '/api/agent/lighthouse?view=events'   # Lighthouse events calendar (365 days)
+    {baseDir}/ota-api GET '/api/agent/lighthouse?view=compare_market'  # change between the last two market deliveries
     {baseDir}/ota-api POST /api/agent/todos '{"title":"…","detail":"…","owner":"收益/销售","platform":"booking","source":"agent"}'
     {baseDir}/ota-api POST /api/agent/todos/12 '{"status":"done"}'
     {baseDir}/ota-api POST /api/agent/notes '{"topic":"…","note":"…"}'
