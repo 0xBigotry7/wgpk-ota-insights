@@ -120,3 +120,29 @@ platform's data is older, the agent may ask for one extra read a day (Gary 2026-
 - `npx wrangler d1 execute wgpk_ota --remote --file cockpit/schema.sql` adds `agent_chat`, `agent_notes`
   and `agent_heartbeat` (IF NOT EXISTS).
 - `npx wrangler secret put AGENT_TOKEN`. Store the same value only in the agent's environment on the Mac mini.
+
+## OPERA morning reports (cockpit/src/opera-feeds.js)
+
+Six OPERA schedules (user jingzhou xue) e-mail opera-analytics@ daily, Bangkok time: 06:30 History and Forecast,
+06:35 Reservation Booking Pace (on the books now vs 7 days ago, next 120 stay dates), 06:45 Length Of Stay By Market Code
+(next 90 days), 06:50 / 07:05 Day/MTD/YTD Statistics by market and by source, 07:15 Country by Revenue Statistics. The
+archive Worker stores their aggregate numbers in `report_analyses.summary_json` (schemaVersion 2); the cockpit only SELECTs
+them through `PMS_ARCHIVE_DB`. History and Forecast keeps feeding `/api/agent/revenue` through pms-bridge.js.
+
+- `GET /api/agent/opera` (AGENT_TOKEN): the compact summary, same as `daily.opera`: `business_date` (first stay date of the
+  pace report), `report_date` (= business_date − 1, the day the actuals cover), `age_hours`, `pickup_7d` (next 14 / 30 stay
+  dates: net, transient, group, revenue; three biggest losses), `otb_by_market_next_30_days`, `hotel` day/MTD/YTD,
+  `channels` (per OPERA source code: MTD/YTD room nights and ADR, ADR as a multiple of hotel ADR, `relative_change` = MTD
+  multiple / YTD multiple), `top_countries_mtd`.
+- `?view=pace|market|source|country`: the full latest report of that kind. `source` also has `by_market` (same actuals per
+  market code). `available: false` until the first delivery.
+- Aggregates only: every field is rebuilt from the stored metrics; file names, object keys and raw rows never leave.
+
+Alerts (added to `/api/agent/alerts` and the dispatch; thresholds in `OPERA_LIMITS`):
+
+| id | level | rule |
+|---|---|---|
+| `opera:stale` | serious | newest OPERA report older than 30 h (other OPERA alerts suppressed) |
+| `opera:pickup-negative` | warning / serious | net 7-day pickup over the next 30 stay dates < 0; ≤ −30 room nights is serious |
+| `opera:date-cancellations` | warning | a stay date in the next 14 days lost ≥ 10 room nights in 7 days |
+| `opera:adr-drop:<source>` | warning / serious | channel with ≥ 20 MTD room nights whose ADR premium over the hotel (MTD) fell below 85 % (serious < 75 %) of its YTD premium — seasonality moves every channel, so the channel is compared with the hotel, not with itself |
