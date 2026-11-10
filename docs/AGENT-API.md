@@ -52,15 +52,17 @@ its files), and never changes prices, availability or promotions. Writes are lim
 
 ## Lighthouse (cockpit/src/lighthouse.js)
 
-- `GET /api/agent/lighthouse?view=market|events|compare_market` (AGENT_TOKEN, default market): the latest parsed Lighthouse
-  Market Insight / Events workbook and the market change between the last two deliveries (`ota.lighthouse_mail --latest market`,
-  `--latest events`, `--compare-market`). `available: false` until a delivery arrives; `received_at` is the e-mail's arrival.
-- `POST /api/ingest/lighthouse` (OTA_INGEST_TOKEN) `{generated_at, views: {market, events, compare_market}}`: posted by the
-  Mac mini job `com.wgpk.ota-lighthouse` (every 15 min: `--poll-inbox --push-cockpit`, only when a new snapshot arrived). Only the
-  latest of each view is kept (`lighthouse_views`); history stays in the Mac mini's `data/lighthouse.sqlite`.
+- `GET /api/agent/lighthouse?view=market|events|compare_market|status` (AGENT_TOKEN, default market): the latest parsed
+  Lighthouse Market Insight / Events workbook and the market change between the last two deliveries (same semantics as
+  `ota.lighthouse_mail --latest market`, `--latest events`, `--compare-market`), plus `inbox_status` (did the newest report
+  parse). `available: false` until a delivery arrives; `received_at` is the e-mail's arrival.
+- `POST /api/ingest/lighthouse` (OTA_INGEST_TOKEN) `{generated_at, views: {market, events, compare_market, status}}`: posted
+  by the inbox Worker over a service binding the moment a report arrives (event-driven; no poller on the Mac mini). Only the
+  latest of each view is kept (`lighthouse_views`); snapshot history is in the inbox Worker's D1 (`snapshots`).
 - Mail path: Lighthouse scheduled report → lighthouse-reports@wyndhamgardenkamala.com → Worker wgpk-lighthouse-email-ingest
-  (wgpk-concierge/infra/lighthouse-email-worker: sender allowlist + Cloudflare DMARC, private R2 + D1) → read-only API
-  `https://lighthouse-inbox.wyndhamgardenkamala.com` (token `~/.config/wgpk/lighthouse_inbox_token`).
+  (wgpk-concierge/infra/lighthouse-email-worker: sender allowlist + Cloudflare DMARC/ARC, private R2 + D1, XLSX parse) →
+  cockpit. Read-only inbox API `https://lighthouse-inbox.wyndhamgardenkamala.com` (token `~/.config/wgpk/lighthouse_inbox_token`)
+  for raw files; `python -m ota.lighthouse_mail --db X --poll-inbox` remains a manual backfill/cross-check.
 
 ## Data sources the agent adds (cockpit/src/sources.js, skill agent/skills/ota-sources)
 
