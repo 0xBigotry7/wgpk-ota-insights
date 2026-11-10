@@ -275,3 +275,13 @@ CREATE TABLE IF NOT EXISTS agent_chat_progress (
   label TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS agent_chat_progress_chat ON agent_chat_progress (chat_id, id);
+
+-- Lighthouse (ex OTA Insight) views posted by the Mac mini after each new scheduled report: latest market,
+-- latest events, and the market change between the last two deliveries. History stays on the Mac mini.
+CREATE TABLE IF NOT EXISTS lighthouse_views (
+  view TEXT PRIMARY KEY,            -- market | events | compare_market
+  received_at TEXT,                 -- when the source e-mail arrived (not Lighthouse's refresh time)
+  generated_at TEXT NOT NULL,
+  stored_at TEXT NOT NULL,
+  body TEXT NOT NULL                -- JSON
+);

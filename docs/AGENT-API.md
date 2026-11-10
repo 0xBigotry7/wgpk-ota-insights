@@ -50,6 +50,18 @@ its files), and never changes prices, availability or promotions. Writes are lim
 - Cron `7,37 * * * *` imports .xlsx sent to ideas-reports@ from the archive (docs/IDEAS-REPORT-HANDOFF.md). One snapshot per
   generation day is kept as history (`ideas_snapshots`, `ideas_daily`).
 
+## Lighthouse (cockpit/src/lighthouse.js)
+
+- `GET /api/agent/lighthouse?view=market|events|compare_market` (AGENT_TOKEN, default market): the latest parsed Lighthouse
+  Market Insight / Events workbook and the market change between the last two deliveries (`ota.lighthouse_mail --latest market`,
+  `--latest events`, `--compare-market`). `available: false` until a delivery arrives; `received_at` is the e-mail's arrival.
+- `POST /api/ingest/lighthouse` (OTA_INGEST_TOKEN) `{generated_at, views: {market, events, compare_market}}`: posted by the
+  Mac mini job `com.wgpk.ota-lighthouse` (every 15 min: `--poll-inbox --push-cockpit`, only when a new snapshot arrived). Only the
+  latest of each view is kept (`lighthouse_views`); history stays in the Mac mini's `data/lighthouse.sqlite`.
+- Mail path: Lighthouse scheduled report → lighthouse-reports@wyndhamgardenkamala.com → Worker wgpk-lighthouse-email-ingest
+  (wgpk-concierge/infra/lighthouse-email-worker: sender allowlist + Cloudflare DMARC, private R2 + D1) → read-only API
+  `https://lighthouse-inbox.wyndhamgardenkamala.com` (token `~/.config/wgpk/lighthouse_inbox_token`).
+
 ## Data sources the agent adds (cockpit/src/sources.js, skill agent/skills/ota-sources)
 
 Agent (AGENT_TOKEN):

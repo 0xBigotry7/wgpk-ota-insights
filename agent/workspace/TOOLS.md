@@ -10,6 +10,8 @@
 - `GET /api/agent/metrics?platform=booking&metric_prefix=pickup_90d&since=2026-10-01`：历史明细
 - `GET /api/agent/ideas?days=60`：IDeaS 全酒店逐日数据（在手/去年同期/团队与散客、预测、无约束需求、BAR、底价顶价、LRV、
   竞品价、预算、特殊事件），跟上一份的变化，和我们 Booking 同日/同月在手；`months` 按月汇总
+- `GET /api/agent/lighthouse?view=market|events|compare_market`：Lighthouse 最新一份市场表（逐入住日需求档、我们公开价
+  与竞品价位、我们/市场在手、搜索、客源国、停留天数）、活动表、最近两份市场表的变化；`available:false` 表示还没收到
 - `GET /api/agent/notes`：你的记忆
 
 写：
