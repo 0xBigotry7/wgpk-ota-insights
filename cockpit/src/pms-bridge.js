@@ -62,11 +62,14 @@ async function pollUnlocked(env, now) {
     from report_files f join report_emails e on f.email_id=e.id
     where lower(f.filename) glob 'history_forecast*.txt' or lower(f.filename) glob 'history_forecast*.tsv'
     order by e.received_at desc,f.id desc limit 10`));
-  let imported=0,blocked=0;const seen=files[0]?.received_at||null;
+  // Files come newest first. A blocked file only needs review while no newer file has imported:
+  // once a later report lands, an older bad/test send is superseded and must not hold the feed.
+  let imported=0,blocked=0,superseded=0,newerImported=false;const seen=files[0]?.received_at||null;
   let processed=0;
+  const block=()=>{if(newerImported)superseded++;else blocked++;};
   for(const file of files){
     const old=await env.DB.prepare('select status,attempts from pms_bridge_receipts where file_id=? and checksum=? and bridge_version=?').bind(file.id,file.checksum_sha256,VERSION).first();
-    if(old&&['imported','blocked'].includes(old.status)){if(old.status==='blocked')blocked++;continue;}
+    if(old&&['imported','blocked'].includes(old.status)){if(old.status==='blocked')block();else newerImported=true;continue;}
     if(processed>=2)break;
     processed++;
     const attempts=(old?.attempts||0)+1;let status='retry',reason='',snapshot=null;
@@ -78,11 +81,11 @@ async function pollUnlocked(env, now) {
       snapshot=body.snapshot.id;
       const result=await ingestPms(env.DB,body,now);if(!result.duplicate)imported++;
       await env.DB.prepare(`insert or ignore into pms_snapshot_provenance(snapshot_id,as_of_basis,archived_at) values (?,'actual_projection_business_cutoff',?)`).bind(snapshot,file.received_at).run();
-      status='imported';
+      status='imported';newerImported=true;
     }catch(error){
       const known=['archive_checksum_mismatch','invalid_report_date','invalid_report_number','unsupported_history_forecast_schema','ambiguous_source_business_cutoff','invalid_property_day_aggregates','unsupported_archive_size_or_key'];
       reason=known.includes(error.message)?error.message:'archive_read_or_store_failed';
-      if(known.includes(reason)||attempts>=3){status='blocked';blocked++;}
+      if(known.includes(reason)||attempts>=3){status='blocked';block();}
     }
     await env.DB.prepare(`insert into pms_bridge_receipts(file_id,checksum,bridge_version,processed_at,status,attempts,snapshot_id,reason)
       values (?,?,?,?,?,?,?,?) on conflict(file_id,checksum,bridge_version) do update set processed_at=excluded.processed_at,status=excluded.status,attempts=excluded.attempts,snapshot_id=excluded.snapshot_id,reason=excluded.reason`)
@@ -91,7 +94,7 @@ async function pollUnlocked(env, now) {
   const latest=await env.DB.prepare('select as_of from pms_snapshots order by as_of desc limit 1').first();
   const sourceAge=latest?Math.floor((Date.parse(today)-Date.parse(latest.as_of))/864e5):null;
   const state={bridge_version:VERSION,last_poll_at:at,last_archive_received_at:seen,source_as_of:latest?.as_of||null,
-    status:blocked?'needs_review':!seen?'waiting_for_report':sourceAge===null||sourceAge>1?'waiting_for_new_report':'current',imported,blocked,checked:files.length,processed};
+    status:blocked?'needs_review':!seen?'waiting_for_report':sourceAge===null||sourceAge>1?'waiting_for_new_report':'current',imported,blocked,superseded_blocked:superseded,checked:files.length,processed};
   await env.DB.prepare("insert into pms_feed_state(id,state) values ('opera_archive',?) on conflict(id) do update set state=excluded.state").bind(JSON.stringify(state)).run();
   return state;
 }
