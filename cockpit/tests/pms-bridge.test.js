@@ -79,3 +79,20 @@ test('a genuinely newer source report advances the cockpit; same archive re-poll
  assert.equal((await pollPmsArchive(env,new Date('2026-10-24T04:10:00Z'))).imported,0);
  assert.equal((await env.DB.prepare('select count(*) n from pms_snapshots').first()).n,2);env.close();
 });
+
+test('an older blocked report is superseded by a newer import; only a blocked NEWEST report needs review',async()=>{
+ // Live 11/11: a 00:14 test send (ambiguous cutoff) kept the feed on needs_review for ~10 days after the 06:30 file imported.
+ const env=await envFor(report('27-JUL-26','29-JUL-26'));
+ const first=await pollPmsArchive(env,now);assert.equal(first.status,'needs_review');assert.equal(first.blocked,1);
+ const add=async(id,at,bytes)=>{const key=`reports/test/${id}.txt`;
+  await env.ARCHIVE.prepare('insert into report_emails values (?,?)').bind(`${id}-email`,at).run();
+  await env.ARCHIVE.prepare('insert into report_files values (?,?,?,?,?,?)').bind(id,`${id}-email`,`history_forecast_${id}.txt`,key,bytes.length,hash(bytes)).run();
+  const prev=env.PMS_REPORTS.get;env.PMS_REPORTS.get=async r=>r===key?{size:bytes.length,arrayBuffer:async()=>bytes.buffer}:prev(r);};
+ await add('good','2026-10-24T03:30:00Z',report('23-OCT-26','24-OCT-26'));
+ const fixed=await pollPmsArchive(env,now);
+ assert.equal(fixed.imported,1);assert.equal(fixed.blocked,0);assert.equal(fixed.superseded_blocked,1);assert.equal(fixed.status,'current');
+ const again=await pollPmsArchive(env,new Date(now.getTime()+1800000));assert.equal(again.status,'current');assert.equal(again.blocked,0);
+ await add('bad2','2026-10-24T05:00:00Z',report('23-OCT-26','26-OCT-26'));
+ const broken=await pollPmsArchive(env,new Date(now.getTime()+3600000));
+ assert.equal(broken.status,'needs_review');assert.equal(broken.blocked,1);assert.equal(broken.superseded_blocked,1);env.close();
+});
