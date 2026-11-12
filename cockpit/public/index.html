@@ -370,6 +370,45 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
 @media(max-width:1100px){.channel-columns{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){section[id]{scroll-margin-top:125px}.channel-columns,.channel-signals{grid-template-columns:minmax(0,1fr)}.channel-col header{min-height:0}.channel-issue{grid-template-columns:minmax(0,1fr)}.channel-note{min-height:0}}
 
+
+/* Lighthouse × OTA (lighthouse-ui.js) */
+.lh-call{gap:8px}.lh-k{font-size:12px;opacity:.8}.lh-head{font-size:18px;line-height:1.45}.lh-src{font-size:12px;opacity:.8}
+.lh-acts{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.lh-acts>li:first-child{grid-column:1/-1}
+@media (max-width:900px){.lh-acts{grid-template-columns:1fr}}
+.lh-act{display:flex;flex-direction:column;gap:8px;border-left:4px solid var(--line)}.lh-act.sev3{border-left-color:var(--crit)}.lh-act.sev2{border-left-color:var(--warn)}
+.lh-act-h{display:flex;gap:10px;align-items:flex-start}.lh-act-h b{font-size:15px;line-height:1.45}
+.lh-no{flex:none;width:24px;height:24px;border-radius:99px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-size:12px;font-weight:700}
+.lh-tags{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.lh-ev-list{margin:0;padding-left:18px;color:var(--fg-2);font-size:13px}.lh-ev-list li{margin:2px 0}
+.lh-do{margin:0;background:var(--accent-soft);border-radius:10px;padding:8px 10px;font-size:13px}.lh-do b{margin-right:8px;color:var(--accent)}
+.lh-act p.meta{margin:0}
+#lh-body{min-width:0;max-width:100%}#lh-body .card{max-width:100%;overflow-x:auto}.lh-strip-card{overflow-x:auto}
+.lh-strip{display:grid;gap:2px 1px;align-items:center;min-width:820px}
+.lh-rl{font-size:12px;color:var(--fg-2);white-space:nowrap;padding-right:6px}
+.lh-dh{font-size:10px;color:var(--muted);white-space:nowrap;overflow:visible;height:14px}.lh-dh.we{font-weight:700;color:var(--fg-2)}
+.lh-cell{height:22px;display:flex;align-items:center;justify-content:center;position:relative}
+.lh-c{display:block;width:100%;height:16px;border-radius:2px}.lh-c.none{background:var(--surface-2)}
+.lh-c.sold{background:repeating-linear-gradient(45deg,var(--crit) 0 3px,color-mix(in srgb,var(--crit) 35%,var(--surface)) 3px 6px)}
+.pace-legend .lh-c{display:inline-block;width:14px;height:10px;vertical-align:middle;margin:0 3px 0 6px}
+.lh-otb{display:block;position:relative;width:100%;height:36px;background:var(--surface-2);border-radius:2px}
+.lh-cell:has(.lh-otb){height:38px}
+.lh-otb b{position:absolute;left:15%;right:15%;bottom:0;background:var(--s3);border-radius:2px 2px 0 0}
+.lh-otb em{position:absolute;left:0;right:0;height:2px;background:var(--fg);opacity:.75}
+.lh-cell:has(.lh-un){height:22px;align-items:flex-end}
+.lh-un{display:block;width:70%;background:var(--s2);border-radius:2px 2px 0 0;min-height:1px}
+.lh-f{display:inline-block;width:7px;height:7px;border-radius:99px;background:var(--s1)}.lh-f.bad{background:var(--crit)}.lh-f.warn{background:var(--warn)}
+.lh-ev{display:inline-block;width:7px;height:7px;transform:rotate(45deg);background:var(--s7);margin-right:1px}
+.lh-legend{margin-top:10px}.lh-legend span{display:inline-flex;align-items:center;gap:4px}
+.pace-legend .sw.lh-sw-otb{background:var(--s3)}.pace-legend .sw.lh-sw-mkt{background:var(--fg);height:2px}
+.lh-win{width:100%;border-collapse:collapse;font-size:13px}.lh-win th,.lh-win td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}.lh-win th{color:var(--muted);font-weight:500;font-size:12px}
+.lh-grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.lh-grid2{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:12px}
+@media (max-width:900px){.lh-grid3,.lh-grid2{grid-template-columns:1fr}}
+.lh-ch{margin:0;padding-left:16px;font-size:13px}.lh-ch li{margin:3px 0}
+.lh-mk{display:grid;grid-template-columns:72px minmax(0,1fr) 120px;gap:8px;align-items:center;font-size:13px;margin:4px 0}
+.lh-mbar{position:relative;height:12px;background:var(--surface-2);border-radius:3px}.lh-mbar b{position:absolute;left:0;top:0;bottom:0;background:var(--s1);border-radius:3px}
+.lh-mbar em{position:absolute;top:-3px;bottom:-3px;width:3px;background:var(--s2);border-radius:2px}
+#sec-lighthouse .pace-h3{margin:14px 0 8px}
 </style>
 </head>
 <body>
@@ -423,7 +462,7 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
     </div>
   </header>
 
-  <nav class="desk-nav" aria-label="工作台分区"><a href="#sec-channels">渠道漏斗</a><a href="#sec-channel-loss">流失与可售</a><a href="#sec-channel-future">未来渠道订单</a><a href="#sec-pace">入住月节奏</a><a href="#sec-revenue">经营日历</a><a href="#sec-operator">调查与复查</a><a href="#sec-alerts">渠道预警</a><a href="#sec-health">数据来源</a><a href="#sec-todos">待办</a></nav>
+  <nav class="desk-nav" aria-label="工作台分区"><a href="#sec-lighthouse">市场 × 渠道</a><a href="#sec-channels">渠道漏斗</a><a href="#sec-channel-loss">流失与可售</a><a href="#sec-channel-future">未来渠道订单</a><a href="#sec-pace">入住月节奏</a><a href="#sec-revenue">经营日历</a><a href="#sec-operator">调查与复查</a><a href="#sec-alerts">渠道预警</a><a href="#sec-health">数据来源</a><a href="#sec-todos">待办</a></nav>
   <section class="hero">
     <div class="call" id="call">
       <svg class="deco" viewBox="0 0 24 24" fill="none" stroke-width="1.2"><use href="#i-pulse"/></svg>
@@ -434,6 +473,10 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
   </section>
 
 
+  <section class="sec" id="sec-lighthouse">
+    <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-globe"/></svg></span><h2>市场 × 渠道 · Lighthouse 交叉判断</h2><span class="hint">市场需求和竞品（Lighthouse）对上我们的在手、价格和渠道（OPERA / IDeaS / OTA）</span></div>
+    <div id="lh-body"><div class="empty">正在读取…</div></div>
+  </section>
   <section class="sec" id="sec-channels">
     <div class="sec-h"><span class="badge-ico"><svg class="ico"><use href="#i-funnel"/></svg></span><h2>渠道漏斗 · 并排看经营环节</h2><span class="hint">曝光 → 访问 → 预订</span></div>
     <p class="meta" id="channel-boundary"></p><div class="channel-columns" id="channel-funnels"><div class="empty">正在读取平台漏斗…</div></div>
@@ -579,6 +622,7 @@ details.how .row{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
 <script src="/operator-ui.js"></script>
 <script src="/channels-ui.js"></script>
 <script src="/pace-ui.js"></script>
+<script src="/lighthouse-ui.js"></script>
 <script>
 const PLATFORMS = {booking:["Booking.com","--s1"], agoda:["Agoda","--s2"], expedia:["Expedia","--s3"], ctrip:["携程 / 去哪儿","--s4"],
   google:["Google","--s5"], tripadvisor:["TripAdvisor","--s6"], medallia:["Medallia 问卷","--s7"], all:["全部平台","--muted"]};
@@ -1122,6 +1166,7 @@ async function load(){
     window.OperatorUI.render(state, load, toast);
     window.ChannelUI.render(state, load, toast);
     window.PaceUI.render(state);
+    window.LighthouseUI.render(state);
     agentBadge(state);
     const run = state.latest_run;
     $("last-run").innerHTML = icon("i-db","sm") + esc(run ? `最近采集 ${run.id.slice(4,6)}-${run.id.slice(6,8)} ${run.id.slice(9,11)}:${run.id.slice(11,13)}` : "还没有采集记录");

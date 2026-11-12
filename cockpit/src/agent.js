@@ -5,6 +5,7 @@ import { context, groundAnswer } from "./copilot.js";
 import { KNOWLEDGE, ROUTINES } from "./knowledge.js";
 import { agentIdeas } from "./ideas.js";
 import { agentLighthouse } from "./lighthouse.js";
+import { storeBrief } from "./lighthouse-brief.js";
 import { agentOpera, operaSummary } from "./opera-feeds.js";
 
 export const AGENT_ONLINE_S = 180;      // no heartbeat for this long: the dashboard copilot falls back to the API model
@@ -64,7 +65,11 @@ export async function handleAgent(request, env, path, loadState) {
     if (route === "metrics") return { metrics: await metrics(db, url.searchParams) };
     if (route === "ideas") return { ideas: await agentIdeas(db, url.searchParams) };
     if (route === "lighthouse") {
-      const out = await agentLighthouse(db, url.searchParams);
+      const out = await agentLighthouse(db, url.searchParams, async () => {
+        const s = await loadState(env);
+        await storeBrief(db, s.lighthouse).catch(() => {});
+        return s.lighthouse;
+      });
       return out.error ? out : { lighthouse: out };
     }
     if (route === "opera") {
@@ -149,8 +154,21 @@ export async function dailyInputs(db, state, now = Date.now()) {
     yesterday_brief: allNotes.find((n) => n.topic === `daily-brief-${yesterday}`)?.note || null,
     // OPERA morning reports (opera-feeds.js): whole-hotel 7-day pickup, OTB by market, channel ADR, country mix.
     opera: state.opera_feeds !== undefined ? operaSummary(state.opera_feeds, now) : null,
+    // Lighthouse × OTA cross-read (lighthouse-brief.js): headline, top actions with evidence from both sides, 30-day window.
+    lighthouse: lighthouseDaily(state.lighthouse),
     ideas_learning: allNotes.filter((n) => n.topic === "IDeaS学习").slice(0, 3).map((n) => ({ id: n.id, created_at: n.created_at, note: clip(n.note, 900) })),
   };
+}
+
+function lighthouseDaily(b) {
+  if (!b) return null;
+  if (!b.available) return { available: false, note: b.note || null };
+  return { available: true, received_at: b.received_at, sources: b.sources, headline: b.headline,
+    actions: b.actions.map((a) => ({ kind: a.kind, dates: a.date_text, channels: a.channels, title: a.title, evidence: a.evidence,
+      action: a.action, impact: a.impact, watch: a.watch })),
+    next_30_days: b.windows.find((w) => w.days === 30) || null,
+    events: b.events.slice(0, 5).map((e) => ({ name: e.name, start: e.start, demand: e.demand, my_level: e.my_level, comp_level: e.comp_level })),
+    note: b.note };
 }
 
 async function notes(db, all = false) {

@@ -285,3 +285,17 @@ CREATE TABLE IF NOT EXISTS lighthouse_views (
   stored_at TEXT NOT NULL,
   body TEXT NOT NULL                -- JSON
 );
+
+-- Lighthouse brief (lighthouse-brief.js): every distinct market delivery (so a brief can compare with the one before),
+-- and one computed brief per Bangkok day for history.
+CREATE TABLE IF NOT EXISTS lighthouse_market_history (
+  received_at TEXT PRIMARY KEY,     -- when the source e-mail arrived
+  stored_at TEXT NOT NULL,
+  body TEXT NOT NULL                -- JSON, same shape as lighthouse_views.market
+);
+CREATE TABLE IF NOT EXISTS lighthouse_briefs (
+  day TEXT PRIMARY KEY,             -- Bangkok date the brief was computed for
+  received_at TEXT,                 -- market delivery it is based on
+  generated_at TEXT NOT NULL,
+  body TEXT NOT NULL                -- JSON
+);

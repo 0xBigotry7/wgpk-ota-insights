@@ -7,6 +7,7 @@ import { metricContext, stayContext } from "./contracts.js";
 import { NAMES, fmt, seriesOf } from "./monitor.js";
 import { KNOWLEDGE, season } from "./knowledge.js";
 import { evidenceId } from "./operator.js";
+import { briefText } from "./lighthouse-brief.js";
 
 export const OWNERS = ["收益/销售", "前台", "客房", "工程", "餐饮", "市场/内容", "总经理"];
 const PLATFORM_KEYS = [...Object.keys(NAMES), "all"];
@@ -49,8 +50,9 @@ function channelContext(channels) {
     investigations:channels.investigations.map(c=>({id:c.id,title:c.title,kind:c.kind,facts:c.facts,
       hypothesis:c.hypothesis,plan:c.plan,evidence_ids:c.evidence_ids}))};
 }
-export function context({ metrics = [], advice = [], todos = [], revenue, operator, channels, pace, events, selected_stay_date }, { alerts = [], wins = [], health = null } = {}) {
+export function context({ metrics = [], advice = [], todos = [], revenue, operator, channels, pace, events, lighthouse, selected_stay_date }, { alerts = [], wins = [], health = null } = {}) {
   const lines = ["# 当前数据上下文（入住日与OTA统计窗口严格分开）", JSON.stringify(stayContext(revenue, selected_stay_date))];
+  if (lighthouse?.available) lines.push(briefText(lighthouse));
   if (revenue) lines.push("# PMS 经营数据边界（优先于旧日报和知识库）", JSON.stringify({ status: revenue.status,
     source_as_of: revenue.source?.as_of, source_date_basis: revenue.source?.as_of_basis || "explicit_export_date", currency: revenue.source?.currency, precision: revenue.source?.precision,
     months: revenue.months, gaps: revenue.gaps, formulas: revenue.formulas }));

@@ -176,6 +176,17 @@ export function operaSummary(feeds, now = Date.now()) {
   return out;
 }
 
+/** What the Lighthouse brief cross-references: per stay date OTB and 7-day pickup, and the month-to-date country mix. */
+export function operaForBrief(feeds) {
+  if (!feeds) return null;
+  const { business_date } = dates(feeds);
+  return {
+    pace: feeds.pace ? { received_at: feeds.pace.received_at, business_date, days: paceView(feeds.pace).days } : null,
+    countries: feeds.country ? shares(countryView(feeds.country).countries, "mtd") : null,
+    countries_received_at: feeds.country?.received_at || null,
+  };
+}
+
 /** Alerts in the monitor's shape: stale feed, net negative pickup (cancellations), a channel's ADR premium shrinking. */
 export function operaAlerts(feeds, now = Date.now(), L = OPERA_LIMITS) {
   const alerts = [];

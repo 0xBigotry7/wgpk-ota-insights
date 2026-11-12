@@ -17,7 +17,8 @@ import { paceView } from "./pace.js";
 import { eventPlan } from "./events.js";
 import { operatorView, approveDecision, updateDecision } from "./operator.js";
 import { pollPmsArchive } from "./pms-bridge.js";
-import { loadOperaFeeds, operaAlerts } from "./opera-feeds.js";
+import { loadOperaFeeds, operaAlerts, operaForBrief } from "./opera-feeds.js";
+import { lighthouseBrief, storeBrief } from "./lighthouse-brief.js";
 import { ingestIdeas, pollIdeasArchive } from "./ideas.js";
 import { ingestLighthouse } from "./lighthouse.js";
 import { progressFor, handleAgent, agentStatus, enqueue, poll, settle } from "./agent.js";
@@ -104,6 +105,11 @@ export default {
     if (path === "/api/ingest/lighthouse" && request.method === "POST") {
       if (!ingestAuthorized(request, env)) return json({ error: "unauthorized" }, 401);
       const out = await ingestLighthouse(request, env.DB);
+      // A new market delivery: compute and keep today's brief now. A failure here must not fail the ingest.
+      if (!out.error && out.stored.includes("market")) {
+        try { const state = await loadState(env); await storeBrief(env.DB, state.lighthouse); out.brief = state.lighthouse?.available ? "stored" : "unavailable"; }
+        catch (e) { out.brief = `failed: ${String(e.message || e).slice(0, 120)}`; }
+      }
       return json(out, out.error ? out.status || 400 : 200);
     }
 
@@ -171,6 +177,7 @@ export default {
       return;
     }
     ctx.waitUntil(dispatchAlerts(env).then(() => pushDigest(env)));
+    ctx.waitUntil(loadState(env).then((s) => storeBrief(env.DB, s.lighthouse)).catch(() => {}));
   },
 };
 
@@ -410,6 +417,9 @@ async function loadState(env) {
   // OPERA morning reports, read from the archive (opera-feeds.js). A failing read must not take the cockpit down.
   state.opera_feeds = await loadOperaFeeds(env.PMS_ARCHIVE_DB).catch(() => null);
   state.monitor.alerts.push(...operaAlerts(state.opera_feeds));
+  // Lighthouse × OTA cross-read (lighthouse-brief.js). Computed from what is loaded above; never takes the cockpit down.
+  state.lighthouse = await lighthouseBrief(env.DB, state, { opera: operaForBrief(state.opera_feeds) })
+    .catch((e) => ({ available: false, note: `Lighthouse brief failed: ${String(e.message || e).slice(0, 160)}` }));
   state.agent = await agentStatus(env.DB).catch(() => ({ online: false }));
   state.agent.notes = await all(env.DB.prepare("select id, created_at, topic, note from agent_notes where status = 'active' order by id desc limit 30")).catch(() => []);
   state.operator = operatorView(state, decisions);
