@@ -59,6 +59,14 @@ its files), and never changes prices, availability or promotions. Writes are lim
 - `POST /api/ingest/lighthouse` (OTA_INGEST_TOKEN) `{generated_at, views: {market, events, compare_market, status}}`: posted
   by the inbox Worker over a service binding the moment a report arrives (event-driven; no poller on the Mac mini). Only the
   latest of each view is kept (`lighthouse_views`); snapshot history is in the inbox Worker's D1 (`snapshots`).
+- `GET /api/agent/lighthouse?view=brief`: the Lighthouse × OTA cross-read for today (`cockpit/src/lighthouse-brief.js`,
+  deterministic, no model). Lighthouse market (latest + the previous delivery in `lighthouse_market_history`) read against
+  OPERA pace/countries, the latest IDeaS BAR (≤21 days old) and Booking/Agoda/Ctrip channel metrics. Returns `headline`,
+  `actions[]` (kind, dates, channels, evidence from both sides, action, impact, watch; kinds closed_out | underpriced |
+  overpriced_weak | compression | pickup | source_market | los | demand_up), `windows` (14/30/60 days), `changes` (vs the
+  previous delivery), `source_markets`, `events`, `strip` (60 days for the workbench). Stored once per Bangkok day in
+  `lighthouse_briefs` (on ingest, on this call and at the 12:30 cron); `view=briefs&days=14` lists the stored headlines.
+  `GET /api/agent/daily` carries the compact version as `lighthouse`; `/api/agent/brief` text starts with it.
 - Mail path: Lighthouse scheduled report → lighthouse-reports@wyndhamgardenkamala.com → Worker wgpk-lighthouse-email-ingest
   (wgpk-concierge/infra/lighthouse-email-worker: sender allowlist + Cloudflare DMARC/ARC, private R2 + D1, XLSX parse) →
   cockpit. Read-only inbox API `https://lighthouse-inbox.wyndhamgardenkamala.com` (token `~/.config/wgpk/lighthouse_inbox_token`)

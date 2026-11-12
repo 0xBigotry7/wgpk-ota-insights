@@ -4,6 +4,7 @@
 // service binding: latest market, latest events, market change between the last two deliveries, and `status`
 // (did the newest report parse). The cockpit stores only the latest of each; history stays in the inbox's D1.
 export const LIGHTHOUSE_VIEWS = ["market", "events", "compare_market", "status"];
+export const AGENT_VIEWS = [...LIGHTHOUSE_VIEWS, "brief", "briefs"];
 const MAX_VIEW_BYTES = 1_500_000;
 
 /** POST /api/ingest/lighthouse {generated_at, views: {market, events, compare_market, status}} (Bearer OTA_INGEST_TOKEN). */
@@ -28,6 +29,9 @@ export async function ingestLighthouse(request, db, now = new Date()) {
       stored_at = excluded.stored_at, body = excluded.body`)
       .bind(view, received, String(body.generated_at || at).slice(0, 40), at, text));
     stored.push(view);
+    if (view === "market" && received) {
+      stmts.push(db.prepare("insert or ignore into lighthouse_market_history (received_at, stored_at, body) values (?, ?, ?)").bind(received, at, text));
+    }
   }
   if (stmts.length) await db.batch(stmts);
   return { ok: true, stored };
@@ -36,11 +40,20 @@ export async function ingestLighthouse(request, db, now = new Date()) {
 const viewRow = (db, view) =>
   db.prepare("select view, received_at, generated_at, stored_at, body from lighthouse_views where view = ?").bind(view).first();
 
-/** GET /api/agent/lighthouse?view=market|events|compare_market|status (default market). Every answer carries
+/** GET /api/agent/lighthouse?view=market|events|compare_market|status|brief|briefs (default market). brief = the
+ * Lighthouse × OTA cross-read for today (lighthouse-brief.js), briefs = headlines of the stored daily briefs. Every answer carries
  * `inbox_status`, so the agent can say "a new report arrived but could not be read". */
-export async function agentLighthouse(db, params) {
+export async function agentLighthouse(db, params, briefOf = null) {
   const view = params.get("view") || "market";
-  if (!LIGHTHOUSE_VIEWS.includes(view)) return { error: `view must be one of ${LIGHTHOUSE_VIEWS.join(", ")}`, status: 400 };
+  if (!AGENT_VIEWS.includes(view)) return { error: `view must be one of ${AGENT_VIEWS.join(", ")}`, status: 400 };
+  if (view === "brief") return { view, ...(briefOf ? await briefOf() : { available: false }) };
+  if (view === "briefs") {
+    const days = Math.max(1, Math.min(60, Number(params.get("days")) || 14));
+    const r = await db.prepare("select day, received_at, generated_at, body from lighthouse_briefs order by day desc limit ?").bind(days).all();
+    return { view, briefs: (r.results || []).map((x) => { const b = JSON.parse(x.body);
+      return { day: x.day, received_at: x.received_at, generated_at: x.generated_at, headline: b.headline,
+        actions: (b.actions || []).map((a) => ({ kind: a.kind, title: a.title, channels: a.channels, date_text: a.date_text })) }; }) };
+  }
   const [row, status] = await Promise.all([viewRow(db, view), view === "status" ? null : viewRow(db, "status")]);
   const inbox_status = status ? JSON.parse(status.body) : null;
   if (!row) {
