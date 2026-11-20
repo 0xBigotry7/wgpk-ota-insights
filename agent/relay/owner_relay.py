@@ -146,6 +146,67 @@ def send(text: str) -> None:
             raise RuntimeError("telegram send not ok")
 
 
+DB_TIMEOUT_S = 15
+DB_RETRIES = 3
+DB_RETRY_DELAY_S = 0.5
+
+
+def _wal_sidecars_absent(path: Path) -> bool:
+    wal = Path(f"{path}-wal")
+    shm = Path(f"{path}-shm")
+    wal_empty = not wal.exists() or wal.stat().st_size == 0
+    return path.exists() and wal_empty and not shm.exists()
+
+
+def _open_immutable(path: Path) -> sqlite3.Connection:
+    con = sqlite3.connect(f"file:{path}?mode=ro&immutable=1", uri=True, timeout=DB_TIMEOUT_S)
+    try:
+        con.execute("SELECT 1 FROM sqlite_master LIMIT 1").fetchone()
+        return con
+    except sqlite3.OperationalError:
+        con.close()
+        raise
+
+
+def open_db(path: Path, retries: int = DB_RETRIES, retry_delay: float = DB_RETRY_DELAY_S) -> sqlite3.Connection:
+    """Open the OpenClaw session DB read-only.
+
+    OpenClaw runs SQLite in WAL mode and periodically clean-closes the DB, which checkpoints and unlinks the
+    -wal/-shm sidecars. SQLite refuses plain `?mode=ro` on a WAL DB when -shm is absent (`unable to open database
+    file`) or may recreate `-shm`. When the DB exists and has no `-shm` and no non-empty `-wal`, opening with
+    `mode=ro&immutable=1` reads the complete checkpointed state without creating sidecar files or disturbing
+    OpenClaw's clean-close receipt. Transient lock or checkpoint races are retried with a busy timeout.
+    """
+    last_err: sqlite3.OperationalError | None = None
+    for attempt in range(retries):
+        if _wal_sidecars_absent(path):
+            try:
+                return _open_immutable(path)
+            except sqlite3.OperationalError as err:
+                last_err = err
+                if attempt + 1 < retries:
+                    time.sleep(retry_delay * (attempt + 1))
+                continue
+        con: sqlite3.Connection | None = None
+        try:
+            con = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=DB_TIMEOUT_S)
+            con.execute(f"PRAGMA busy_timeout = {DB_TIMEOUT_S * 1000}")
+            con.execute("SELECT 1 FROM sqlite_master LIMIT 1").fetchone()
+            return con
+        except sqlite3.OperationalError as err:
+            if con is not None:
+                con.close()
+            last_err = err
+            wal = Path(f"{path}-wal")
+            wal_empty = not wal.exists() or wal.stat().st_size == 0
+            if path.exists() and wal_empty and "unable to open" in str(err).lower():
+                return _open_immutable(path)
+            if attempt + 1 < retries:
+                time.sleep(retry_delay * (attempt + 1))
+    assert last_err is not None
+    raise last_err
+
+
 def run_once(now_ms: int | None = None, sender=send) -> int:
     now_ms = now_ms if now_ms is not None else int(time.time() * 1000)
     state = json.loads(STATE.read_text()) if STATE.exists() else None
@@ -159,7 +220,7 @@ def run_once(now_ms: int | None = None, sender=send) -> int:
         os.chmod(tmp, 0o600)
         tmp.replace(STATE)
 
-    db = sqlite3.connect(f"file:{DB}?mode=ro", uri=True, timeout=5)
+    db = open_db(DB)
     sent = 0
     try:
         sessions = db.execute("SELECT session_id, session_key FROM session_windows").fetchall()
@@ -197,5 +258,6 @@ if __name__ == "__main__":
         if n:
             log(f"told Gary about {n} request(s)")
     except Exception as e:  # noqa: BLE001 - next minute tries again
-        log(f"relay error: {type(e).__name__}")
+        detail = f": {e}" if isinstance(e, sqlite3.Error) else ""
+        log(f"relay error: {type(e).__name__}{detail}")
         sys.exit(1)
