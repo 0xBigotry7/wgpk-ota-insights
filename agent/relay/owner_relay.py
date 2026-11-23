@@ -137,7 +137,7 @@ TG_MAX = 3900             # Telegram allows 4096 characters a message; leave roo
 def plain(s: str) -> str:
     """The copy is sent as plain text, so drop the Markdown marks Telegram would show raw."""
     s = re.sub(r"\*\*(.+?)\*\*", r"\1", s, flags=re.S)
-    s = re.sub(r"^#{1,6}\s*", "", s, flags=re.M)
+    s = re.sub(r"^#{1,6}\s+", "", s, flags=re.M)
     return re.sub(r"\n{3,}", "\n\n", s).strip()
 
 
@@ -170,13 +170,13 @@ def parts(text: str, n: int = TG_MAX) -> list[str]:
 
 
 def send(text: str) -> None:
+    """Send one message (one part of a copy) to Gary."""
     token = TOKEN_FILE.read_text().strip()
-    for part in parts(text):
-        data = urllib.parse.urlencode({"chat_id": GARY, "text": part, "disable_web_page_preview": "true"}).encode()
-        req = urllib.request.Request(f"https://api.telegram.org/bot{token}/sendMessage", data=data, method="POST")
-        with urllib.request.urlopen(req, timeout=20) as r:
-            if not json.load(r).get("ok"):
-                raise RuntimeError("telegram send not ok")
+    data = urllib.parse.urlencode({"chat_id": GARY, "text": text, "disable_web_page_preview": "true"}).encode()
+    req = urllib.request.Request(f"https://api.telegram.org/bot{token}/sendMessage", data=data, method="POST")
+    with urllib.request.urlopen(req, timeout=20) as r:
+        if not json.load(r).get("ok"):
+            raise RuntimeError("telegram send not ok")
 
 
 DB_TIMEOUT_S = 15
@@ -272,11 +272,17 @@ def run_once(now_ms: int | None = None, sender=send) -> int:
                     break                                         # still running: look again next minute
                 state[sid] = t["last_seq"]
                 if t["sender"] != GARY and worth_telling(t):
+                    part_key = f"parts:{sid}:{t['first_seq']}"       # parts of this copy Gary already has
+                    todo = parts(line(t))
                     try:
-                        sender(line(t))
+                        for i in range(int(state.get(part_key, 0)), len(todo)):
+                            sender(todo[i])
+                            state[part_key] = i + 1
+                            save()                                # a later failure never resends this part
                     except Exception:
-                        state[sid] = t["first_seq"] - 1            # not sent: try this turn again next minute
+                        state[sid] = t["first_seq"] - 1            # not finished: send the rest next minute
                         raise
+                    state.pop(part_key, None)
                     sent += 1
                     save()                                        # a later failure never resends this line
     finally:

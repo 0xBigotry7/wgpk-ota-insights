@@ -109,6 +109,8 @@ def history(db, days: int = 120) -> dict:
         # A 0 score is an unrendered tile and a 0 comparison a misread (rows stored before extract.check dropped them).
         if value == 0 and (unit or "").startswith("/"):
             continue
+        if metric.startswith("lost_to_hotel_"):      # a ranked list of hotels, not a series (rank_N changes hotel)
+            continue
         bench = bench or None
         s = out.setdefault(cid, {}).setdefault(f"{metric}{'@' + period if period else ''}",
                                                {"label": label, "unit": unit, "points": []})

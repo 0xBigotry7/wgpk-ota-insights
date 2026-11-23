@@ -10,7 +10,8 @@ export function windowLabel(period) {
   if(/^dates_\d{4}-\d{2}-\d{2}_\d{4}-\d{2}-\d{2}$/.test(period))return period.slice(6,16)+' 至 '+period.slice(17);
   return {last_14_days:'近14天',last_30_days:'近30天',last_90_days:'近90天',last_28_days:'近28天',next_30_days:'未来30天',next_90_days:'未来90天',funnel:'排名看板默认窗口（范围未确认）',native_window:'页面原生窗口（范围未确认）',booked_last_30_days:'近30天预订的未来住宿',booked_last_90_days:'近90天预订的未来住宿'}[period]||period||'范围未确认';
 }
-export function channelView(metrics=[],pages=[],today=bkkDay()) {
+export const isLossDestination=m=>/^lost_to_hotel_/.test(m.metric||'');
+export function channelView(metrics=[],pages=[],today=bkkDay(),destinations=metrics.filter(isLossDestination)) {
   const find=(platform,key,period)=>newest(metrics.filter(m=>m.platform===platform && m.metric===key && (period===undefined||m.period===period)));
   const datum=m=>number(m) ? {...m,evidence_id:evidenceId(m),age_days:fresh(m,today),stale:m.day>today||fresh(m,today)>1}:null;
   function funnel(platform, specs, note) {
@@ -87,16 +88,16 @@ export function channelView(metrics=[],pages=[],today=bkkDay()) {
     '核对未来入住日的渠道可售与产品条件，再查预订提前期、取消和客群；先确定弱日期与可执行方案。',
     '记录人工动作后看同口径在手表现，区分窗口平移、取消和新增预订；不称为净pickup。');
   const loss_metrics=[datum(lost),datum(availability),...['lost_bookings_14d','won_bookings_14d','lost_room_nights_14d','won_room_nights_14d'].map(k=>datum(find('ctrip',k,'last_14_days')))].filter(Boolean);
-  // Where the lost bookings went: the platform's own list, newest capture only, in its order (rank_N).
-  const loss_destinations=['ctrip','agoda'].map(platform=>{
-    const anchor=find(platform,'lost_to_hotel_bookings');
-    if(!anchor)return null;
-    const same=metrics.filter(m=>m.platform===platform && /^lost_to_hotel_/.test(m.metric) && sameCapture(m,anchor));
+  // Where the lost bookings went: the platform's own list from the newest capture of the loss page only. A newer
+  // capture without a list (no losses, or the list did not render) shows no hotels rather than an older day's.
+  const loss_destinations=[['ctrip',ctripLost,'近14天'],['agoda',lost,'未来30天入住']].map(([platform,total,window])=>{
+    const same=total?destinations.filter(m=>m.platform===platform && isLossDestination(m) && sameCapture(m,total)):[];
+    if(!same.length)return null;
     const rank=m=>Number(String(m.period).replace('rank_',''));
     const hotels=same.filter(m=>m.metric==='lost_to_hotel_bookings').sort((a,b)=>rank(a)-rank(b)).map(m=>({
       rank:rank(m),hotel:String(m.label).replace(/^[^：]*：/,''),bookings_lost:m.value,
       cross_view_pct:same.find(x=>x.metric==='lost_to_hotel_cross_view' && x.period===m.period)?.value??null}));
-    return {platform,name:NAMES[platform],day:anchor.day,window:platform==='ctrip'?'近14天':'未来30天入住',stale:anchor.day>today||fresh(anchor,today)>1,hotels,
+    return {platform,name:NAMES[platform],day:total.day,window,total_lost:total.value,stale:total.day>today||fresh(total,today)>1,hotels,
       note:'平台给出的流失去向汇总：知道流去哪家，不等于知道客人为什么选它；榜单只列前几名，合计不等于流失总数。'};
   }).filter(Boolean);
   return {funnels,investigations,future,loss_metrics,loss_destinations,

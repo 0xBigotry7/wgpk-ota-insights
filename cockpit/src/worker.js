@@ -12,7 +12,7 @@ import { handleSources, ingestSources } from "./sources.js";
 import { handleRefresh, ingestRefresh } from "./refresh.js";
 import { ROUTINES, periodKey, explain } from "./knowledge.js";
 import { validatePms, ingestPms, revenueView, scenario } from "./revenue.js";
-import {channelView} from './channels.js';
+import {channelView,isLossDestination} from './channels.js';
 import { paceView } from "./pace.js";
 import { eventPlan } from "./events.js";
 import { operatorView, approveDecision, updateDecision } from "./operator.js";
@@ -373,6 +373,10 @@ async function loadState(env) {
     all(env.DB.prepare("select period, item, done_at from routine_ticks where period in (?, ?, ?)")
       .bind(keys.daily, keys.weekly, keys.monthly)),
   ]);
+  // Lost-booking destinations are a list (rank_N changes hotel from day to day), never a series: keep them out of
+  // trends, alerts, advice and model context; only the channels view reads them.
+  const lossDestinations = metrics.filter(isLossDestination);
+  metrics = metrics.filter((m) => !isLossDestination(m));
   const latest = runs[0] || null;
   // Latest per page: targeted analytics refreshes must not hide other source pages.
   const recent = new Date(Date.now() - PAGE_STATUS_DAYS * 864e5).toISOString().slice(0, 10).replaceAll("-", "");
@@ -411,7 +415,7 @@ async function loadState(env) {
     platforms: PLATFORMS,
     revenue: revenueView(snapshots, daily),
   };
-  state.channels = channelView(state.metrics, state.pages);
+  state.channels = channelView(state.metrics, state.pages, undefined, lossDestinations);
   state.pace = paceView(state.metrics);
   state.events = eventPlan(state.metrics, state.pace);
   // OPERA morning reports, read from the archive (opera-feeds.js). A failing read must not take the cockpit down.

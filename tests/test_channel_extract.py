@@ -1,5 +1,5 @@
-from pathlib import Path
 import asyncio
+from pathlib import Path
 
 from ota.channel_extract import channel_values, selected_period, source_date
 from ota.readonly import ReadOnlyTab

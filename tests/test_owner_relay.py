@@ -101,9 +101,31 @@ def test_compressed_replies_are_read(tmp_path, monkeypatch):
 
 
 def test_the_whole_answer_is_copied_in_plain_text_parts():
-    reply = "**结论**：能定位。\n\n### 1．Booking\n" + "\n".join("第%d行" % i + "数" * 90 for i in range(120))
+    reply = "**结论**：能定位。\n\n### 1．Booking\n" + "\n".join(f"第{i}行" + "数" * 90 for i in range(120))
     text = relay.line({"sender": "5067642721", "name": "HK", "actions": [], "ask": "原因是什么？", "reply": reply})
     assert "第119行" in text and "**" not in text and "###" not in text and "…" not in text
     got = relay.parts(text)
-    assert len(got) > 1 and all(len(p) <= 4096 for p in got) and got[0].startswith("(1/%d) 老姚让我：" % len(got))
+    assert len(got) > 1 and all(len(p) <= 4096 for p in got) and got[0].startswith(f"(1/{len(got)}) 老姚让我：")
     assert relay.parts("短") == ["短"]
+
+
+def test_a_long_copy_that_fails_midway_resumes_without_repeating_parts(tmp_path, monkeypatch):
+    c = setup(tmp_path, monkeypatch)
+    relay.run_once(0, lambda s: None)
+    add(c, "hk", 0, [user("请逐平台详细分析原因"), said("\n".join(f"第{i}行" + "数" * 90 for i in range(120)))], 1_000)
+    out, fail = [], [True]
+
+    def flaky(text):
+        if text.startswith("(2/") and fail[0]:
+            raise OSError("network")
+        out.append(text)
+
+    try:
+        relay.run_once(10**9, flaky)
+    except OSError:
+        pass
+    assert len(out) == 1 and out[0].startswith("(1/")
+    fail[0] = False
+    assert relay.run_once(10**9, flaky) == 1
+    assert [o[:3] for o in out] == [f"({i}/" for i in range(1, len(out) + 1)] and len(out) >= 3
+    assert relay.run_once(10**9, flaky) == 0 and not any(k.startswith("parts:") for k in json.loads(relay.STATE.read_text()))
