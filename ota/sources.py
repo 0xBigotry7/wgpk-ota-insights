@@ -35,9 +35,18 @@ GUEST_MARKERS = re.compile(r"Guest name|Booker name|Booked by|Reservation (?:num
 MAX_ACTIVE = 10
 MAX_PROBES_PER_DAY = 3
 SAMPLE_MAX = 20_000
-# Fixed collector pages whose text is shared with the agent (analysis pages, no guest data).
-BUILTIN = (("booking", "genius"), ("booking", "competitive-set"), ("booking", "opportunities"),
-           ("agoda", "traveler-insights"), ("agoda", "revenue-distribution"), ("agoda", "content-score"))
+# Every fixed collector page shares its text with the agent (Gary TG 13926: what the platform shows must not be lost
+# between the page and the agent), except the pages that hold guest conversations or reviews.
+NO_TEXT = {"inbox", "landing", "reviews", "home"}      # home pages show today's arrivals by guest
+BUILTIN_BATCH = 20        # the cockpit takes at most 30 pages a call
+
+
+def builtin_set() -> tuple[tuple[str, str], ...]:
+    from .platforms import BY_CID
+    return tuple((cid, page.slug) for cid in sorted(set(HOSTS.values())) if cid in BY_CID
+                 for page in BY_CID[cid].pages if page.slug not in NO_TEXT)
+
+
 # The cockpit's urlProblem rules (cockpit/src/sources.js), applied here as well: whole-word verbs of the path and
 # query, guest-conversation words anywhere.
 DENY_WORDS = {"reply", "replies", "respond", "submit", "save", "update", "edit", "delete", "remove", "cancel", "close",
@@ -253,7 +262,7 @@ def post_probe(source_id: int, ok: bool, final_url: str = "", title: str = "", s
 def builtin_pages(db: sqlite3.Connection, run_id: str) -> list[dict]:
     """Sanitized text of the fixed analysis pages read in this run."""
     pages = []
-    for cid, page_slug in BUILTIN:
+    for cid, page_slug in builtin_set():
         row = db.execute("SELECT url, title, text_path FROM snapshots WHERE run_id=? AND cid=? AND slug=? AND status='ok'",
                          (run_id, cid, page_slug)).fetchone()
         if not row or not row[2] or not Path(row[2]).exists():
@@ -267,7 +276,10 @@ def builtin_pages(db: sqlite3.Connection, run_id: str) -> list[dict]:
 
 def post_builtin(db: sqlite3.Connection, run_id: str) -> dict:
     pages = builtin_pages(db, run_id) + link_catalog(db, run_id)
-    return _call("/api/ingest/sources/builtin", {"pages": pages}) if pages else {"ok": True, "pages": 0}
+    sent = 0
+    for i in range(0, len(pages), BUILTIN_BATCH):
+        sent += int(_call("/api/ingest/sources/builtin", {"pages": pages[i:i + BUILTIN_BATCH]}).get("pages") or 0)
+    return {"ok": True, "pages": sent}
 
 
 # --- local bookkeeping of probes (the daily cap survives restarts) ---

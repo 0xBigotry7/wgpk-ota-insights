@@ -127,3 +127,26 @@ def test_link_catalog_from_pages_already_read(tmp_path):
     for leak in ("ses=", "reply", "inbox", "Jane", "5124721786", "res_id", "export", "promotions"):
         assert leak not in text, leak
     assert f"demand_data.html\t{base}/statistics/demand_data.html" in text      # generic label replaced by the page name
+
+
+def test_every_analysis_page_shares_its_text_but_guest_pages_never_do(tmp_path, monkeypatch):
+    pages = set(sources.builtin_set())
+    assert {("ctrip", "lost-bookings"), ("agoda", "lost-bookings"), ("booking", "booker-insights"),
+            ("booking", "genius"), ("agoda", "dashboard")} <= pages
+    assert not [p for p in pages if p[1] in ("inbox", "landing", "reviews", "home")]
+    assert not [p for p in pages if p[0] not in ("booking", "agoda", "ctrip", "expedia")]
+    db = sqlite3.connect(tmp_path / "s.db")
+    db.execute("CREATE TABLE snapshots (run_id TEXT, cid TEXT, slug TEXT, url TEXT, title TEXT, text_path TEXT, "
+               "status TEXT, links_path TEXT)")
+    for i, (cid, slug) in enumerate(sorted(pages)):
+        tp = tmp_path / f"{i}.txt"
+        tp.write_text("Guest name\nBooker name\nJane" if (cid, slug) == ("agoda", "dashboard") else f"流失酒店列表 {slug} 11")
+        db.execute("INSERT INTO snapshots VALUES ('r', ?, ?, 'https://x/y', 't', ?, ?, NULL)",
+                   (cid, slug, str(tp), "error" if (cid, slug) == ("booking", "genius") else "ok"))
+    got = {p["slug"] for p in sources.builtin_pages(db, "r")}
+    assert "ctrip/lost-bookings" in got and len(got) == len(pages) - 2
+    assert "agoda/dashboard" not in got and "booking/genius" not in got      # reads like a guest list; failed capture
+    calls = []
+    monkeypatch.setattr(sources, "_call", lambda path, body=None: calls.append(len(body["pages"])) or {"pages": len(body["pages"])})
+    assert sources.post_builtin(db, "r") == {"ok": True, "pages": len(got)}
+    assert max(calls) <= sources.BUILTIN_BATCH and len(calls) >= 2
