@@ -30,7 +30,7 @@ def _private_dir(p: Path) -> Path:
 
 
 async def _read_page(tab: ReadOnlyTab, url: str, out: Path, slug: str, settle_ms: int = 0,
-                     retry: bool = True) -> dict:
+                     retry: bool = True, expect: str = "") -> dict:
     status = await tab.open(url, config.PAGE_TIMEOUT_MS, config.SETTLE_MS + settle_ms)
     text = await tab.text()
     row = {"slug": slug, "url": tab.url, "http_status": status, "title": await tab.title()}
@@ -39,11 +39,11 @@ async def _read_page(tab: ReadOnlyTab, url: str, out: Path, slug: str, settle_ms
         return row | {"status": "signed_out", "detail": why}
     if status and status >= 400:
         return row | {"status": "page_missing", "detail": f"HTTP {status}"}
-    problem = page_problem(url, tab.url, text) if slug != "landing" else None
+    problem = page_problem(url, tab.url, text, expect) if slug != "landing" else None
     if problem and problem[0] == "error" and retry:
         await tab.pause(config.RETRY_WAIT_MS)          # slow widgets: wait once more, then read again
         text = await tab.text()
-        problem = page_problem(url, tab.url, text)
+        problem = page_problem(url, tab.url, text, expect)
     if problem and problem[0] == "page_missing":
         return row | {"status": "page_missing", "detail": problem[1]}
     (out / f"{slug}.txt").write_text(text)
@@ -77,7 +77,7 @@ async def collect_platform(ctx, p: Platform, run_dir: Path) -> list[dict]:
                 continue
             await tab.pause(config.PAUSE_BETWEEN_PAGES_MS)
             try:
-                rows.append(await _read_page(tab, url, out, page.slug, page.settle_ms, page.retry))
+                rows.append(await _read_page(tab, url, out, page.slug, page.settle_ms, page.retry, page.expect))
             except Exception as e:  # noqa: BLE001 - one page never stops the platform
                 rows.append({"slug": page.slug, "url": url, "status": "error", "detail": f"{type(e).__name__}: {e}"[:300]})
     finally:
