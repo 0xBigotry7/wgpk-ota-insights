@@ -1,3 +1,4 @@
+from pathlib import Path
 import asyncio
 
 from ota.channel_extract import channel_values, selected_period, source_date
@@ -158,3 +159,28 @@ def test_pace_daily_columns_with_year_lines():
     assert by[('pace_room_nights', 'stay_2026-10-29')]['benchmark'] == 16
     assert by[('pace_revenue', 'stay_2026-10-30')]['value'] == 34011.86
     assert not any(p == 'total' for _, p in by)
+
+
+def test_loss_destinations_keep_the_hotels_the_lost_bookings_went_to():
+    fixtures = Path(__file__).parent / "fixtures"
+    ctrip = channel_values("ctrip", "lost-bookings", (fixtures / "ctrip-lost-bookings-20261123.txt").read_text(), "2026-11-23")
+    got = [(v["period_override"], v["label_override"], v["value"]) for v in ctrip if v["key"] == "lost_to_hotel_bookings"]
+    assert got[0] == ("rank_1", "流失去向#1：芭东迪雅海岸花园度假酒店", 11) and len(got) == 5
+    assert got[4] == ("rank_5", "流失去向#5：普吉假日度假村，IHG旗下", 4)
+    rates = [v["value"] for v in ctrip if v["key"] == "lost_to_hotel_cross_view"]
+    assert rates == [13.79, 18.40, 13.16, 11.40, 19.24]
+    assert {v["key"]: v["value"] for v in ctrip if "period_override" not in v}["lost_bookings_14d"] == 93
+
+    agoda = channel_values("agoda", "lost-bookings", (fixtures / "agoda-lost-bookings-20261123.txt").read_text(), "2026-11-23")
+    got = [(v["period_override"], v["label_override"], v["value"]) for v in agoda if v["key"] == "lost_to_hotel_bookings"]
+    assert len(got) == 10 and got[0] == ("rank_1", "流失去向#1：Namaka Resort Kamala", 6)
+    assert got[3] == ("rank_4", "流失去向#4：IndoChine Resort & Villas（不在竞品组）", 4)
+    assert got[7][1].startswith("流失去向#8：Club Wyndham Patong Hill") and len(got[7][1]) <= 80
+    assert [v["value"] for v in agoda if v["key"] == "lost_to_outside_compset"] == [7]
+    assert [v["value"] for v in agoda if v["key"] == "lost_to_hotel_cross_view"][:2] == [31.94, 21.91]
+
+
+def test_loss_destinations_never_guess_from_a_page_without_the_list():
+    assert [v["key"] for v in channel_values("ctrip", "lost-bookings", "过去14天\n订单量\n1\n流入\n2\n流出", "2026-11-23")] == ["won_bookings_14d", "lost_bookings_14d"]
+    text = "Check-in date\nNext 30 days\n3 total bookings lost to other properties\nSome Hotel\n5\n1km from your property\n6\n31%"
+    assert [v["key"] for v in channel_values("agoda", "lost-bookings", text, "2026-11-23")] == ["bookings_lost_30d"]

@@ -65,3 +65,16 @@ test('channel context strips redundant UI payload while preserving selected-date
  assert.ok(prompt.includes('用户正在查看的入住日期'));assert.ok(prompt.includes('ota:ctrip:bookings:last_30_days:2026-10-24'));
  assert.ok(prompt.length<12000);assert.ok(!prompt.includes('xxxxxxxxxxxx'));
 });
+test('loss destinations list the hotels of the newest capture only, in the page order, and raise no alert',async()=>{
+ const d=(platform,rank,hotel,lost,rate,extra={})=>[m(platform,'lost_to_hotel_bookings',lost,`rank_${rank}`,'lost-bookings',{label:`流失去向#${rank}：${hotel}`,...extra}),
+  m(platform,'lost_to_hotel_cross_view',rate,`rank_${rank}`,'lost-bookings',{label:`共同浏览率#${rank}：${hotel}`,unit:'%',...extra})];
+ const old={day:'2026-10-17',run_id:'20261017-160000'};
+ const rows=[...d('ctrip',2,'B酒店',8,18.4),...d('ctrip',1,'A酒店',11,13.79),...d('ctrip',1,'旧酒店',30,9,old),...d('ctrip',3,'旧第三',2,1,old)];
+ const v=channelView(rows,[],day);
+ assert.equal(v.loss_destinations.length,1);
+ assert.deepEqual(v.loss_destinations[0].hotels,[{rank:1,hotel:'A酒店',bookings_lost:11,cross_view_pct:13.79},{rank:2,hotel:'B酒店',bookings_lost:8,cross_view_pct:18.4}]);
+ assert.equal(v.loss_destinations[0].stale,false);
+ const {monitor}=await import('../src/monitor.js');
+ const out=monitor({metrics:rows},new Date(day+'T12:00:00Z'));
+ assert.equal([...(out.alerts||[]),...(out.wins||[])].filter(a=>/lost_to_/.test(a.metric||a.id||'')).length,0);
+});

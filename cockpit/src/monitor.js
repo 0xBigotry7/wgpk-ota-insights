@@ -11,7 +11,7 @@ const LOWER_BETTER = /(^|_)(rank|problem|sort_order|response_hours|pending|had_p
 export const lowerIsBetter = (metric) => LOWER_BETTER.test(metric);
 
 // Mix and size numbers: not good or bad on their own.
-const NEUTRAL = /^(book_window_days|avg_los|business_share|lowest_rate|peer_group_size|compset_size|area_size|popularity_of|review_count|survey_count|leisure_share|todays_new_orders|pending_review_replies|availability_for_search)/;
+const NEUTRAL = /^(book_window_days|avg_los|business_share|lowest_rate|peer_group_size|compset_size|area_size|popularity_of|review_count|survey_count|leisure_share|todays_new_orders|pending_review_replies|availability_for_search|lost_to_)/;
 const SCORE_UNIT = /^\/(5|10)$|^score/;
 
 // Which team acts on a metric, why it matters and what to do, from the OTA knowledge in knowledge.js.

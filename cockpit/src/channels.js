@@ -87,7 +87,19 @@ export function channelView(metrics=[],pages=[],today=bkkDay()) {
     '核对未来入住日的渠道可售与产品条件，再查预订提前期、取消和客群；先确定弱日期与可执行方案。',
     '记录人工动作后看同口径在手表现，区分窗口平移、取消和新增预订；不称为净pickup。');
   const loss_metrics=[datum(lost),datum(availability),...['lost_bookings_14d','won_bookings_14d','lost_room_nights_14d','won_room_nights_14d'].map(k=>datum(find('ctrip',k,'last_14_days')))].filter(Boolean);
-  return {funnels,investigations,future,loss_metrics,
+  // Where the lost bookings went: the platform's own list, newest capture only, in its order (rank_N).
+  const loss_destinations=['ctrip','agoda'].map(platform=>{
+    const anchor=find(platform,'lost_to_hotel_bookings');
+    if(!anchor)return null;
+    const same=metrics.filter(m=>m.platform===platform && /^lost_to_hotel_/.test(m.metric) && sameCapture(m,anchor));
+    const rank=m=>Number(String(m.period).replace('rank_',''));
+    const hotels=same.filter(m=>m.metric==='lost_to_hotel_bookings').sort((a,b)=>rank(a)-rank(b)).map(m=>({
+      rank:rank(m),hotel:String(m.label).replace(/^[^：]*：/,''),bookings_lost:m.value,
+      cross_view_pct:same.find(x=>x.metric==='lost_to_hotel_cross_view' && x.period===m.period)?.value??null}));
+    return {platform,name:NAMES[platform],day:anchor.day,window:platform==='ctrip'?'近14天':'未来30天入住',stale:anchor.day>today||fresh(anchor,today)>1,hotels,
+      note:'平台给出的流失去向汇总：知道流去哪家，不等于知道客人为什么选它；榜单只列前几名，合计不等于流失总数。'};
+  }).filter(Boolean);
+  return {funnels,investigations,future,loss_metrics,loss_destinations,
     boundaries:['同屏是并排诊断，不是统一口径排行榜；不同窗口/UV/PV/订单定义不横比高低。',
       '缺值保留缺值；不把排名当流量，不用转化率反推未提供的订单，不汇总跨渠道访客。',
       '只读平台数据；所有价格、库存、促销操作由人核准并在原系统执行。']};

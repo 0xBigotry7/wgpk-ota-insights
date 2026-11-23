@@ -132,6 +132,34 @@ def pace_values(slug: str, text: str, day: str = "") -> list[dict]:
     return values
 
 
+LOSS_TOP = 10
+
+
+def loss_destinations(cid: str, text: str) -> list[dict]:
+    """The hotels the platform says our lost bookings went to, in the page's own order.
+
+    One value per hotel: bookings lost to it (period rank_N, the label carries the hotel name) and the platform's
+    cross-view rate. Hotel names are public listing names; nothing about a guest or a single booking is read.
+    A row is only kept whole (name, count and rate together), never guessed from loose numbers.
+    """
+    out: list[dict] = []
+    if cid == "ctrip":
+        section = text.split("流失酒店列表", 1)[1] if "流失酒店列表" in text else ""
+        rows = [(name, lost, rate, "") for name, lost, rate in
+                re.findall(rf"^(\S[^\n\t]*)\n距我 [\d.]+千米\n\t{NUM}\t{NUM}%", section, re.MULTILINE)]
+    else:
+        section = text.split("properties guests booked instead", 1)[1] if "properties guests booked instead" in text else ""
+        rows = [(name, lost, rate, "" if inset == "Yes" else "（不在竞品组）") for name, lost, rate, inset in
+                re.findall(rf"^(\S[^\n\t]*)\n\s*[\d.]+\n[\d.]+km from your property\s*\t\s*{NUM}\s*\t\s*{NUM}%"
+                           r"\s*\t[^\t]*\t\s*(Yes|No)\b", section, re.MULTILINE)]
+    for i, (name, lost, rate, note) in enumerate(rows[:LOSS_TOP], 1):
+        name = " ".join(name.split())[:60]
+        for key, raw, what in (("lost_to_hotel_bookings", lost, "流失去向"), ("lost_to_hotel_cross_view", rate, "共同浏览率")):
+            out.append({"key": key, "value": float(raw.replace(",", "")), "benchmark": None, "quote": name,
+                        "period_override": f"rank_{i}", "label_override": f"{what}#{i}：{name}{note}"[:80]})
+    return out
+
+
 def channel_values(cid: str, slug: str, text: str, day: str) -> list[dict] | None:
     values = []
 
@@ -173,6 +201,8 @@ def channel_values(cid: str, slug: str, text: str, day: str) -> list[dict] | Non
     elif cid == "agoda" and slug == "lost-bookings":
         if 'Next 30 days' in text and 'Check-in date' in text:
             add('bookings_lost_30d', rf'{NUM} total bookings lost to other properties')
+            add('lost_to_outside_compset', rf'{NUM} of the properties that won these bookings are not in your competitor set')
+            values.extend(loss_destinations(cid, text))
     elif cid == "ctrip" and slug == "traffic":
         period = selected_period(text, day)
         for key, label in (("search_views", "列表页浏览量"), ("page_visits", "详情页浏览量"),
@@ -194,6 +224,7 @@ def channel_values(cid: str, slug: str, text: str, day: str) -> list[dict] | Non
                 for key, group in ((f"won_{prefix}_14d", 1), (f"lost_{prefix}_14d", 2)):
                     values.append({"key": key, "value": float(match[group].replace(",", "")),
                                    "benchmark": None, "quote": match[0][:120]})
+        values.extend(loss_destinations(cid, text))
     else:
         return None
     return values
