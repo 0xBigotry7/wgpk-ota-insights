@@ -197,9 +197,10 @@ test("playbook diagnoses rate-led volume and the list-view problem instead of si
 test("the daily dispatch turns serious alerts into to-dos once", async () => {
   const env = fakeEnv();
   const r = await dispatchAlerts(env);   // empty database: one critical "no runs" alert
-  assert.equal(r.created, 1);
-  assert.match(env.writes[0].sql, /insert into todos/);
-  assert.equal(env.writes[0].a[6], "run:none");
+  // Calendar alerts (a holiday campaign that is late) may add to-dos on some dates; they are not what is tested.
+  const refs = env.writes.filter((w) => /insert into todos/.test(w.sql)).map((w) => w.a[6]);
+  assert.equal(r.created, refs.length);
+  assert.equal(refs.filter((x) => !x.startsWith("event:")).join(), "run:none");
 });
 
 test("routine ticks only accept known items", async () => {

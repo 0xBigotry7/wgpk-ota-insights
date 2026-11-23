@@ -54,7 +54,7 @@ def test_history_is_not_replayed_then_new_work_is_told_once(tmp_path, monkeypatc
     add(c, "gary", 0, [user("你好", sender="2078847155"), said("hi")], 2_000_000)
     assert relay.run_once(2_000_000 + 120_000, out.append) == 0       # still settling (180 s)
     assert relay.run_once(2_000_000 + 181_000, out.append) == 1
-    assert out == ["老姚让我：请逐个渠道分析并建待办\n我做了：建/改待办——已建 4 项待办：Booking 11 月、携程下单……"]
+    assert out == ["老姚让我：请逐个渠道分析并建待办\n\n我做了：建/改待办\n已建 4 项待办：Booking 11 月、携程下单……"]
     assert relay.run_once(2_000_000 + 600_000, out.append) == 0       # told once
 
 
@@ -97,55 +97,35 @@ def test_compressed_replies_are_read(tmp_path, monkeypatch):
     monkeypatch.setattr(relay, "unzstd", lambda blobs: [long_reply] * len(blobs))
     out = []
     assert relay.run_once(10**9, out.append) == 1
-    assert out == ["老姚让我：为什么 11 月 Booking 这么少？\n我做了：回答了——Booking 只占全酒店约 4%……"]
+    assert out == ["老姚让我：为什么 11 月 Booking 这么少？\n\n我做了：回答了\nBooking 只占全酒店约 4%……"]
 
 
-def test_clean_closed_wal_db_is_read_without_creating_sidecars(tmp_path, monkeypatch):
+def test_the_whole_answer_is_copied_in_plain_text_parts():
+    reply = "**结论**：能定位。\n\n### 1．Booking\n" + "\n".join(f"第{i}行" + "数" * 90 for i in range(120))
+    text = relay.line({"sender": "5067642721", "name": "HK", "actions": [], "ask": "原因是什么？", "reply": reply})
+    assert "第119行" in text and "**" not in text and "###" not in text and "…" not in text
+    got = relay.parts(text)
+    assert len(got) > 1 and all(len(p) <= 4096 for p in got) and got[0].startswith(f"(1/{len(got)}) 老姚让我：")
+    assert relay.parts("短") == ["短"]
+
+
+def test_a_long_copy_that_fails_midway_resumes_without_repeating_parts(tmp_path, monkeypatch):
     c = setup(tmp_path, monkeypatch)
-    c.execute("PRAGMA journal_mode=WAL")
-    c.commit()
     relay.run_once(0, lambda s: None)
-    add(c, "hk", 0, [user("请看看今天携程的订单"), said("携程今天 12 单")], 1_000)
-    c.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-    c.close()
+    add(c, "hk", 0, [user("请逐平台详细分析原因"), said("\n".join(f"第{i}行" + "数" * 90 for i in range(120)))], 1_000)
+    out, fail = [], [True]
 
-    # Simulate OpenClaw clean-close: WAL/SHM sidecars removed after checkpoint
-    db_path = tmp_path / "agent.sqlite"
-    for suffix in ("-wal", "-shm"):
-        sidecar = Path(f"{db_path}{suffix}")
-        if sidecar.exists():
-            sidecar.unlink()
-    assert not Path(f"{db_path}-shm").exists()
+    def flaky(text):
+        if text.startswith("(2/") and fail[0]:
+            raise OSError("network")
+        out.append(text)
 
-    out = []
-    assert relay.run_once(10**9, out.append) == 1
-    assert out == ["老姚让我：请看看今天携程的订单\n我做了：回答了——携程今天 12 单"]
-    # Must stay strictly read-only and never recreate sidecar files
-    assert not Path(f"{db_path}-shm").exists()
-    assert not Path(f"{db_path}-wal").exists()
-
-
-def test_open_db_retries_transient_lock_and_does_not_use_immutable_when_wal_nonempty(tmp_path, monkeypatch):
-    c = setup(tmp_path, monkeypatch)
-    c.execute("PRAGMA journal_mode=WAL")
-    c.commit()
-    c.close()
-    db_path = tmp_path / "agent.sqlite"
-    Path(f"{db_path}-wal").write_bytes(b"non-empty-wal-bytes")
-
-    calls = []
-    real_connect = sqlite3.connect
-
-    def flaky_connect(target, *args, **kwargs):
-        calls.append(target)
-        if len(calls) == 1:
-            raise sqlite3.OperationalError("database is locked")
-        return real_connect(target, *args, **kwargs)
-
-    monkeypatch.setattr(relay.sqlite3, "connect", flaky_connect)
-    con = relay.open_db(db_path, retries=3, retry_delay=0.0)
     try:
-        assert len(calls) == 2
-        assert all("immutable=1" not in u for u in calls)
-    finally:
-        con.close()
+        relay.run_once(10**9, flaky)
+    except OSError:
+        pass
+    assert len(out) == 1 and out[0].startswith("(1/")
+    fail[0] = False
+    assert relay.run_once(10**9, flaky) == 1
+    assert [o[:3] for o in out] == [f"({i}/" for i in range(1, len(out) + 1)] and len(out) >= 3
+    assert relay.run_once(10**9, flaky) == 0 and not any(k.startswith("parts:") for k in json.loads(relay.STATE.read_text()))

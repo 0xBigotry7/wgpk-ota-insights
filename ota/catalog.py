@@ -195,6 +195,11 @@ CATALOG: dict[tuple[str, str], tuple[Metric, ...]] = {
     ("agoda", "lost-bookings"): (
         m("bookings_lost_30d", "未来30天流失到竞品的预订", period="next_30_days",
           hint="the N in 'N total bookings lost to other properties' (check-in date, next 30 days)"),
+        m("lost_to_outside_compset", "赢走预订但不在竞品组的酒店数", period="next_30_days",
+          hint="the N in 'N of the properties that won these bookings are not in your competitor set'"),
+        # One row per hotel the page lists (period rank_N, label carries the hotel name; channel_extract).
+        m("lost_to_hotel_bookings", "流失去向酒店的订单量", period="next_30_days", hint="Top 10 properties guests booked instead: Bookings lost"),
+        m("lost_to_hotel_cross_view", "流失去向酒店的共同浏览率", "%", "next_30_days", "Top 10 properties guests booked instead: Cross-visit"),
     ),
     # Property performance, "Booked in last 30 days" (the dateRange=last90Days URL falls back to 365 days, so only
     # 30 days is read). Only the room-night tile is reliable: Net revenue showed "--" on 2026-10-23.
@@ -254,6 +259,9 @@ CATALOG: dict[tuple[str, str], tuple[Metric, ...]] = {
         m("won_bookings_14d", "近14天流入订单", period="last_14_days", hint="概览订单量：流入"),
         m("lost_room_nights_14d", "近14天流出间夜", period="last_14_days", hint="概览间夜数：流出"),
         m("won_room_nights_14d", "近14天流入间夜", period="last_14_days", hint="概览间夜数：流入"),
+        # One row per hotel the page lists (period rank_N, label carries the hotel name; channel_extract).
+        m("lost_to_hotel_bookings", "流失去向酒店的订单量", period="last_14_days", hint="流失酒店列表：流失订单量"),
+        m("lost_to_hotel_cross_view", "流失去向酒店的共同浏览率", "%", "last_14_days", "流失酒店列表：共同浏览率"),
     ),
     ("google", "landing"): (
         m("review_score", "评分", "/5", hint="average star rating out of 5 (only if a summary is shown)"),

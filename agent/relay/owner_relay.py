@@ -131,13 +131,46 @@ def clip(s: str, n: int) -> str:
     return s if len(s) <= n else s[: n - 1] + "…"
 
 
+TG_MAX = 3900             # Telegram allows 4096 characters a message; leave room for the "(2/3)" mark
+
+
+def plain(s: str) -> str:
+    """The copy is sent as plain text, so drop the Markdown marks Telegram would show raw."""
+    s = re.sub(r"\*\*(.+?)\*\*", r"\1", s, flags=re.S)
+    s = re.sub(r"^#{1,6}\s+", "", s, flags=re.M)
+    return re.sub(r"\n{3,}", "\n\n", s).strip()
+
+
 def line(t: dict) -> str:
+    """Gary gets the agent's whole answer (TG 13920): a clipped copy hides how it really answered."""
     who = "老姚" if t["sender"] == "5067642721" else (t["name"] or t["sender"])
     did = "、".join(t["actions"]) if t["actions"] else "回答了"
-    return f"{who}让我：{clip(t['ask'], 160)}\n我做了：{did}——{clip(t['reply'], 260) or '（还在处理）'}"
+    return f"{who}让我：{clip(t['ask'], 600)}\n\n我做了：{did}\n{plain(t['reply']) or '（还在处理）'}"
+
+
+def parts(text: str, n: int = TG_MAX) -> list[str]:
+    """Split a long copy at line breaks into messages Telegram accepts."""
+    out, cur = [], ""
+    for ln in text.split("\n"):
+        while len(ln) > n:                                    # one very long line: cut it
+            if cur:
+                out.append(cur)
+                cur = ""
+            out.append(ln[:n])
+            ln = ln[n:]
+        if cur and len(cur) + 1 + len(ln) > n:
+            out.append(cur)
+            cur = ln
+        else:
+            cur = f"{cur}\n{ln}" if cur else ln
+    if cur:
+        out.append(cur)
+    out = [o for o in out if o.strip()]
+    return out if len(out) <= 1 else [f"({i}/{len(out)}) {o}" for i, o in enumerate(out, 1)]
 
 
 def send(text: str) -> None:
+    """Send one message (one part of a copy) to Gary."""
     token = TOKEN_FILE.read_text().strip()
     data = urllib.parse.urlencode({"chat_id": GARY, "text": text, "disable_web_page_preview": "true"}).encode()
     req = urllib.request.Request(f"https://api.telegram.org/bot{token}/sendMessage", data=data, method="POST")
@@ -239,11 +272,17 @@ def run_once(now_ms: int | None = None, sender=send) -> int:
                     break                                         # still running: look again next minute
                 state[sid] = t["last_seq"]
                 if t["sender"] != GARY and worth_telling(t):
+                    part_key = f"parts:{sid}:{t['first_seq']}"       # parts of this copy Gary already has
+                    todo = parts(line(t))
                     try:
-                        sender(line(t))
+                        for i in range(int(state.get(part_key, 0)), len(todo)):
+                            sender(todo[i])
+                            state[part_key] = i + 1
+                            save()                                # a later failure never resends this part
                     except Exception:
-                        state[sid] = t["first_seq"] - 1            # not sent: try this turn again next minute
+                        state[sid] = t["first_seq"] - 1            # not finished: send the rest next minute
                         raise
+                    state.pop(part_key, None)
                     sent += 1
                     save()                                        # a later failure never resends this line
     finally:
