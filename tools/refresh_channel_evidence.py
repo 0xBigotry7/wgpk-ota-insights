@@ -41,7 +41,7 @@ async def read(db, run_id):
                         url = fill(page.url, landing_url) if cid == 'booking' else page.url
                         if not url:
                             raise RuntimeError('missing_platform_session')
-                        row = await collect._read_page(tab, url, out, page.slug, page.settle_ms, retry=False)
+                        row = await collect._read_page(tab, url, out, page.slug, page.settle_ms, retry=bool(page.expect), expect=page.expect)
                     except Exception as exc:  # noqa: BLE001
                         row = {'slug': page.slug, 'url': page.url, 'status': 'error', 'detail': type(exc).__name__}
                     store.add_snapshot(db, run_id=run_id, cid=cid, captured_at=collect.now().isoformat(timespec='seconds'),

@@ -29,6 +29,7 @@ class Page:
     url: str                     # absolute, or a template filled from the landing URL's query (Booking)
     verified: bool = False
     settle_ms: int = 0           # extra wait for slow dashboards, on top of config.SETTLE_MS
+    expect: str = ""             # text the page always shows once its content rendered; without it the read is an error
     retry: bool = True           # one more wait when widgets have not loaded; off where they never will
 
 
@@ -123,9 +124,9 @@ PLATFORMS: tuple[Platform, ...] = (
         Page("home", "https://ebooking.ctrip.com/home/oversea?microJump=true", verified=True),
         # Verified by clicking the actual Data analysis nav, 2026-10-24.
         Page("data-center", "https://ebooking.ctrip.com/ebkgrowth/datacenter/mix/overview", verified=True),
-        Page("traffic", "https://ebooking.ctrip.com/ebkgrowth/datacenter/mix/traffic", verified=True),
-        Page("performance", "https://ebooking.ctrip.com/ebkgrowth/datacenter/mix/performance", verified=True),
-        Page("lost-bookings", "https://ebooking.ctrip.com/ebkgrowth/datacenter/oversea/booking/insights", verified=True),
+        Page("traffic", "https://ebooking.ctrip.com/ebkgrowth/datacenter/mix/traffic", verified=True, expect="列表页浏览量"),
+        Page("performance", "https://ebooking.ctrip.com/ebkgrowth/datacenter/mix/performance", verified=True, expect="销售额"),
+        Page("lost-bookings", "https://ebooking.ctrip.com/ebkgrowth/datacenter/oversea/booking/insights", verified=True, expect="流出"),
     )),
     Platform("google", "Google Business", "https://business.google.com/u/1/reviews", ()),
     Platform("tripadvisor", "TripAdvisor",
@@ -180,7 +181,7 @@ def _last_segment(url: str) -> str:
     return parts[-1].lower() if parts else ""
 
 
-def page_problem(requested: str, final: str, text: str) -> tuple[str, str] | None:
+def page_problem(requested: str, final: str, text: str, expect: str = "") -> tuple[str, str] | None:
     """(status, detail) when a page that loaded is not usable, else None.
 
     page_missing: an error/403 page, or a redirect away from the page asked for (e.g. back to the home
@@ -196,6 +197,8 @@ def page_problem(requested: str, final: str, text: str) -> tuple[str, str] | Non
         return "page_missing", f"redirected to {path}"
     if n := len(NOT_LOADED_TEXT.findall(text)):
         return "error", f"{n} widget(s) did not load"
+    if expect and expect not in text:
+        return "error", "page content did not load (only the menu)"      # e.g. Ctrip's data centre still blank
     return None
 
 

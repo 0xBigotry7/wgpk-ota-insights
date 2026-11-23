@@ -152,3 +152,13 @@ def test_no_retry_wait_where_tiles_never_load(tmp_path, monkeypatch):
     statuses = {r["slug"]: r["status"] for r in rows}
     assert statuses["data-insights"] == statuses["home"] == statuses["rate-insights"] == "error"
     assert 15000 not in waits
+
+
+def test_a_page_that_rendered_only_its_menu_is_an_error_not_an_empty_ok():
+    from ota.platforms import BY_CID, page_problem
+    traffic = next(p for p in BY_CID["ctrip"].pages if p.slug == "traffic")
+    url = traffic.url
+    assert page_problem(url, url, "首页\n订单管理\n数据分析\n隐私政策", traffic.expect) == (
+        "error", "page content did not load (only the menu)")
+    assert page_problem(url, url, "流量分析\n列表页浏览量\n70,701", traffic.expect) is None
+    assert page_problem(url, url, "首页\n订单管理") is None          # pages without an expectation are unchanged
